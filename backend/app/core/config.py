@@ -1,13 +1,21 @@
 """Application configuration."""
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
     """App settings from environment."""
 
-    # Database
+    # Database (Render/Neon give postgresql://; we need postgresql+asyncpg for async)
     database_url: str = "postgresql+asyncpg://mediation:mediation_secret@localhost:5432/mediation_platform"
+
+    @field_validator("database_url", mode="after")
+    @classmethod
+    def fix_db_url(cls, v: str) -> str:
+        if v.startswith("postgresql://") and "+asyncpg" not in v:
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
 
     # Redis
     redis_url: str = "redis://localhost:6379/0"
