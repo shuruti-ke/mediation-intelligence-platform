@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap } from 'lucide-react';
 import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi } from '../api/client';
 
 const STATUS_BADGES = {
@@ -71,6 +71,8 @@ export default function AdminDashboardPage() {
   const [orgUploading, setOrgUploading] = useState(false);
   const [viewDoc, setViewDoc] = useState(null);
   const [viewDocContent, setViewDocContent] = useState(null);
+  const [addTraineeOpen, setAddTraineeOpen] = useState(false);
+  const [traineeForm, setTraineeForm] = useState({ email: '', password: '', display_name: '' });
 
   useEffect(() => {
     if (tab === 'users') {
@@ -92,6 +94,11 @@ export default function AdminDashboardPage() {
         .finally(() => setLoading(false));
     } else if (tab === 'users') {
       usersApi.list()
+        .then(({ data }) => setUsers(data || []))
+        .catch(() => setUsers([]))
+        .finally(() => setLoading(false));
+    } else if (tab === 'trainees') {
+      usersApi.list({ role: 'trainee' })
         .then(({ data }) => setUsers(data || []))
         .catch(() => setUsers([]))
         .finally(() => setLoading(false));
@@ -147,6 +154,27 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleAddTrainee = async (e) => {
+    e.preventDefault();
+    if (!traineeForm.email || !traineeForm.password || !traineeForm.display_name) {
+      alert('Please fill in all fields');
+      return;
+    }
+    try {
+      await usersApi.onboard({
+        email: traineeForm.email,
+        password: traineeForm.password,
+        display_name: traineeForm.display_name,
+        role: 'trainee',
+      });
+      setAddTraineeOpen(false);
+      setTraineeForm({ email: '', password: '', display_name: '' });
+      if (tab === 'trainees') usersApi.list({ role: 'trainee' }).then(({ data }) => setUsers(data || []));
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to create trainee');
+    }
+  };
+
   const handleReassign = async (e) => {
     e.preventDefault();
     if (!reassignUser || !reassignForm.mediator_id) return;
@@ -178,6 +206,7 @@ export default function AdminDashboardPage() {
           <button className={tab === 'users' ? 'nav-active' : ''} onClick={() => setTab('users')}><Users size={16} /> Users</button>
           <button className={tab === 'tenants' ? 'nav-active' : ''} onClick={() => setTab('tenants')}><Building2 size={16} /> Tenants</button>
           <button className={tab === 'orgkb' ? 'nav-active' : ''} onClick={() => setTab('orgkb')}><BookOpen size={16} /> Org KB</button>
+          <button className={tab === 'trainees' ? 'nav-active' : ''} onClick={() => setTab('trainees')}><GraduationCap size={16} /> Trainees</button>
           <Link to="/calendar"><Calendar size={16} /> Calendar</Link>
           <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><LogOut size={16} /> Sign out</Link>
         </nav>
@@ -503,6 +532,59 @@ export default function AdminDashboardPage() {
         </section>
       )}
 
+      {tab === 'trainees' && (
+        <section className="admin-dashboard-section">
+          <div className="section-header">
+            <h2 className="icon-text"><GraduationCap size={22} /> Trainee Management</h2>
+            <button className="primary" onClick={() => setAddTraineeOpen(true)}><UserPlus size={16} /> Add Trainee</button>
+          </div>
+          <p className="section-desc">Add new mediator trainees and manage access to the Trainee Academy training program.</p>
+          {loading ? <p>Loading...</p> : (
+            <div className="user-table-wrapper">
+              <table className="user-table">
+                <thead>
+                  <tr>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Active</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.filter((u) => u.role === 'trainee').map((u) => (
+                    <tr key={u.id}>
+                      <td>{u.email}</td>
+                      <td>{u.display_name || '-'}</td>
+                      <td>
+                        <span className={`badge ${STATUS_BADGES[u.status]?.class || 'badge-pending'}`}>
+                          {STATUS_BADGES[u.status]?.label || u.status}
+                        </span>
+                      </td>
+                      <td>
+                        <label className="toggle-switch">
+                          <input type="checkbox" checked={u.is_active} onChange={() => handleToggleActive(u)} />
+                          <span className="toggle-slider" />
+                        </label>
+                      </td>
+                      <td>
+                        <Link to="/training/trainee-academy" className="btn-sm">View Academy</Link>
+                        <button className="btn-sm" onClick={() => handleToggleActive(u)}>
+                          {u.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {users.filter((u) => u.role === 'trainee').length === 0 && (
+                <p className="empty-msg">No trainees yet. Click Add Trainee to create one.</p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
       {tab === 'tenants' && (
         <section className="admin-dashboard-section">
           <h2 className="icon-text"><Building2 size={22} /> Tenants</h2>
@@ -615,6 +697,53 @@ export default function AdminDashboardPage() {
               <div className="modal-actions">
                 <button type="button" onClick={() => setOnboardOpen(false)}>Cancel</button>
                 <button type="submit" className="primary">Create User</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {addTraineeOpen && (
+        <div className="modal-overlay" onClick={() => setAddTraineeOpen(false)}>
+          <div className="modal-card modal-intake" onClick={e => e.stopPropagation()}>
+            <h3>Add Trainee</h3>
+            <p className="section-desc" style={{ marginBottom: '1rem' }}>Create a new trainee account. They will have access to the Trainee Academy training program.</p>
+            <form onSubmit={handleAddTrainee} className="intake-form">
+              <label>
+                Full name <span className="required">*</span>
+                <input
+                  type="text"
+                  placeholder="Full name"
+                  value={traineeForm.display_name}
+                  onChange={e => setTraineeForm({ ...traineeForm, display_name: e.target.value })}
+                  required
+                  minLength={2}
+                />
+              </label>
+              <label>
+                Email <span className="required">*</span>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={traineeForm.email}
+                  onChange={e => setTraineeForm({ ...traineeForm, email: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Password <span className="required">*</span>
+                <input
+                  type="password"
+                  placeholder="Set password"
+                  value={traineeForm.password}
+                  onChange={e => setTraineeForm({ ...traineeForm, password: e.target.value })}
+                  required
+                  minLength={6}
+                />
+              </label>
+              <div className="modal-actions">
+                <button type="button" onClick={() => setAddTraineeOpen(false)}>Cancel</button>
+                <button type="submit" className="primary">Create Trainee</button>
               </div>
             </form>
           </div>

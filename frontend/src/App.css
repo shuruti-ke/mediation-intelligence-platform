@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 /* Vibrant Mediation Platform - Warm Orange & Cream Theme */
 :root {
   /* Primary Colors */
@@ -3979,6 +3981,11 @@ a:hover {
   color: #9d174d;
 }
 
+.nav-pill.trainee {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #92400e;
+}
+
 .nav-pill:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
@@ -4201,6 +4208,13 @@ a:hover {
 
 .quick-card-modern.cpd:hover { border-color: #3b82f6; }
 .quick-card-modern.roleplay:hover { border-color: #ec4899; }
+
+.quick-card-modern.trainee {
+  border-color: #fcd34d;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.quick-card-modern.trainee:hover { border-color: #d97706; }
 
 .quick-icon-modern {
   font-size: 2rem;

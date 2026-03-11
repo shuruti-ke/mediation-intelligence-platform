@@ -41,6 +41,7 @@ export default function TrainingPage() {
         <nav className="training-nav-modern">
           <Link to="/training/cpd" className="nav-pill cpd"><BarChart3 size={14} /> CPD Dashboard</Link>
           <Link to="/training/role-play" className="nav-pill roleplay"><Theater size={14} /> Role-Play Studio</Link>
+          <Link to="/training/trainee-academy" className="nav-pill trainee"><GraduationCap size={14} /> Trainee Academy</Link>
         </nav>
       </header>
 
@@ -121,6 +122,11 @@ export default function TrainingPage() {
           <span className="quick-icon-modern"><Theater size={28} /></span>
           <h4>Role-Play Studio</h4>
           <p>Practice with AI-generated scenarios. Employment, commercial, family disputes.</p>
+        </Link>
+        <Link to="/training/trainee-academy" className="quick-card-modern trainee">
+          <span className="quick-icon-modern"><GraduationCap size={28} /></span>
+          <h4>Trainee Academy</h4>
+          <p>5-module certification program: fundamentals, communication, Kenya law, practical techniques, specialized areas.</p>
         </Link>
       </section>
 

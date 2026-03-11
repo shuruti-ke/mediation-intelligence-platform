@@ -15,6 +15,7 @@ import TrainingPage from './pages/TrainingPage';
 import TrainingModulePage from './pages/TrainingModulePage';
 import CPDDashboardPage from './pages/CPDDashboardPage';
 import RolePlayPage from './pages/RolePlayPage';
+import TraineeTrainingPage from './pages/TraineeTrainingPage';
 import CalendarPage from './pages/CalendarPage';
 import OfflineBanner from './components/OfflineBanner';
 import { auth } from './api/client';
@@ -217,6 +218,16 @@ export default function App() {
             <ProtectedRoute>
               <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
                 <RolePlayPage />
+              </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/training/trainee-academy"
+          element={
+            <ProtectedRoute>
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+                <TraineeTrainingPage />
               </RoleBasedRoute>
             </ProtectedRoute>
           }
