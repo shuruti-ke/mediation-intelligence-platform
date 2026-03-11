@@ -57,6 +57,44 @@ export default function TrainingPage() {
         </div>
       </section>
 
+      {/* Induction modules - primary content, shown first */}
+      <section className="training-modules-section">
+        <h2>Induction Modules</h2>
+        <p className="subtitle">Complete these modules to earn CPD credits and deepen your mediation practice.</p>
+        {loading ? (
+          <div className="training-loading">
+            <div className="loading-spinner" />
+            <p>Loading modules...</p>
+          </div>
+        ) : modules.length === 0 ? (
+          <div className="training-empty">
+            <p>No modules available yet. Check back soon.</p>
+          </div>
+        ) : (
+          <ul className="module-list">
+            {modules.map((m) => (
+              <li key={m.id}>
+                <Link to={`/training/modules/${m.id}`} className="module-card">
+                  <div className="module-header">
+                    <h3>{m.title || 'Untitled module'}</h3>
+                    {m.completed ? (
+                      <span className="badge completed">✓ Completed</span>
+                    ) : (
+                      <span className="badge progress">{m.progress_pct}%</span>
+                    )}
+                  </div>
+                  <p className="module-desc">{m.description || 'Complete this module to earn CPD credits.'}</p>
+                  <div className="module-meta">
+                    <span className="meta-item">CPD credits</span>
+                    <span className="meta-item">~15–20 min</span>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {/* AI / Thought-provoking reflection */}
       {reflection && (
         <section className="training-reflection">
@@ -81,44 +119,6 @@ export default function TrainingPage() {
           <h4>Role-Play Studio</h4>
           <p>Practice with AI-generated scenarios. Employment, commercial, family disputes.</p>
         </Link>
-      </section>
-
-      {/* Induction modules */}
-      <section className="training-modules-section">
-        <h2>Induction Modules</h2>
-        <p className="subtitle">Complete these modules to earn CPD credits and deepen your mediation practice.</p>
-        {loading ? (
-          <div className="training-loading">
-            <div className="loading-spinner" />
-            <p>Loading modules...</p>
-          </div>
-        ) : modules.length === 0 ? (
-          <div className="training-empty">
-            <p>No modules available yet. Check back soon.</p>
-          </div>
-        ) : (
-          <ul className="module-list">
-            {modules.map((m) => (
-              <li key={m.id}>
-                <Link to={`/training/modules/${m.id}`} className="module-card">
-                  <div className="module-header">
-                    <h3>{m.title}</h3>
-                    {m.completed ? (
-                      <span className="badge completed">✓ Completed</span>
-                    ) : (
-                      <span className="badge progress">{m.progress_pct}%</span>
-                    )}
-                  </div>
-                  <p className="module-desc">{m.description}</p>
-                  <div className="module-meta">
-                    <span className="meta-item">CPD credits</span>
-                    <span className="meta-item">~15–20 min</span>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
 
       {/* Scenario prompts - thought-provoking */}
