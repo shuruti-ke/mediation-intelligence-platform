@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     jaas_app_id: str | None = None  # App ID (sub in JWT, vpaas-magic-cookie-xxx)
     jaas_private_key: str | None = None  # RSA private key (PEM) for RS256 signing
 
-    # CORS
+    # CORS - production URL always allowed; env can add more (e.g. localhost)
     cors_origins: str = "http://localhost:5173,http://localhost:3000,https://mediation-intelligence-platform.vercel.app"
 
     # Phase 3: Documents & AI

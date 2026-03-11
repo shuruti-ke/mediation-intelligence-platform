@@ -41,8 +41,9 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Parse CORS origins: strip whitespace, filter empty
-_cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+# Parse CORS origins: strip whitespace, filter empty; always include production
+_production_origin = "https://mediation-intelligence-platform.vercel.app"
+_cors_origins = list({o.strip() for o in settings.cors_origins.split(",") if o.strip()} | {_production_origin})
 
 app.add_middleware(
     CORSMiddleware,
