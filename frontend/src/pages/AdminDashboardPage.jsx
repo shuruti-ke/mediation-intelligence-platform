@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog } from 'lucide-react';
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
+import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText } from 'lucide-react';
 import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi } from '../api/client';
 
 const STATUS_BADGES = {
@@ -36,6 +47,10 @@ export default function AdminDashboardPage() {
   const [users, setUsers] = useState([]);
   const [mediators, setMediators] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [timeseries, setTimeseries] = useState([]);
+  const [mediatorPerformance, setMediatorPerformance] = useState([]);
+  const [geographic, setGeographic] = useState([]);
+  const [unresolved, setUnresolved] = useState([]);
   const [loading, setLoading] = useState(true);
   const [onboardOpen, setOnboardOpen] = useState(false);
   const [onboardForm, setOnboardForm] = useState({
@@ -79,10 +94,20 @@ export default function AdminDashboardPage() {
         .catch(() => setUsers([]))
         .finally(() => setLoading(false));
     } else {
-      analyticsApi.getDashboard()
-        .then(({ data }) => setAnalytics(data))
-        .catch(() => setAnalytics(null))
-        .finally(() => setLoading(false));
+      setLoading(true);
+      Promise.allSettled([
+        analyticsApi.getDashboard().then(({ data }) => data),
+        analyticsApi.getTimeseries(12).then(({ data }) => data),
+        analyticsApi.getMediators().then(({ data }) => data),
+        analyticsApi.getGeographic().then(({ data }) => data),
+        analyticsApi.getUnresolvedCases(30).then(({ data }) => data),
+      ]).then(([a, ts, m, g, u]) => {
+        setAnalytics(a.status === 'fulfilled' ? a.value : null);
+        setTimeseries(ts.status === 'fulfilled' ? ts.value || [] : []);
+        setMediatorPerformance(m.status === 'fulfilled' ? m.value || [] : []);
+        setGeographic(g.status === 'fulfilled' ? g.value || [] : []);
+        setUnresolved(u.status === 'fulfilled' ? u.value || [] : []);
+      }).catch(() => {}).finally(() => setLoading(false));
     }
   }, [tab]);
 
@@ -160,28 +185,104 @@ export default function AdminDashboardPage() {
         <section className="admin-dashboard-section">
           <h2 className="icon-text"><BarChart3 size={22} /> Analytics</h2>
           {loading ? <p>Loading...</p> : analytics ? (
-            <div className="analytics-widgets">
-              <div className="widget-card">
-                <span className="widget-value">{analytics.active_cases ?? 0}</span>
-                <span className="widget-label">Active Cases</span>
+            <>
+              <div className="analytics-widgets">
+                <div className="widget-card">
+                  <span className="widget-value">{analytics.active_cases ?? 0}</span>
+                  <span className="widget-label">Active Cases</span>
+                </div>
+                <div className="widget-card">
+                  <span className="widget-value">{analytics.total_cases ?? 0}</span>
+                  <span className="widget-label">Total Cases</span>
+                </div>
+                <div className="widget-card">
+                  <span className="widget-value">{analytics.resolution_rate ?? 0}%</span>
+                  <span className="widget-label">Resolution Rate</span>
+                </div>
+                <div className="widget-card">
+                  <span className="widget-value">{analytics.total_users ?? 0}</span>
+                  <span className="widget-label">Total Users</span>
+                </div>
+                <div className="widget-card">
+                  <span className="widget-value">{analytics.new_users_30d ?? 0}</span>
+                  <span className="widget-label">New Users (30d)</span>
+                </div>
+                <div className="widget-card">
+                  <span className="widget-value">{analytics.active_mediators ?? 0}</span>
+                  <span className="widget-label">Active Mediators</span>
+                </div>
+                <div className="widget-card">
+                  <span className="widget-value">{analytics.training_completed ?? 0}</span>
+                  <span className="widget-label">Training Completed</span>
+                </div>
+                <div className="widget-card">
+                  <span className="widget-value">{(analytics.revenue_minor_units ?? 0) / 100}</span>
+                  <span className="widget-label">Revenue (units)</span>
+                </div>
               </div>
-              <div className="widget-card">
-                <span className="widget-value">{analytics.total_users ?? 0}</span>
-                <span className="widget-label">Total Users</span>
-              </div>
-              <div className="widget-card">
-                <span className="widget-value">{analytics.new_users_30d ?? 0}</span>
-                <span className="widget-label">New Users (30d)</span>
-              </div>
-              <div className="widget-card">
-                <span className="widget-value">{analytics.training_completed ?? 0}</span>
-                <span className="widget-label">Training Completed</span>
-              </div>
-              <div className="widget-card">
-                <span className="widget-value">{(analytics.revenue_minor_units ?? 0) / 100}</span>
-                <span className="widget-label">Revenue (units)</span>
-              </div>
-            </div>
+
+              {timeseries?.length > 0 && (
+                <div className="analytics-chart-card">
+                  <h3 className="analytics-chart-title">Cases Created vs Resolved (12 months)</h3>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <ComposedChart data={timeseries} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e2e8f0)" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Legend />
+                      <Bar dataKey="created" name="Created" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                      <Line type="monotone" dataKey="resolved" name="Resolved" stroke="#34d399" strokeWidth={2} dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {mediatorPerformance?.length > 0 && (
+                <div className="analytics-chart-card">
+                  <h3 className="analytics-chart-title">Mediator Performance</h3>
+                  <div className="mediator-grid">
+                    {mediatorPerformance.map((m) => (
+                      <div key={m.id} className={`mediator-card ${m.resolution_rate >= 70 ? 'high' : m.resolution_rate >= 40 ? 'medium' : 'low'}`}>
+                        <span className="mediator-name">{m.name}</span>
+                        <span className="mediator-cases">{m.cases_handled} cases</span>
+                        <span className="mediator-rate">{m.resolution_rate}% resolution</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {geographic?.length > 0 && (
+                <div className="analytics-chart-card">
+                  <h3 className="analytics-chart-title"><MapPin size={18} /> Cases & Users by Country</h3>
+                  <div className="geographic-grid">
+                    {geographic.map(({ country, cases, users }) => (
+                      <div key={country} className="geographic-item">
+                        <span className="geo-country">{country}</span>
+                        <span className="geo-cases">{cases} cases</span>
+                        <span className="geo-users">{users} users</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {unresolved?.length > 0 && (
+                <div className="analytics-chart-card">
+                  <h3 className="analytics-chart-title"><FileText size={18} /> Unresolved Cases (&gt;30 days)</h3>
+                  <div className="unresolved-list">
+                    {unresolved.slice(0, 10).map((c) => (
+                      <div key={c.id} className="unresolved-item">
+                        <span className="unresolved-title">{c.case_number} – {c.title}</span>
+                        <span className="unresolved-meta">{c.days_unresolved}d · {c.status}</span>
+                      </div>
+                    ))}
+                    {unresolved.length > 10 && <p className="unresolved-more">+{unresolved.length - 10} more</p>}
+                  </div>
+                </div>
+              )}
+            </>
           ) : <p>No analytics data.</p>}
         </section>
       )}

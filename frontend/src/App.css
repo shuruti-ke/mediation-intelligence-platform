@@ -695,6 +695,86 @@ a:hover {
   color: #718096;
 }
 
+.analytics-chart-card {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.analytics-chart-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+  color: #4a5568;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mediator-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.mediator-card {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #94a3b8;
+}
+
+.mediator-card.high { border-left-color: #34d399; background: rgba(52, 211, 153, 0.06); }
+.mediator-card.medium { border-left-color: #fbbf24; background: rgba(251, 191, 36, 0.06); }
+.mediator-card.low { border-left-color: #f87171; background: rgba(248, 113, 113, 0.06); }
+
+.mediator-name { font-weight: 600; display: block; font-size: 0.9rem; }
+.mediator-cases { font-size: 0.8rem; color: #718096; }
+.mediator-rate { font-size: 0.85rem; font-weight: 600; display: block; margin-top: 0.25rem; }
+
+.geographic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.geographic-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #f7fafc;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.geo-country { font-weight: 600; width: 100%; }
+.geo-cases { color: #718096; }
+.geo-users { color: #718096; }
+
+.unresolved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.unresolved-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: #fef2f2;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.unresolved-title { font-weight: 500; }
+.unresolved-meta { color: #718096; font-size: 0.8rem; }
+.unresolved-more { margin: 0.5rem 0 0; font-size: 0.85rem; color: #718096; }
+
 .user-table-wrapper {
   overflow-x: auto;
   background: white;

@@ -155,6 +155,11 @@ export const usersApi = {
 
 export const analyticsApi = {
   getDashboard: () => api.get('/analytics/dashboard'),
+  getTimeseries: (months = 12) => api.get('/analytics/timeseries', { params: { months } }),
+  getGeographic: () => api.get('/analytics/geographic'),
+  getMediators: () => api.get('/analytics/mediators'),
+  getUnresolvedCases: (days = 30) => api.get('/analytics/reports/unresolved', { params: { days } }),
+  getAfricaMetrics: () => api.get('/analytics/africa'),
 };
 
 export const calendarApi = {

@@ -120,6 +120,7 @@ async def get_timeseries(
         resolved_q = select(func.count(Case.id)).where(
             Case.updated_at >= m_start,
             Case.updated_at < m_end,
+            Case.status.in_(["resolved", "closed", "settled", "CLOSED", "SETTLED"]),
         )
         resolved_q = _tenant_filter(resolved_q, Case, tenant_filter)
         resolved = (await db.execute(resolved_q)).scalar() or 0
