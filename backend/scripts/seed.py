@@ -68,18 +68,25 @@ async def seed():
             await session.flush()
             print("Seeded: tenant, super_admin (admin@mediationfocus.co.ke / admin123), mediator (mediator@mediationfocus.co.ke / mediator123), client (client@mediationfocus.co.ke / client123)")
 
-        # Ensure client user exists (for existing deployments)
-        client_check = await session.execute(select(User).where(User.email == "client@mediationfocus.co.ke"))
-        if not client_check.scalar_one_or_none() and tenant:
-            client = User(
-                email="client@mediationfocus.co.ke",
-                hashed_password=get_password_hash("client123"),
-                display_name="Test Client",
-                role="client_individual",
-                tenant_id=tenant.id,
-            )
-            session.add(client)
-            print("Seeded: client (client@mediationfocus.co.ke / client123)")
+        # Ensure client user exists (for existing deployments that were seeded before client was added)
+        client_result = await session.execute(select(User).where(User.email == "client@mediationfocus.co.ke"))
+        existing_client = client_result.scalar_one_or_none()
+        if not existing_client:
+            t = tenant
+            if not t:
+                t_result = await session.execute(select(Tenant).limit(1))
+                t = t_result.scalar_one_or_none()
+            if t:
+                client = User(
+                    email="client@mediationfocus.co.ke",
+                    hashed_password=get_password_hash("client123"),
+                    display_name="Test Client",
+                    role="client_individual",
+                    tenant_id=t.id,
+                )
+                session.add(client)
+                await session.flush()
+                print("Seeded: client (client@mediationfocus.co.ke / client123)")
 
         # Phase 5: Seed induction modules (if none exist)
         mod_result = await session.execute(select(TrainingModule).limit(1))
