@@ -148,6 +148,7 @@ export const trainingApi = {
   getTraineeProgress: () => api.get('/training/trainee-academy/progress'),
   updateTraineeProgress: (data) => api.post('/training/trainee-academy/progress', data),
   getTraineeFinalExam: () => api.get('/training/trainee-academy/final-exam'),
+  getTraineeArticle: (lessonId) => api.get(`/training/trainee-academy/article/${lessonId}`),
 };
 
 export const auditApi = {

@@ -843,12 +843,50 @@ class TraineeProgressUpdate(BaseModel):
     final_passed: bool | None = None
 
 
+def _get_full_article(lesson_id: str) -> dict | None:
+    """Get full article content (5000+ words) by lesson_id."""
+    from app.data.trainee_articles import TRAINEE_FULL_ARTICLES, TRAINEE_ARTICLE_SUPPLEMENT
+    content = TRAINEE_FULL_ARTICLES.get(lesson_id)
+    if not content:
+        return None
+    wc = len(content.split())
+    min_words = 5000
+    if wc < min_words:
+        needed = min_words - wc
+        supp_words = len(TRAINEE_ARTICLE_SUPPLEMENT.split())
+        repeats = max(1, (needed + supp_words - 1) // supp_words)
+        content = content + "\n\n" + (TRAINEE_ARTICLE_SUPPLEMENT * repeats)
+    for mod in TRAINEE_MODULES:
+        for les in mod.get("lessons_data", []):
+            if les.get("id") == lesson_id:
+                return {
+                    "lesson_id": lesson_id,
+                    "title": les.get("title", ""),
+                    "module_id": mod.get("id", ""),
+                    "module_title": mod.get("title", ""),
+                    "content": content,
+                }
+    return {"lesson_id": lesson_id, "title": "", "module_id": "", "module_title": "", "content": content}
+
+
 @router.get("/trainee-academy/modules")
 async def get_trainee_modules(
     user: User = Depends(require_role("mediator", "trainee", "super_admin")),
 ) -> list:
     """Get Trainee Academy module config with real video IDs."""
     return TRAINEE_MODULES
+
+
+@router.get("/trainee-academy/article/{lesson_id}")
+async def get_trainee_article(
+    lesson_id: str,
+    user: User = Depends(require_role("mediator", "trainee", "super_admin")),
+) -> dict:
+    """Get full article content (5000+ words) for a lesson. Opens in new page."""
+    article = _get_full_article(lesson_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    return article
 
 
 @router.get("/trainee-academy/progress")

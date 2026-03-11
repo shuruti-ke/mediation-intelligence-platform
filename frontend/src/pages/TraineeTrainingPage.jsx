@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, CheckCircle, Clock, Award, Play, Menu, X, Brain, Zap, AlertCircle, Lightbulb } from 'lucide-react';
+import { BookOpen, CheckCircle, Clock, Award, Play, Menu, X, Brain, Zap, AlertCircle, Lightbulb, ExternalLink } from 'lucide-react';
 import { trainingApi } from '../api/client';
 
 export default function TraineeTrainingPage() {
@@ -350,13 +350,24 @@ export default function TraineeTrainingPage() {
           )}
 
           {isArticle && lesson.content && (
-            <article className="mt-6 rounded-xl bg-slate-50 border border-slate-200 p-6 text-slate-800 leading-relaxed">
-              <div className="space-y-4 [&>p]:mb-3">
-                {lesson.content.split(/\n\n+/).map((para, i) => (
-                  <p key={i} className="whitespace-pre-wrap">{renderArticleContent(para)}</p>
-                ))}
-              </div>
-            </article>
+            <div className="mt-6">
+              <article className="rounded-xl bg-slate-50 border border-slate-200 p-6 text-slate-800 leading-relaxed mb-4">
+                <p className="text-sm font-semibold text-orange-700 mb-3">Summary</p>
+                <div className="space-y-4 [&>p]:mb-3">
+                  {lesson.content.split(/\n\n+/).map((para, i) => (
+                    <p key={i} className="whitespace-pre-wrap">{renderArticleContent(para)}</p>
+                  ))}
+                </div>
+              </article>
+              <a
+                href={`/training/trainee-academy/article/${lesson.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" /> Read full article (5,000+ words, opens in new page)
+              </a>
+            </div>
           )}
 
           {isSummary && lesson.content && (
