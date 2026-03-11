@@ -14,6 +14,7 @@ from app.core.database import Base
 from app.core.config import get_settings
 from app.core.security import get_password_hash
 from app.models import Tenant, User, Case, UsageMeteringEvent, AnalyticsEvent, Document, KnowledgeBaseDocument, KnowledgeBaseChunk, JudiciarySearchCache, TrainingModule, TrainingModuleConfig
+from scripts.training_module_configs import MODULE_CONFIGS
 
 
 async def seed():
@@ -124,63 +125,20 @@ async def seed():
             await session.flush()
             print("Seeded: 3 training modules")
 
-        # Seed interactive configs for modules (branching, different experiences, same outcomes)
-        # Add configs for any module that doesn't have one yet
-        mods = (await session.execute(select(TrainingModule).where(TrainingModule.slug.in_(["ethics", "orientation", "online_mediation_intro"])))).scalars().all()
-        existing_cfg_mod_ids = set(
-            c.module_id for c in (await session.execute(select(TrainingModuleConfig.module_id))).scalars().all()
-        )
+        # Seed or update interactive configs for modules (full training content, branching scenarios)
+        mods = (await session.execute(select(TrainingModule).where(TrainingModule.slug.in_(list(MODULE_CONFIGS.keys()))))).scalars().all()
         for mod in mods:
-            if mod.id in existing_cfg_mod_ids:
+            config = MODULE_CONFIGS.get(mod.slug)
+            if not config:
                 continue
-            if mod.slug == "ethics":
-                    config = {
-                        "steps": [
-                            {"id": "intro", "type": "content", "content": "<p>Mediation rests on trust. Parties must believe you are neutral, that their words stay confidential, and that they participate voluntarily.</p>", "next": "s1"},
-                            {"id": "s1", "type": "scenario", "scenario": "A party reveals something in confidence, then the other party demands to know what was said. They say: 'If you're neutral, you have to tell me.'", "question": "What would you do?", "choices": [
-                                {"text": "Explain that confidentiality applies to both parties and you cannot disclose", "next": "out1", "feedback": "Correct. Confidentiality protects the process. You can acknowledge the other party's frustration without revealing content."},
-                                {"text": "Suggest a caucus to discuss with each party separately", "next": "out2", "feedback": "A caucus can help. You might use it to clarify ground rules or to explore whether the first party is willing to share—but never without their consent."},
-                                {"text": "Share a general summary that doesn't reveal specifics", "next": "out2", "feedback": "Even summaries can breach confidence. Unless the first party explicitly consents, do not share. Redirect to interests instead."},
-                            ]},
-                            {"id": "out1", "type": "content", "content": "<p><strong>Key takeaway:</strong> Confidentiality is non-negotiable unless the law requires disclosure (e.g. child protection, imminent harm) or parties agree. Consult your jurisdiction's regulations for specifics.</p>", "next": "outro"},
-                            {"id": "out2", "type": "content", "content": "<p><strong>Key takeaway:</strong> Confidentiality protects the process. Use caucuses to clarify, never to leak. When in doubt, err on the side of protecting what was shared.</p>", "next": "outro"},
-                            {"id": "outro", "type": "content", "content": "<p>All paths lead to the same principle: maintain confidentiality unless disclosure is legally required or explicitly consented to.</p>"},
-                        ],
-                        "learning_outcomes": ["confidentiality", "neutrality"],
-                    }
-            elif mod.slug == "orientation":
-                    config = {
-                        "steps": [
-                            {"id": "intro", "type": "content", "content": "<p>This platform supports mediators with case management, online sessions, and tools. Your judgment drives outcomes—the platform supports, it does not replace.</p>", "next": "s1"},
-                            {"id": "s1", "type": "scenario", "scenario": "You're setting up a new case. The system asks for dispute type and party details.", "question": "How do you approach data entry?", "choices": [
-                                {"text": "Enter only what's necessary for the case file", "next": "out1", "feedback": "Good practice. Collect what you need; avoid unnecessary PII."},
-                                {"text": "Add detailed notes from the intake call", "next": "out2", "feedback": "Notes help—but ensure they're factual and not biased. Future mediators may read them."},
-                                {"text": "Skip the system and use your own notes", "next": "out2", "feedback": "Using the platform keeps records consistent and supports handover. Balance your workflow with organizational needs."},
-                            ]},
-                            {"id": "out1", "type": "content", "content": "<p><strong>Key takeaway:</strong> Use the platform to support your practice. Enter what serves the case; protect party privacy.</p>", "next": "outro"},
-                            {"id": "out2", "type": "content", "content": "<p><strong>Key takeaway:</strong> The platform is a tool. Your ethics and discretion guide how you use it.</p>", "next": "outro"},
-                            {"id": "outro", "type": "content", "content": "<p>You've completed this module. The platform supports neutrality and efficiency—you remain in control.</p>"},
-                        ],
-                        "learning_outcomes": ["platform_use", "privacy"],
-                    }
+            cfg_result = await session.execute(select(TrainingModuleConfig).where(TrainingModuleConfig.module_id == mod.id))
+            existing = cfg_result.scalar_one_or_none()
+            if existing:
+                existing.config_json = config
             else:
-                    config = {
-                        "steps": [
-                            {"id": "intro", "type": "content", "content": "<p>Online mediation offers flexibility but poses challenges for rapport and non-verbal cues.</p>", "next": "s1"},
-                            {"id": "s1", "type": "scenario", "scenario": "A party's video freezes mid-sentence. They're clearly frustrated.", "question": "What do you do?", "choices": [
-                                {"text": "Pause and check if everyone can hear and see", "next": "out1", "feedback": "Good. Technical issues affect trust. Address them calmly."},
-                                {"text": "Ask them to rejoin and continue", "next": "out2", "feedback": "Rejoining may help, but acknowledge the disruption. A brief check-in maintains rapport."},
-                                {"text": "Suggest switching to phone as backup", "next": "out2", "feedback": "Having a backup plan is best practice. Document the switch for the record."},
-                            ]},
-                            {"id": "out1", "type": "content", "content": "<p><strong>Key takeaway:</strong> Technical reliability affects trust. Check in regularly; have a backup plan.</p>", "next": "outro"},
-                            {"id": "out2", "type": "content", "content": "<p><strong>Key takeaway:</strong> Adapt when tech fails. Document changes; keep parties informed.</p>", "next": "outro"},
-                            {"id": "outro", "type": "content", "content": "<p>Online mediation requires extra attention to connection—both technical and human.</p>"},
-                        ],
-                        "learning_outcomes": ["online_best_practices"],
-                    }
-            session.add(TrainingModuleConfig(module_id=mod.id, config_json=config))
+                session.add(TrainingModuleConfig(module_id=mod.id, config_json=config))
         if mods:
-            print("Seeded/updated: interactive module configs")
+            print("Seeded/updated: interactive module configs (full training content)")
 
         await session.commit()
 
