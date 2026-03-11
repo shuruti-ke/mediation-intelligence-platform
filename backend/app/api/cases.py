@@ -4,7 +4,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 from app.api.deps import get_current_user, require_role
 from app.core.database import get_db
@@ -14,19 +14,6 @@ from app.schemas.case import CaseCreate, CaseResponse
 from app.services.audit import log_audit
 
 router = APIRouter(prefix="/cases", tags=["cases"])
-
-
-def generate_case_number(db: AsyncSession, tenant_id: uuid.UUID) -> str:
-    """Generate unique case number: MED-YYYY-NNNN."""
-    year = datetime.utcnow().year
-    result = db.execute(
-        select(func.count(Case.id)).where(
-            Case.tenant_id == tenant_id,
-            func.extract("year", Case.created_at) == year,
-        )
-    )
-    count = result.scalar() or 0
-    return f"MED-{year}-{count + 1:04d}"
 
 
 @router.post("", response_model=CaseResponse)
@@ -49,8 +36,9 @@ async def create_case(
     db.add(case)
     await db.flush()
     # Ensure unique - simple approach for MVP
-    existing = await db.execute(select(Case).where(Case.case_number == case_number))
-    if existing.scalar_one_or_none() and existing.scalar_one_or_none() != case:
+    existing_result = await db.execute(select(Case).where(Case.case_number == case_number))
+    existing_case = existing_result.scalar_one_or_none()
+    if existing_case and existing_case != case:
         case.case_number = f"MED-{datetime.utcnow().year}-{uuid.uuid4().hex[:6].upper()}"
     await db.refresh(case)
     return case
@@ -63,7 +51,7 @@ async def list_cases(
     status: str | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-) -> list[Case]:
+) -> list[CaseResponse]:
     """List cases. Filtered by tenant. Mediators see assigned cases."""
     q = select(Case)
     if user.tenant_id:
@@ -72,7 +60,9 @@ async def list_cases(
         q = q.where(Case.status == status)
     q = q.order_by(Case.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(q)
-    return list(result.scalars().all())
+    cases = result.scalars().unique().all()
+    # Convert to Pydantic before returning to avoid ResourceClosedError when session closes
+    return [CaseResponse.model_validate(c) for c in cases]
 
 
 @router.get("/{case_id}", response_model=CaseResponse)

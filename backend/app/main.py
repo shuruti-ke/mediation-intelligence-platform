@@ -1,10 +1,14 @@
 """Mediation Intelligence Platform - FastAPI application."""
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 from app.core.database import init_db
 from app.api import auth, cases, sessions, billing, tenants, recordings, documents, knowledge, judiciary, public, payments, bookings, mediators, training, audit
 
@@ -25,6 +29,17 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch unhandled exceptions so CORS headers are added to error responses."""
+    logger.exception("Unhandled exception: %s", exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
 
 # Parse CORS origins: strip whitespace, filter empty
 _cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
