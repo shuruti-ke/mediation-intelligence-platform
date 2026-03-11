@@ -11,7 +11,7 @@ from sqlalchemy import select, and_
 from app.api.deps import get_current_user, require_role
 from app.core.database import get_db
 from app.models.tenant import User
-from app.models.training import TrainingModule, TrainingProgress, CPDProgress, Quiz, QuizAttempt, RolePlayScenario, TrainingModuleConfig, UserModuleResponse
+from app.models.training import TrainingModule, TrainingProgress, CPDProgress, Quiz, QuizAttempt, RolePlayScenario, RolePlaySession, TrainingModuleConfig, UserModuleResponse
 
 router = APIRouter(prefix="/training", tags=["training"])
 
@@ -45,6 +45,14 @@ class ProgressUpdate(BaseModel):
 
 class RolePlayGenerate(BaseModel):
     dispute_category: str | None = None
+
+
+class CreateSessionBody(BaseModel):
+    scenario_id: uuid.UUID
+
+
+class MessageBody(BaseModel):
+    text: str
 
 
 class ModuleRespondBody(BaseModel):
@@ -385,3 +393,302 @@ async def list_role_plays(
         {"id": str(s.id), "title": s.title, "dispute_category": s.dispute_category, "created_at": s.created_at.isoformat()}
         for s in scenarios
     ]
+
+
+@router.get("/role-play/scenarios/{scenario_id}")
+async def get_role_play_scenario(
+    scenario_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Get a single role-play scenario by id."""
+    result = await db.execute(
+        select(RolePlayScenario).where(
+            and_(
+                RolePlayScenario.id == scenario_id,
+                RolePlayScenario.user_id == user.id,
+            )
+        )
+    )
+    s = result.scalar_one_or_none()
+    if not s:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return {
+        "id": str(s.id),
+        "title": s.title,
+        "dispute_category": s.dispute_category,
+        "scenario": s.scenario_json,
+        "created_at": s.created_at.isoformat(),
+    }
+
+
+def _generate_party_response(scenario: dict, messages: list, next_party: str, parties: list) -> str:
+    """Rule-based fallback when OpenAI is not configured."""
+    idx = 0 if next_party == "party_a" else 1
+    name = parties[idx] if idx < len(parties) else ("Party A" if next_party == "party_a" else "Party B")
+    objectives = scenario.get("objectives", {})
+    obj_key = objectives.get("employee") or objectives.get("supplier") or objectives.get("parent_a") or "their interests"
+    if next_party == "party_a":
+        obj_key = objectives.get("employee") or objectives.get("supplier") or objectives.get("parent_a") or "their interests"
+    else:
+        obj_key = objectives.get("manager") or objectives.get("buyer") or objectives.get("parent_b") or "their interests"
+    hints = [
+        f"{name} acknowledges the mediator's point and reflects on their position.",
+        f"{name} shares more about their perspective, seeking understanding.",
+        f"{name} expresses willingness to explore options while staying focused on {obj_key}.",
+    ]
+    return random.choice(hints)
+
+
+async def _generate_ai_party_response(
+    scenario: dict, messages: list, next_party: str, parties: list
+) -> str:
+    """Generate AI party response using OpenAI when available."""
+    from app.core.config import get_settings
+    settings = get_settings()
+    if not settings.openai_api_key:
+        return _generate_party_response(scenario, messages, next_party, parties)
+    idx = 0 if next_party == "party_a" else 1
+    name = parties[idx] if idx < len(parties) else ("Party A" if next_party == "party_a" else "Party B")
+    objectives = scenario.get("objectives", {})
+    obj_str = ", ".join(f"{k}: {v}" for k, v in (objectives or {}).items())
+    conv = "\n".join(
+        f"{m.get('speaker', m.get('role', 'unknown'))}: {m.get('text', '')}"
+        for m in messages[-12:]  # last 6 exchanges
+    )
+    system = f"""You are role-playing as {name} in a mediation training scenario.
+Scenario: {scenario.get('title', 'Mediation')}
+Facts: {scenario.get('facts', '')}
+Party objectives: {obj_str}
+Stay in character. Respond briefly (1-3 sentences) as the disputing party would. Be realistic but not hostile."""
+    user_msg = f"Conversation so far:\n{conv}\n\nGenerate {name}'s next response to the mediator."
+    try:
+        import httpx
+        r = await httpx.AsyncClient().post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {settings.openai_api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_msg},
+                ],
+                "max_tokens": 150,
+            },
+            timeout=15.0,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            choices = data.get("choices", [])
+            if choices and choices[0].get("message", {}).get("content"):
+                return choices[0]["message"]["content"].strip()
+    except Exception:
+        pass
+    return _generate_party_response(scenario, messages, next_party, parties)
+
+
+async def _generate_debrief(scenario: dict, messages: list) -> dict:
+    """Generate post-session debrief. Uses OpenAI when available."""
+    from app.core.config import get_settings
+    settings = get_settings()
+    conv = "\n".join(
+        f"{m.get('speaker', m.get('role', 'unknown'))}: {m.get('text', '')}"
+        for m in messages
+    )
+    fallback = {
+        "strengths": ["You maintained engagement throughout the session.", "You gave both parties space to speak."],
+        "improvements": ["Consider more explicit summarization of interests.", "Try asking open-ended questions when parties seem stuck."],
+        "feedback": "Good practice session. Focus on active listening and reframing.",
+    }
+    if not settings.openai_api_key:
+        return fallback
+    try:
+        import httpx
+        r = await httpx.AsyncClient().post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {settings.openai_api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": """You are a mediation coach. After a role-play session, provide brief feedback in JSON:
+{"strengths": ["strength1", "strength2"], "improvements": ["improvement1", "improvement2"], "feedback": "one sentence summary"}
+Be constructive and specific. Keep each item 1 sentence."""},
+                    {"role": "user", "content": f"Scenario: {scenario.get('title')}\n\nConversation:\n{conv}\n\nProvide debrief JSON."},
+                ],
+                "max_tokens": 300,
+            },
+            timeout=15.0,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            content = (data.get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+            if content:
+                import json
+                # Extract JSON from response (sometimes wrapped in markdown)
+                for start in ("{", "```json"):
+                    for end in ("}", "```"):
+                        try:
+                            if start in content and end in content:
+                                j = content[content.find(start):content.rfind(end) + 1]
+                                j = j.replace("```json", "").replace("```", "").strip()
+                                d = json.loads(j)
+                                return {
+                                    "strengths": d.get("strengths", fallback["strengths"]),
+                                    "improvements": d.get("improvements", fallback["improvements"]),
+                                    "feedback": d.get("feedback", fallback["feedback"]),
+                                }
+                        except json.JSONDecodeError:
+                            continue
+    except Exception:
+        pass
+    return fallback
+
+
+@router.post("/role-play/sessions")
+async def create_role_play_session(
+    data: CreateSessionBody,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("mediator", "trainee", "super_admin")),
+) -> dict:
+    """Create a new role-play session from a scenario."""
+    scenario_result = await db.execute(
+        select(RolePlayScenario).where(
+            and_(
+                RolePlayScenario.id == data.scenario_id,
+                RolePlayScenario.user_id == user.id,
+            )
+        )
+    )
+    scenario = scenario_result.scalar_one_or_none()
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    session = RolePlaySession(
+        user_id=user.id,
+        scenario_id=scenario.id,
+        status="active",
+    )
+    db.add(session)
+    await db.flush()
+    return {
+        "id": str(session.id),
+        "scenario_id": str(scenario.id),
+        "scenario": scenario.scenario_json,
+        "status": "active",
+        "messages": [],
+        "created_at": session.created_at.isoformat(),
+    }
+
+
+@router.get("/role-play/sessions/{session_id}")
+async def get_role_play_session(
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Get role-play session with scenario and messages."""
+    result = await db.execute(
+        select(RolePlaySession, RolePlayScenario).join(
+            RolePlayScenario, RolePlaySession.scenario_id == RolePlayScenario.id
+        ).where(
+            and_(
+                RolePlaySession.id == session_id,
+                RolePlaySession.user_id == user.id,
+            )
+        )
+    )
+    row = result.one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Session not found")
+    sess, scenario = row
+    return {
+        "id": str(sess.id),
+        "scenario_id": str(scenario.id),
+        "scenario": scenario.scenario_json,
+        "status": sess.status,
+        "messages": sess.messages_json or [],
+        "debrief": sess.debrief_json,
+        "created_at": sess.created_at.isoformat(),
+        "ended_at": sess.ended_at.isoformat() if sess.ended_at else None,
+    }
+
+
+@router.post("/role-play/sessions/{session_id}/message")
+async def send_role_play_message(
+    session_id: uuid.UUID,
+    data: MessageBody,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("mediator", "trainee", "super_admin")),
+) -> dict:
+    """Send mediator message and receive AI party response."""
+    result = await db.execute(
+        select(RolePlaySession, RolePlayScenario).join(
+            RolePlayScenario, RolePlaySession.scenario_id == RolePlayScenario.id
+        ).where(
+            and_(
+                RolePlaySession.id == session_id,
+                RolePlaySession.user_id == user.id,
+            )
+        )
+    )
+    row = result.one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Session not found")
+    sess, scenario = row
+    if sess.status != "active":
+        raise HTTPException(status_code=400, detail="Session has ended")
+    scenario_json = scenario.scenario_json
+    parties = scenario_json.get("parties", ["Party A", "Party B"])
+    messages = list(sess.messages_json or [])
+    messages.append({"role": "mediator", "speaker": "Mediator", "text": data.text})
+    next_party = "party_a" if (len([m for m in messages if m.get("role") in ("party_a", "party_b")]) % 2 == 0) else "party_b"
+    ai_text = await _generate_ai_party_response(scenario_json, messages, next_party, parties)
+    idx = 0 if next_party == "party_a" else 1
+    speaker = parties[idx] if idx < len(parties) else next_party
+    messages.append({"role": next_party, "speaker": speaker, "text": ai_text})
+    sess.messages_json = messages
+    await db.flush()
+    return {
+        "messages": messages,
+        "reply": {"role": next_party, "speaker": speaker, "text": ai_text},
+    }
+
+
+@router.post("/role-play/sessions/{session_id}/end")
+async def end_role_play_session(
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """End session and generate debrief."""
+    result = await db.execute(
+        select(RolePlaySession, RolePlayScenario).join(
+            RolePlayScenario, RolePlaySession.scenario_id == RolePlayScenario.id
+        ).where(
+            and_(
+                RolePlaySession.id == session_id,
+                RolePlaySession.user_id == user.id,
+            )
+        )
+    )
+    row = result.one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Session not found")
+    sess, scenario = row
+    if sess.status != "active":
+        return {
+            "id": str(sess.id),
+            "status": sess.status,
+            "debrief": sess.debrief_json,
+            "messages": sess.messages_json or [],
+        }
+    sess.status = "ended"
+    sess.ended_at = datetime.utcnow()
+    debrief = await _generate_debrief(scenario.scenario_json, sess.messages_json or [])
+    sess.debrief_json = debrief
+    await db.flush()
+    return {
+        "id": str(sess.id),
+        "status": "ended",
+        "debrief": debrief,
+        "messages": sess.messages_json or [],
+    }

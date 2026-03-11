@@ -18,4 +18,5 @@ CMD python scripts/migrate_user_intake.py && \
     python scripts/migrate_case_rich.py && \
     python scripts/migrate_knowledge_org.py && \
     python scripts/migrate_kb_file_content.py && \
+    python scripts/migrate_role_play_sessions.py && \
     uvicorn app.main:app --host 0.0.0.0 --port 8000

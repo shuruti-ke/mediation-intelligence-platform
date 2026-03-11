@@ -3096,6 +3096,149 @@ a:hover {
   color: #718096;
 }
 
+.scenario-list-item-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.scenario-list-item-btn:hover {
+  background: #f7fafc;
+}
+
+.role-play-start-btn {
+  margin: 1rem 0 1.5rem;
+}
+
+.role-play-loading {
+  padding: 2rem;
+  text-align: center;
+  color: #718096;
+}
+
+/* Role-play chat view */
+.role-play-chat-view {
+  max-width: 680px;
+}
+
+.role-play-chat-container {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.role-play-chat-messages {
+  min-height: 280px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+}
+
+.role-play-chat-empty {
+  color: #a0aec0;
+  font-style: italic;
+  margin: 2rem 0;
+}
+
+.role-play-msg {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+}
+
+.role-play-msg-mediator {
+  background: #e6fffa;
+  border-left: 4px solid #0d9488;
+}
+
+.role-play-msg-party_a {
+  background: #fef3c7;
+  border-left: 4px solid #d97706;
+}
+
+.role-play-msg-party_b {
+  background: #ede9fe;
+  border-left: 4px solid #7c3aed;
+}
+
+.role-play-msg-speaker {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #4a5568;
+  margin-bottom: 0.35rem;
+}
+
+.role-play-msg p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.role-play-chat-input {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+
+.role-play-chat-input input {
+  flex: 1;
+  min-width: 180px;
+  padding: 0.6rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.role-play-chat-input input:focus {
+  outline: none;
+  border-color: #0d9488;
+}
+
+.role-play-debrief {
+  background: #f8fafc;
+  padding: 1.25rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.role-play-debrief h3 {
+  margin: 0 0 1rem;
+  font-size: 1.1rem;
+}
+
+.debrief-strengths h4,
+.debrief-improvements h4 {
+  margin: 0.5rem 0 0.35rem;
+  font-size: 0.9rem;
+  color: #2d3748;
+}
+
+.debrief-strengths ul,
+.debrief-improvements ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.debrief-feedback {
+  margin: 1rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+  font-style: italic;
+  color: #4a5568;
+}
+
 /* Calendar page - vibrant modern */
 .calendar-page {
   max-width: 1100px;

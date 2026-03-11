@@ -211,6 +211,16 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/training/role-play/session/:sessionId"
+          element={
+            <ProtectedRoute>
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+                <RolePlayPage />
+              </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
         <Route path="/app" element={<RoleRedirect />} />
       </Routes>
     </BrowserRouter>

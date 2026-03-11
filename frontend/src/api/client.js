@@ -139,6 +139,11 @@ export const trainingApi = {
   getReflection: () => api.get('/training/reflection'),
   generateRolePlay: (data) => api.post('/training/role-play/generate', data),
   listRolePlays: () => api.get('/training/role-play'),
+  getRolePlayScenario: (id) => api.get(`/training/role-play/scenarios/${id}`),
+  createRolePlaySession: (scenarioId) => api.post('/training/role-play/sessions', { scenario_id: scenarioId }),
+  getRolePlaySession: (sessionId) => api.get(`/training/role-play/sessions/${sessionId}`),
+  sendRolePlayMessage: (sessionId, text) => api.post(`/training/role-play/sessions/${sessionId}/message`, { text }),
+  endRolePlaySession: (sessionId) => api.post(`/training/role-play/sessions/${sessionId}/end`),
 };
 
 export const auditApi = {

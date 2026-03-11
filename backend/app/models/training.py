@@ -94,6 +94,21 @@ class RolePlayScenario(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 
+class RolePlaySession(Base):
+    """Active role-play session: mediator + AI parties dialogue."""
+
+    __tablename__ = "role_play_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    scenario_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("role_play_scenarios.id"), nullable=False)
+    messages_json: Mapped[list] = mapped_column(JSONB, default=lambda: [])  # [{role, text, speaker?}]
+    status: Mapped[str] = mapped_column(String(20), default="active")  # active, ended
+    debrief_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # {strengths, improvements, feedback}
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class TrainingModuleConfig(Base):
     """Interactive steps for a training module. Enables branching based on user choices."""
 
