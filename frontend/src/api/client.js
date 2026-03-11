@@ -113,7 +113,9 @@ export const trainingApi = {
   listModules: () => api.get('/training/modules'),
   getModule: (id) => api.get(`/training/modules/${id}`),
   updateProgress: (id, data) => api.put(`/training/modules/${id}/progress`, data),
+  respondToStep: (moduleId, data) => api.post(`/training/modules/${moduleId}/respond`, data),
   getCpd: (year) => api.get('/training/cpd', year ? { params: { year } } : {}),
+  getReflection: () => api.get('/training/reflection'),
   generateRolePlay: (data) => api.post('/training/role-play/generate', data),
   listRolePlays: () => api.get('/training/role-play'),
 };

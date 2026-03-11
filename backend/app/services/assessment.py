@@ -147,6 +147,8 @@ Provide:
 3. Key factors (2-4 bullet points) from their responses
 4. Next step (one short phrase)
 
+CRITICAL: Never quote or cite any law. Do not invent laws or present them as real—the system cannot verify legal accuracy. Use only general principles. When legal matters arise, direct users to verified sources (e.g. Kenya Law at new.kenyalaw.org) or a qualified legal professional.
+
 Respond in JSON: {{"recommendation": "...", "confidence": "high|medium|low", "factors": ["...", "..."], "next_step": "..."}}
 """
         resp = httpx.post(

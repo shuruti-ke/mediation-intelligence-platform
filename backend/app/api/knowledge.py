@@ -152,7 +152,7 @@ async def query_knowledge(
                     json={
                         "model": "gpt-4o-mini",
                         "messages": [
-                            {"role": "system", "content": "Answer based only on the provided context. Cite document titles."},
+                            {"role": "system", "content": "Answer based only on the provided context. Cite document titles. NEVER quote or cite any law unless it appears verbatim in the context from a verified source. Do not invent laws or present them as real. If legal specifics are needed, direct users to Kenya Law (new.kenyalaw.org) or a qualified legal professional."},
                             {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {data.query}"},
                         ],
                         "max_tokens": 500,

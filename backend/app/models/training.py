@@ -92,3 +92,28 @@ class RolePlayScenario(Base):
     scenario_json: Mapped[dict] = mapped_column(JSONB, nullable=False)  # {parties, facts, objectives, script_hints}
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class TrainingModuleConfig(Base):
+    """Interactive steps for a training module. Enables branching based on user choices."""
+
+    __tablename__ = "training_module_configs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    module_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("training_modules.id"), nullable=False)
+    config_json: Mapped[dict] = mapped_column(JSONB, nullable=False)  # {steps: [{id, type, content?, choices?}], learning_outcomes: []}
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class UserModuleResponse(Base):
+    """User responses to interactive module steps. Used for personalization and improving training."""
+
+    __tablename__ = "user_module_responses"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    module_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("training_modules.id"), nullable=False)
+    step_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    response_type: Mapped[str] = mapped_column(String(20), nullable=False)  # choice, text
+    response_value: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # {choice_idx} or {text}
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
