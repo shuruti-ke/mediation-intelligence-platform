@@ -7,9 +7,11 @@ export default function DashboardPage() {
   const [caseList, setCaseList] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [filter, setFilter] = useState('all');
   useEffect(() => {
-    cases.list().then(({ data }) => setCaseList(data)).catch(() => setCaseList([])).finally(() => setLoading(false));
-  }, []);
+    const params = filter === 'draft' ? { status: 'draft' } : {};
+    cases.list(params).then(({ data }) => setCaseList(data)).catch(() => setCaseList([])).finally(() => setLoading(false));
+  }, [filter]);
 
   return (
     <div className="dashboard">
@@ -27,11 +29,17 @@ export default function DashboardPage() {
         </nav>
       </header>
       <section>
-        <h2 className="icon-text"><FolderOpen size={22} /> Cases</h2>
+        <div className="cases-header">
+          <h2 className="icon-text"><FolderOpen size={22} /> Cases</h2>
+          <div className="case-filters">
+            <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>All</button>
+            <button className={filter === 'draft' ? 'active' : ''} onClick={() => setFilter('draft')}>My Drafts</button>
+          </div>
+        </div>
         {loading ? (
           <p>Loading...</p>
         ) : caseList.length === 0 ? (
-          <p>No cases yet. <Link to="/cases/new"><Plus size={14} /> Create your first case</Link></p>
+          <p>{filter === 'draft' ? 'No drafts yet.' : 'No cases yet.'} <Link to="/cases/new"><Plus size={14} /> Create your first case</Link></p>
         ) : (
           <ul className="case-list">
             {caseList.map((c) => (

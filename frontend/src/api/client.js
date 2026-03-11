@@ -37,6 +37,8 @@ export const cases = {
   list: (params) => api.get('/cases', { params }),
   get: (id) => api.get(`/cases/${id}`),
   create: (data) => api.post('/cases', data),
+  update: (id, data) => api.patch(`/cases/${id}`, data),
+  getLocations: (country = 'KE') => api.get('/cases/locations', { params: { country } }),
 };
 
 export const sessions = {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { cases, sessions, recordings, caucus, documents } from '../api/client';
 import JitsiEmbed from '../components/JitsiEmbed';
 
@@ -123,6 +123,9 @@ export default function CaseDetailPage() {
         <button onClick={() => navigate('/dashboard')}>← Back</button>
         <h1>{caseData.case_number}</h1>
         <span className={`status-badge ${caseData.status.toLowerCase()}`}>{caseData.status}</span>
+        {caseData.status?.toLowerCase() === 'draft' && (
+          <Link to={`/cases/${id}/edit`} className="edit-draft-btn">Edit</Link>
+        )}
       </header>
 
       {showRoom && roomInfo ? (
@@ -154,8 +157,51 @@ export default function CaseDetailPage() {
       ) : (
         <>
           <section>
-            <p><strong>Dispute category:</strong> {caseData.dispute_category || '-'}</p>
+            <h3>Case Details</h3>
+            <p><strong>Title:</strong> {caseData.title || caseData.case_number}</p>
+            <p><strong>Dispute category:</strong> {caseData.dispute_category || caseData.case_type || '-'}</p>
+            {caseData.short_description && <p><strong>Description:</strong> {caseData.short_description}</p>}
+            {caseData.priority_level && <p><strong>Priority:</strong> {caseData.priority_level}</p>}
+            {caseData.jurisdiction_country && <p><strong>Jurisdiction:</strong> {caseData.jurisdiction_country}{caseData.jurisdiction_region ? ` / ${caseData.jurisdiction_region}` : ''}{caseData.jurisdiction_county_state ? ` / ${caseData.jurisdiction_county_state}` : ''}</p>}
           </section>
+          {caseData.parties?.length > 0 && (
+            <section>
+              <h3>Parties Involved</h3>
+              <ul className="party-list">
+                {caseData.parties.map((p, i) => (
+                  <li key={i}>
+                    <strong>{p.name}</strong> ({p.role})
+                    {p.email && <span> — {p.email}</span>}
+                    {p.phone && <span> — {p.phone}</span>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {caseData.timeline?.length > 0 && (
+            <section>
+              <h3>Timeline</h3>
+              <ul className="timeline-list">
+                {caseData.timeline.map((e, i) => (
+                  <li key={i}>
+                    <strong>{e.event_date}</strong>: {e.description}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {caseData.external_links?.length > 0 && (
+            <section>
+              <h3>External Links</h3>
+              <ul className="link-list">
+                {caseData.external_links.map((l, i) => (
+                  <li key={i}>
+                    <a href={l.url} target="_blank" rel="noopener noreferrer">{l.label || l.url}</a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <section>
             <h3>Documents</h3>
             <form onSubmit={async (e) => {

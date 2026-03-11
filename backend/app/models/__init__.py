@@ -1,6 +1,6 @@
 """SQLAlchemy models."""
 from app.models.tenant import Tenant, User
-from app.models.case import Case, MediationSession, SessionRecording, CaseParticipant
+from app.models.case import Case, MediationSession, SessionRecording, CaseParticipant, CaseTimelineEvent, CaseParty, CaseExternalLink
 from app.models.billing import UsageMeteringEvent
 from app.models.analytics import AnalyticsEvent
 from app.models.document import Document, KnowledgeBaseDocument, KnowledgeBaseChunk, JudiciarySearchCache
@@ -18,6 +18,9 @@ __all__ = [
     "MediationSession",
     "SessionRecording",
     "CaseParticipant",
+    "CaseTimelineEvent",
+    "CaseParty",
+    "CaseExternalLink",
     "UsageMeteringEvent",
     "AnalyticsEvent",
     "Document",

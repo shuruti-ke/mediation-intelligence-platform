@@ -124,6 +124,16 @@ export default function App() {
           }
         />
         <Route
+          path="/cases/:id/edit"
+          element={
+            <ProtectedRoute>
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+                <NewCasePage edit />
+              </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/cases/:id"
           element={
             <ProtectedRoute>
