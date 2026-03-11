@@ -13,5 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 EXPOSE 8000
 
-# Production: no --reload
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Production: run migrations then start
+CMD python scripts/migrate_user_intake.py && \
+    python scripts/migrate_case_rich.py && \
+    uvicorn app.main:app --host 0.0.0.0 --port 8000
