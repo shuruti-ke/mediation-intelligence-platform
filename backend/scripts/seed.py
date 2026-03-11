@@ -1,6 +1,7 @@
 """Seed database with initial tenant and super_admin user."""
 import asyncio
 import uuid
+from datetime import datetime
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import select
@@ -47,6 +48,8 @@ async def seed():
                 display_name="Super Admin",
                 role="super_admin",
                 tenant_id=tenant.id,
+                status="active",
+                onboarded_at=datetime.utcnow(),
             )
             session.add(user)
             mediator = User(
@@ -55,6 +58,8 @@ async def seed():
                 display_name="Test Mediator",
                 role="mediator",
                 tenant_id=tenant.id,
+                status="active",
+                onboarded_at=datetime.utcnow(),
             )
             session.add(mediator)
             client = User(
@@ -63,6 +68,8 @@ async def seed():
                 display_name="Test Client",
                 role="client_individual",
                 tenant_id=tenant.id,
+                status="active",
+                onboarded_at=__import__("datetime").datetime.utcnow(),
             )
             session.add(client)
             await session.flush()
@@ -83,6 +90,8 @@ async def seed():
                     display_name="Test Client",
                     role="client_individual",
                     tenant_id=t.id,
+                    status="active",
+                    onboarded_at=datetime.utcnow(),
                 )
                 session.add(client)
                 await session.flush()

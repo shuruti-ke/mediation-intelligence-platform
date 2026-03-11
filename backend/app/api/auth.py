@@ -37,6 +37,13 @@ async def login(
     user = result.scalar_one_or_none()
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is deactivated")
+    from datetime import datetime
+    user.last_login_at = datetime.utcnow()
+    if getattr(user, "status", None) == "pending":
+        user.status = "active"
+    await db.flush()
     token = create_access_token(subject=str(user.id))
     return LoginResponse(
         access_token=token,

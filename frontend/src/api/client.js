@@ -132,3 +132,14 @@ export const tenantsApi = {
   list: () => api.get('/tenants'),
   create: (data) => api.post('/tenants', data),
 };
+
+export const usersApi = {
+  list: (params) => api.get('/users', { params }),
+  get: (id) => api.get(`/users/${id}`),
+  onboard: (data) => api.post('/users', data),
+  updateStatus: (id, data) => api.patch(`/users/${id}`, data),
+};
+
+export const analyticsApi = {
+  getDashboard: () => api.get('/analytics/dashboard'),
+};

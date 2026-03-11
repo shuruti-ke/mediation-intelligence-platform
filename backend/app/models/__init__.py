@@ -8,6 +8,8 @@ from app.models.booking import Lead, Booking, FreeTierUsage
 from app.models.payment import Invoice, PaymentTransaction
 from app.models.training import TrainingModule, TrainingProgress, CPDProgress, Quiz, QuizAttempt, RolePlayScenario, TrainingModuleConfig, UserModuleResponse
 from app.models.audit import AuditLog
+from app.models.announcement import Announcement
+from app.models.calendar import MediatorAvailability, CalendarBooking
 
 __all__ = [
     "Tenant",
@@ -36,4 +38,7 @@ __all__ = [
     "TrainingModuleConfig",
     "UserModuleResponse",
     "AuditLog",
+    "Announcement",
+    "MediatorAvailability",
+    "CalendarBooking",
 ]

@@ -283,6 +283,183 @@ html, body {
   line-height: 1.5;
 }
 
+/* Admin Dashboard */
+.admin-dashboard .nav-active {
+  background: #2b6cb0;
+  color: white;
+}
+
+.admin-dashboard-section {
+  padding: 2rem 0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.analytics-widgets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.widget-card {
+  padding: 1.25rem;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  text-align: center;
+}
+
+.widget-value {
+  display: block;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1a365d;
+}
+
+.widget-label {
+  font-size: 0.9rem;
+  color: #718096;
+}
+
+.user-table-wrapper {
+  overflow-x: auto;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.user-table th,
+.user-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.user-table th {
+  background: #f7fafc;
+  font-weight: 600;
+  color: #4a5568;
+}
+
+.badge-active { background: #c6f6d5; color: #276749; }
+.badge-pending { background: #feebc8; color: #c05621; }
+.badge-inactive { background: #fed7d7; color: #c53030; }
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #cbd5e0;
+  border-radius: 24px;
+  transition: 0.3s;
+}
+
+.toggle-slider:before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.3s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: #2b6cb0;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(20px);
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+  background: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-sm:hover {
+  background: #cbd5e0;
+}
+
+.empty-msg {
+  padding: 2rem;
+  text-align: center;
+  color: #718096;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-card {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  max-width: 400px;
+  width: 90%;
+}
+
+.modal-card h3 {
+  margin: 0 0 1rem;
+}
+
+.modal-card input,
+.modal-card select {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
 .case-list a {
   display: flex;
   gap: 1rem;

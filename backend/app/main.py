@@ -10,7 +10,7 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 from app.core.database import init_db
-from app.api import auth, cases, sessions, billing, tenants, recordings, documents, knowledge, judiciary, public, payments, bookings, mediators, training, audit
+from app.api import auth, cases, sessions, billing, tenants, recordings, documents, knowledge, judiciary, public, payments, bookings, mediators, training, audit, users, analytics_dashboard
 
 settings = get_settings()
 
@@ -70,6 +70,8 @@ app.include_router(bookings.router, prefix="/api")
 app.include_router(mediators.router, prefix="/api")
 app.include_router(training.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
+app.include_router(users.router, prefix="/api")
+app.include_router(analytics_dashboard.router, prefix="/api")
 
 
 @app.get("/")

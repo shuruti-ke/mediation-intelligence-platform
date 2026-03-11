@@ -35,6 +35,9 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(50), nullable=False)  # super_admin, mediator, trainee, client_corporate, client_individual
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(default=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending, active, inactive
+    onboarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
     tenant = relationship("Tenant", back_populates="users")
