@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2 } from 'lucide-react';
-import { tenantsApi, usersApi, analyticsApi, knowledge } from '../api/client';
+import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog } from 'lucide-react';
+import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi } from '../api/client';
 
 const STATUS_BADGES = {
   active: { label: 'Active', class: 'badge-active' },
@@ -9,18 +9,57 @@ const STATUS_BADGES = {
   inactive: { label: 'Inactive', class: 'badge-inactive' },
 };
 
+const USER_TYPE_BADGES = {
+  client_individual: { label: 'Individual', class: 'badge-teal' },
+  client_corporate: { label: 'Corporate', class: 'badge-indigo' },
+};
+
+const COUNTRIES = [
+  { value: 'KE', label: 'Kenya (+254)', prefix: '254' },
+  { value: 'NG', label: 'Nigeria (+234)', prefix: '234' },
+  { value: 'ZA', label: 'South Africa (+27)', prefix: '27' },
+  { value: 'GH', label: 'Ghana (+233)', prefix: '233' },
+  { value: 'TZ', label: 'Tanzania (+255)', prefix: '255' },
+  { value: 'UG', label: 'Uganda (+256)', prefix: '256' },
+];
+
+const REASSIGN_REASONS = [
+  { value: 'conflict_of_interest', label: 'Conflict of Interest' },
+  { value: 'user_request', label: 'User Request' },
+  { value: 'workload', label: 'Workload' },
+  { value: 'other', label: 'Other' },
+];
+
 export default function AdminDashboardPage() {
   const [tab, setTab] = useState('dashboard');
   const [tenants, setTenants] = useState([]);
   const [users, setUsers] = useState([]);
+  const [mediators, setMediators] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [onboardOpen, setOnboardOpen] = useState(false);
-  const [onboardForm, setOnboardForm] = useState({ email: '', password: '', display_name: '', role: 'mediator' });
+  const [onboardForm, setOnboardForm] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+    user_type: 'individual',
+    country: 'KE',
+    password: '',
+    invite_via_link: false,
+  });
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [reassignUser, setReassignUser] = useState(null);
+  const [reassignForm, setReassignForm] = useState({ mediator_id: '', reason: '', note: '', notify: true });
   const [orgDocs, setOrgDocs] = useState([]);
   const [orgUploadFile, setOrgUploadFile] = useState(null);
   const [orgUploadTitle, setOrgUploadTitle] = useState('');
   const [orgUploading, setOrgUploading] = useState(false);
+
+  useEffect(() => {
+    if (tab === 'users') {
+      calendarApi.listMediators().then(({ data }) => setMediators(data || [])).catch(() => setMediators([]));
+    }
+  }, [tab]);
 
   useEffect(() => {
     if (tab === 'orgkb') {
@@ -58,13 +97,45 @@ export default function AdminDashboardPage() {
 
   const handleOnboard = async (e) => {
     e.preventDefault();
+    const countryMeta = COUNTRIES.find((c) => c.value === onboardForm.country);
+    const prefix = countryMeta?.prefix || '';
+    const digits = onboardForm.phone.replace(/\D/g, '');
+    const phone = onboardForm.phone.startsWith('+') ? onboardForm.phone : `+${prefix}${digits}`;
+    const payload = {
+      full_name: onboardForm.full_name,
+      email: onboardForm.email,
+      phone,
+      user_type: onboardForm.user_type,
+      country: onboardForm.country,
+      invite_via_link: onboardForm.invite_via_link,
+    };
+    if (!onboardForm.invite_via_link) payload.password = onboardForm.password;
     try {
-      await usersApi.onboard(onboardForm);
+      await usersApi.intake(payload);
       setOnboardOpen(false);
-      setOnboardForm({ email: '', password: '', display_name: '', role: 'mediator' });
+      setOnboardForm({ full_name: '', email: '', phone: '', user_type: 'individual', country: 'KE', password: '', invite_via_link: false });
       if (tab === 'users') usersApi.list().then(({ data }) => setUsers(data || []));
     } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to onboard');
+      alert(err.response?.data?.detail || 'Failed to create user');
+    }
+  };
+
+  const handleReassign = async (e) => {
+    e.preventDefault();
+    if (!reassignUser || !reassignForm.mediator_id) return;
+    try {
+      await usersApi.reassignMediator(reassignUser.id, {
+        mediator_id: reassignForm.mediator_id,
+        reason: reassignForm.reason || undefined,
+        note: reassignForm.note || undefined,
+        notify_user_and_mediator: reassignForm.notify,
+      });
+      setReassignOpen(false);
+      setReassignUser(null);
+      setReassignForm({ mediator_id: '', reason: '', note: '', notify: true });
+      if (tab === 'users') usersApi.list().then(({ data }) => setUsers(data || []));
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to reassign');
     }
   };
 
@@ -119,7 +190,7 @@ export default function AdminDashboardPage() {
         <section className="admin-dashboard-section">
           <div className="section-header">
             <h2 className="icon-text"><Users size={22} /> User Management</h2>
-            <button className="primary" onClick={() => setOnboardOpen(true)}><UserPlus size={16} /> Onboard User</button>
+            <button className="primary" onClick={() => setOnboardOpen(true)}><UserPlus size={16} /> New User</button>
           </div>
           {loading ? <p>Loading...</p> : (
             <div className="user-table-wrapper">
@@ -128,7 +199,9 @@ export default function AdminDashboardPage() {
                   <tr>
                     <th>Email</th>
                     <th>Name</th>
-                    <th>Role</th>
+                    <th>Type</th>
+                    <th>Phone</th>
+                    <th>Mediator</th>
                     <th>Status</th>
                     <th>Active</th>
                     <th>Actions</th>
@@ -139,7 +212,13 @@ export default function AdminDashboardPage() {
                     <tr key={u.id}>
                       <td>{u.email}</td>
                       <td>{u.display_name || '-'}</td>
-                      <td>{u.role}</td>
+                      <td>
+                        <span className={`badge ${USER_TYPE_BADGES[u.role]?.class || ''}`}>
+                          {USER_TYPE_BADGES[u.role]?.label || u.role}
+                        </span>
+                      </td>
+                      <td>{u.phone || '-'}</td>
+                      <td>{u.assigned_mediator_id ? 'Assigned' : 'Unassigned'}</td>
                       <td>
                         <span className={`badge ${STATUS_BADGES[u.status]?.class || 'badge-pending'}`}>
                           {STATUS_BADGES[u.status]?.label || u.status}
@@ -156,6 +235,11 @@ export default function AdminDashboardPage() {
                         </label>
                       </td>
                       <td>
+                        {(u.role === 'client_individual' || u.role === 'client_corporate') && (
+                          <button className="btn-sm" onClick={() => { setReassignUser(u); setReassignForm({ mediator_id: u.assigned_mediator_id || '', reason: '', note: '', notify: true }); setReassignOpen(true); }} title="Reassign mediator">
+                            <UserCog size={14} /> Reassign
+                          </button>
+                        )}
                         <button className="btn-sm" onClick={() => handleToggleActive(u)}>
                           {u.is_active ? 'Deactivate' : 'Activate'}
                         </button>
@@ -258,41 +342,152 @@ export default function AdminDashboardPage() {
 
       {onboardOpen && (
         <div className="modal-overlay" onClick={() => setOnboardOpen(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <h3>Onboard User</h3>
-            <form onSubmit={handleOnboard}>
-              <input
-                type="email"
-                placeholder="Email"
-                value={onboardForm.email}
-                onChange={e => setOnboardForm({ ...onboardForm, email: e.target.value })}
-                required
-              />
-              <input
-                type="password"
-                placeholder="Password"
-                value={onboardForm.password}
-                onChange={e => setOnboardForm({ ...onboardForm, password: e.target.value })}
-                required
-              />
-              <input
-                type="text"
-                placeholder="Display name (optional)"
-                value={onboardForm.display_name}
-                onChange={e => setOnboardForm({ ...onboardForm, display_name: e.target.value })}
-              />
-              <select
-                value={onboardForm.role}
-                onChange={e => setOnboardForm({ ...onboardForm, role: e.target.value })}
-              >
-                <option value="mediator">Mediator</option>
-                <option value="trainee">Trainee</option>
-                <option value="client_individual">Client (Individual)</option>
-                <option value="client_corporate">Client (Corporate)</option>
-              </select>
+          <div className="modal-card modal-intake" onClick={e => e.stopPropagation()}>
+            <h3>New User – Minimal Intake</h3>
+            <form onSubmit={handleOnboard} className="intake-form">
+              <label>
+                Full name <span className="required">*</span>
+                <input
+                  type="text"
+                  placeholder="Full name or organization name"
+                  value={onboardForm.full_name}
+                  onChange={e => setOnboardForm({ ...onboardForm, full_name: e.target.value })}
+                  required
+                  minLength={2}
+                />
+              </label>
+              <label>
+                Email <span className="required">*</span>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={onboardForm.email}
+                  onChange={e => setOnboardForm({ ...onboardForm, email: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                User type <span className="required">*</span>
+                <div className="user-type-toggle">
+                  <button
+                    type="button"
+                    className={onboardForm.user_type === 'individual' ? 'active teal' : ''}
+                    onClick={() => setOnboardForm({ ...onboardForm, user_type: 'individual' })}
+                  >
+                    Individual
+                  </button>
+                  <button
+                    type="button"
+                    className={onboardForm.user_type === 'corporate' ? 'active indigo' : ''}
+                    onClick={() => setOnboardForm({ ...onboardForm, user_type: 'corporate' })}
+                  >
+                    Corporate
+                  </button>
+                </div>
+              </label>
+              <label>
+                Country of residence <span className="required">*</span>
+                <select
+                  value={onboardForm.country}
+                  onChange={e => setOnboardForm({ ...onboardForm, country: e.target.value })}
+                >
+                  {COUNTRIES.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Phone <span className="required">*</span>
+                <div className="phone-input">
+                  <span className="phone-prefix">+{COUNTRIES.find((c) => c.value === onboardForm.country)?.prefix || ''}</span>
+                  <input
+                    type="tel"
+                    placeholder="Phone number"
+                    value={onboardForm.phone}
+                    onChange={e => setOnboardForm({ ...onboardForm, phone: e.target.value })}
+                    required
+                  />
+                </div>
+              </label>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={onboardForm.invite_via_link}
+                  onChange={e => setOnboardForm({ ...onboardForm, invite_via_link: e.target.checked })}
+                />
+                Invite via link (no password)
+              </label>
+              {!onboardForm.invite_via_link && (
+                <label>
+                  Password <span className="required">*</span>
+                  <input
+                    type="password"
+                    placeholder="Set password"
+                    value={onboardForm.password}
+                    onChange={e => setOnboardForm({ ...onboardForm, password: e.target.value })}
+                    required={!onboardForm.invite_via_link}
+                  />
+                </label>
+              )}
               <div className="modal-actions">
                 <button type="button" onClick={() => setOnboardOpen(false)}>Cancel</button>
-                <button type="submit" className="primary">Onboard</button>
+                <button type="submit" className="primary">Create User</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {reassignOpen && reassignUser && (
+        <div className="modal-overlay" onClick={() => setReassignOpen(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <h3>Reassign Mediator – {reassignUser.display_name || reassignUser.email}</h3>
+            <form onSubmit={handleReassign}>
+              <label>
+                Mediator
+                <select
+                  value={reassignForm.mediator_id}
+                  onChange={e => setReassignForm({ ...reassignForm, mediator_id: e.target.value })}
+                  required
+                >
+                  <option value="">Select mediator</option>
+                  {mediators.map((m) => (
+                    <option key={m.id} value={m.id}>{m.display_name || m.email}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Reason
+                <select
+                  value={reassignForm.reason}
+                  onChange={e => setReassignForm({ ...reassignForm, reason: e.target.value })}
+                >
+                  <option value="">Select</option>
+                  {REASSIGN_REASONS.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Note
+                <textarea
+                  placeholder="Optional note"
+                  value={reassignForm.note}
+                  onChange={e => setReassignForm({ ...reassignForm, note: e.target.value })}
+                  rows={2}
+                />
+              </label>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={reassignForm.notify}
+                  onChange={e => setReassignForm({ ...reassignForm, notify: e.target.checked })}
+                />
+                Notify user & new mediator
+              </label>
+              <div className="modal-actions">
+                <button type="button" onClick={() => setReassignOpen(false)}>Cancel</button>
+                <button type="submit" className="primary">Reassign</button>
               </div>
             </form>
           </div>

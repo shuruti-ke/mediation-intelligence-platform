@@ -148,7 +148,9 @@ export const usersApi = {
   list: (params) => api.get('/users', { params }),
   get: (id) => api.get(`/users/${id}`),
   onboard: (data) => api.post('/users', data),
+  intake: (data) => api.post('/users/intake', data),
   updateStatus: (id, data) => api.patch(`/users/${id}`, data),
+  reassignMediator: (userId, data) => api.post(`/users/${userId}/reassign-mediator`, data),
 };
 
 export const analyticsApi = {

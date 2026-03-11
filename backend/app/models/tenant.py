@@ -1,7 +1,7 @@
 """Tenant and User models."""
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, ForeignKey, Enum
+from sqlalchemy import String, Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,5 +39,14 @@ class User(Base):
     onboarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+    # Intake & profile (Stage 1)
+    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # Progressive profile (Stage 2)
+    profile_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Mediator assignment
+    assigned_mediator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    profile_complete_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     tenant = relationship("Tenant", back_populates="users")
