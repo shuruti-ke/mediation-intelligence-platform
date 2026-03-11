@@ -1,7 +1,10 @@
 """Knowledge base - org vs mediator, ingest with visibility."""
+import os
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, and_
@@ -16,6 +19,7 @@ from app.services.chunker import chunk_text
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 settings = get_settings()
+KB_UPLOAD_DIR = Path(settings.storage_path) / "kb"
 
 
 class QueryRequest(BaseModel):
@@ -37,6 +41,11 @@ def _tenant_filter(tenant_id):
         KnowledgeBaseDocument.tenant_id.is_(None),
         KnowledgeBaseDocument.tenant_id == tenant_id,
     )
+
+
+def _mime_for_ext(ext: str) -> str:
+    m = {".pdf": "application/pdf", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".doc": "application/msword", ".txt": "text/plain"}
+    return m.get(ext.lower(), "application/octet-stream")
 
 
 # --- Mediator ingest (personal KB, optional share to org) ---
@@ -73,6 +82,18 @@ async def ingest_document(
         content_text=text,
     )
     db.add(kb_doc)
+    await db.flush()
+
+    # Store original file for download in original format
+    KB_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    storage_path = KB_UPLOAD_DIR / f"{kb_doc.id}{ext}"
+    with open(storage_path, "wb") as f:
+        f.write(content)
+    kb_doc.file_path = str(storage_path)
+    kb_doc.metadata_json = {
+        "original_filename": file.filename or doc_title,
+        "mime_type": file.content_type or _mime_for_ext(ext),
+    }
     await db.flush()
 
     chunks = chunk_text(text)
@@ -119,6 +140,18 @@ async def ingest_org_document(
         content_text=text,
     )
     db.add(kb_doc)
+    await db.flush()
+
+    # Store original file for download in original format
+    KB_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    storage_path = KB_UPLOAD_DIR / f"{kb_doc.id}{ext}"
+    with open(storage_path, "wb") as f:
+        f.write(content)
+    kb_doc.file_path = str(storage_path)
+    kb_doc.metadata_json = {
+        "original_filename": file.filename or doc_title,
+        "mime_type": file.content_type or _mime_for_ext(ext),
+    }
     await db.flush()
 
     chunks = chunk_text(text)
@@ -169,6 +202,7 @@ async def list_documents(
             "visibility": d.visibility if d.owner_id else "org",
             "owner_id": str(d.owner_id) if d.owner_id else None,
             "is_org": d.owner_id is None,
+            "original_filename": (d.metadata_json or {}).get("original_filename"),
         }
         for d in docs
     ]
@@ -192,6 +226,7 @@ async def list_org_documents(
             "title": d.title,
             "source_type": d.source_type,
             "is_org": d.owner_id is None,
+            "original_filename": (d.metadata_json or {}).get("original_filename"),
         }
         for d in docs
     ]
@@ -229,7 +264,7 @@ async def download_document(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Download document as plain text file."""
+    """Download document in original format (PDF, DOCX, etc.) or as TXT if file not stored."""
     from fastapi.responses import Response
     result = await db.execute(select(KnowledgeBaseDocument).where(KnowledgeBaseDocument.id == document_id))
     doc = result.scalar_one_or_none()
@@ -240,6 +275,15 @@ async def download_document(
             raise HTTPException(status_code=403, detail="Access denied")
     elif doc.owner_id != user.id:
         raise HTTPException(status_code=403, detail="Access denied")
+
+    # Serve original file if stored
+    if doc.file_path and os.path.exists(doc.file_path):
+        meta = doc.metadata_json or {}
+        filename = meta.get("original_filename") or (doc.title or "document")
+        mime = meta.get("mime_type") or "application/octet-stream"
+        return FileResponse(doc.file_path, filename=filename, media_type=mime)
+
+    # Fallback: content_text as TXT
     content = doc.content_text or ""
     safe_title = "".join(c for c in (doc.title or "document") if c.isalnum() or c in " -_.")[:80]
     return Response(

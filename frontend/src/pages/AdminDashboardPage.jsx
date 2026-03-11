@@ -416,14 +416,15 @@ export default function AdminDashboardPage() {
                   <span className="orgkb-badge">{d.is_org ? 'Org' : 'Shared'}</span>
                   <button
                     className="btn-sm"
-                    title="Download as text"
+                    title="Download"
                     onClick={async () => {
                       try {
                         const { data } = await knowledge.downloadDocument(d.id);
-                        const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type: 'text/plain' }));
+                        const blob = data instanceof Blob ? data : new Blob([data], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `${d.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+                        a.download = d.original_filename || `${d.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
                         a.click();
                         URL.revokeObjectURL(url);
                       } catch (err) {
@@ -480,10 +481,11 @@ export default function AdminDashboardPage() {
                       onClick={async () => {
                         try {
                           const { data } = await knowledge.downloadDocument(viewDoc.id);
-                          const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type: 'text/plain' }));
+                          const blob = data instanceof Blob ? data : new Blob([data], { type: 'text/plain' });
+                          const url = URL.createObjectURL(blob);
                           const a = document.createElement('a');
                           a.href = url;
-                          a.download = `${viewDoc.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+                          a.download = viewDoc.original_filename || `${viewDoc.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
                           a.click();
                           URL.revokeObjectURL(url);
                         } catch (err) {
@@ -491,7 +493,7 @@ export default function AdminDashboardPage() {
                         }
                       }}
                     >
-                      <Download size={16} /> Download as TXT
+                      <Download size={16} /> Download
                     </button>
                   )}
                 </div>
