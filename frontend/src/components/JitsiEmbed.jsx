@@ -7,23 +7,23 @@ import { useEffect, useRef, useState } from 'react';
 export default function JitsiEmbed({ roomName, domain = 'meet.jit.si', jwt, jaasAppId, displayName = 'Mediator', onReady }) {
   const containerRef = useRef(null);
   const apiRef = useRef(null);
-  const [scriptLoaded, setScriptLoaded] = useState(!jaasAppId);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
 
   useEffect(() => {
-    if (jaasAppId) {
-      if (document.querySelector(`script[src*="8x8.vc/${jaasAppId}"]`)) {
-        setScriptLoaded(true);
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = `https://8x8.vc/${jaasAppId}/external_api.js`;
-      script.async = true;
-      script.onload = () => setScriptLoaded(true);
-      document.head.appendChild(script);
-      return () => script.remove();
-    } else {
+    const scriptUrl = jaasAppId
+      ? `https://8x8.vc/${jaasAppId}/external_api.js`
+      : 'https://meet.jit.si/external_api.js';
+    const existing = document.querySelector(`script[src*="${jaasAppId ? '8x8.vc' : 'meet.jit.si'}"]`);
+    if (existing) {
       setScriptLoaded(true);
+      return;
     }
+    const script = document.createElement('script');
+    script.src = scriptUrl;
+    script.async = true;
+    script.onload = () => setScriptLoaded(true);
+    document.head.appendChild(script);
+    // Don't remove script on unmount - avoids duplicate load & "kernel already registered" errors
   }, [jaasAppId]);
 
   useEffect(() => {
