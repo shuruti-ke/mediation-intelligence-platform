@@ -30,7 +30,7 @@ export default function FreeTierPage() {
   };
 
   return (
-    <div className="public-page free-tier">
+    <div className="public-page halomd-style free-tier">
       <header className="public-header compact">
         <Link to="/">← Back</Link>
         <h1>Free First Session</h1>

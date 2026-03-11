@@ -1,7 +1,7 @@
 """Public portal - Phase 4. Awareness, Should I Mediate?, lead-gen, free tier."""
 from datetime import datetime
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,12 +34,30 @@ AWARENESS_CONTENT = {
 
 
 class ShouldIMediateRequest(BaseModel):
-    """Lead-gen: capture email/phone with consent."""
+    """In-depth assessment for AI analysis. All responses stored confidentially."""
+    # Contact (required for follow-up)
     email: EmailStr
     phone: str | None = None
-    consent_marketing: bool = False
-    dispute_type: str | None = None
+    # Section 1: Context
+    dispute_type: str | None = None  # employment, commercial, family, landlord_tenant, neighbour, community, consumer, other
+    duration: str | None = None  # under_1_month, 1_3_months, 3_6_months, 6_12_months, over_1_year
+    relationship: str | None = None  # employer, employee, business_partner, family_member, neighbour, landlord, tenant, other
+    # Section 2: Details
+    core_issue_summary: str | None = None  # Brief description for AI (max 500 chars)
+    previous_attempts: str | None = None  # none, informal, formal
+    other_party_aware: str | None = None  # yes, no, unsure
+    # Section 3: Goals & constraints
+    primary_goal: str | None = None  # relationship, financial, closure, clarity, other
+    legal_representation: str | None = None  # yes, no, considering
+    safety_concerns: str | None = None  # yes, no, prefer_not_to_say
+    # Section 4: Readiness
+    willingness_compromise: int | None = None  # 1-5
+    other_party_willingness: int | None = None  # 1-5
     urgency: str | None = None  # low, medium, high
+    timeline: str | None = None  # urgent, weeks, months, flexible
+    # Consent
+    consent_confidentiality: bool = False  # Required: understand responses are confidential
+    consent_marketing: bool = False
 
 
 @router.get("/awareness")
@@ -53,27 +71,48 @@ async def should_i_mediate_assessment(
     data: ShouldIMediateRequest,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """AI 'Should I Mediate?' assessment. Lead-gen: capture email/phone with consent."""
+    """In-depth 'Should I Mediate?' assessment with AI analysis. All data stored confidentially."""
+    if not data.consent_confidentiality:
+        raise HTTPException(
+            status_code=400,
+            detail="You must confirm that you understand your responses are confidential before submitting.",
+        )
+
+    # Build assessment payload (exclude PII from analysis; store separately)
+    responses = data.model_dump(exclude={"email", "phone", "consent_marketing"})
+    responses["consent_confidentiality"] = True
+
+    from app.services.assessment import analyze_assessment
+    analysis = analyze_assessment(responses)
+
+    # Store lead with structured assessment only (no free-text to protect confidentiality)
+    assessment_stored = {
+        "dispute_type": data.dispute_type,
+        "duration": data.duration,
+        "relationship": data.relationship,
+        "previous_attempts": data.previous_attempts,
+        "primary_goal": data.primary_goal,
+        "urgency": data.urgency,
+        "safety_concerns": data.safety_concerns,
+        "analysis_score": analysis.get("score_pct"),
+        "analysis_confidence": analysis.get("confidence"),
+    }
     lead = Lead(
         email=data.email,
         phone=data.phone,
         consent_marketing=data.consent_marketing,
         source="should_i_mediate",
-        assessment_response={"dispute_type": data.dispute_type, "urgency": data.urgency},
+        assessment_response=assessment_stored,
     )
     db.add(lead)
     await db.flush()
 
-    recommendation = "Consider mediation"
-    if data.urgency == "high":
-        recommendation = "Mediation is recommended for faster resolution. We'll follow up to schedule an intake session."
-    elif data.dispute_type:
-        recommendation = f"For {data.dispute_type} disputes, mediation often achieves better outcomes than litigation."
-
     return {
-        "recommendation": recommendation,
+        "recommendation": analysis["recommendation"],
+        "confidence": analysis.get("confidence", "medium"),
+        "factors": analysis.get("factors", []),
+        "next_step": analysis["next_step"],
         "lead_captured": True,
-        "next_step": "Schedule a free consultation or intake session",
     }
 
 
