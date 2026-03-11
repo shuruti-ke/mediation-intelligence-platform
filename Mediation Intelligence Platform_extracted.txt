@@ -1,0 +1,387 @@
+================================================================================
+FILE: Mediation Intelligence Platform.docx
+================================================================================
+# Mediation Intelligence Platform – Revised Critical Architecture (v2.0)
+
+**Date:** 2026-02-19  
+**Status:** Critical Infrastructure Grade  
+**Target Region:** Pan-African & Global (Optimized for Low-Bandwidth/High-Latency Environments)
+
+---
+
+## 1. Executive Summary & Strategic Shifts
+This revision transforms the platform from a standard SaaS mediation tool into **critical legal infrastructure**. The architecture now prioritizes **Data Sovereignty**, **Forensic Immutability**, and **Connectivity Resilience** to serve diverse jurisdictions (e.g., Kenya, Nigeria, US) with varying regulatory and network constraints.
+
+### Key Architectural Pivots:
+1.  **From Shared DB to Cell-Based Isolation:** Moving beyond simple Row-Level Security (RLS) to support logical sharding and physical isolation for high-risk government tenants.
+2.  **From "Streaming" to "Edge-First" Media:** Implementing offline-first audio buffering and Simulcast/SVC video to survive 4G packet loss without dropping sessions.
+3.  **From "AI Copilot" to "Deterministic Legal Engine":** Splitting AI workflows into probabilistic (drafting) and deterministic (clause injection) paths with mandatory human-in-the-loop audit trails.
+4.  **Event-Sourced Forensics:** Replacing mutable transcript updates with an immutable event log to preserve the forensic truth of proceedings.
+
+---
+
+## 2. Client & Edge Layer: The "Resilient Edge"
+**Objective:** Ensure functionality despite intermittent connectivity (common in rural Africa).
+
+### Updates:
+*   **Offline-First PWA Core:**
+    *   **Local Encryption:** Sensitive data cached in IndexedDB is encrypted using keys derived from the user's session (Web Crypto API).
+    *   **Store-and-Forward Transcription:** If the network drops, audio chunks are buffered locally, encrypted, and queued. Upon reconnection, the client resumes upload with sequence markers to stitch transcripts seamlessly server-side.
+*   **Adaptive Media Protocol (Simulcast + SVC):**
+    *   The SFU (Selective Forwarding Unit) sends three spatial layers (Low/Med/High).
+    *   **Auto-Failover State Machine:** If jitter > 200ms or packet loss > 5% for 3 seconds, the client automatically disables video and switches to **Opus Audio with Forward Error Correction (FEC)**. This transition is invisible to the user.
+*   **Crisis Detection Module (Client-Side):**
+    *   Lightweight keyword spotting runs locally on the audio stream. If distress keywords ("suicide", "harm") are detected, the UI immediately displays localized crisis resources (fetched based on IP/Country Code) and privately alerts the mediator.
+
+---
+
+## 3. Identity, Tenant & Data Sovereignty
+**Objective:** Strict isolation and compliance with local data residency laws (e.g., Kenya Data Protection Act, GDPR).
+
+### Updates:
+*   **Cell-Based Architecture:**
+    *   Tenants are assigned to a `cell_id` upon creation.
+    *   **Logical Sharding:** Standard tenants share a cluster but are routed via `cell_id`.
+    *   **Physical Isolation:** Judiciary/Government tenants can be provisioned on dedicated database instances within specific regions (e.g., `aws-af-south-1` for Kenya) without code changes.
+*   **Data Residency Routing:**
+    *   The `tenants` table now includes `data_residency_region`.
+    *   The API Gateway routes requests to the regional cluster matching this flag. Cross-border data transfer is blocked at the network layer unless explicitly authorized by a treaty flag.
+*   **Granular Consent Management:**
+    *   New `consent_flags` JSONB column in `case_participants`:
+        ```json
+        {
+          "allow_recording_for_training": false,
+          "allow_ai_analysis": true,
+          "data_residency_lock": "KE"
+        }
+        ```
+    *   Enforcement happens at the **API Gateway** before any request reaches the application logic.
+
+---
+
+## 4. Secure Online Mediation Sessions (Media Layer)
+**Objective:** Zero-trust media handling with forensic integrity.
+
+### Updates:
+*   **Ephemeral Key Rotation:** WebRTC DTLS keys are rotated every 5 minutes during a session to limit the blast radius of a potential compromise.
+*   **No-Record Policy Enforcement:**
+    *   The SFU is configured to **never** write RTP packets to disk.
+    *   Audio is streamed directly to the Transcription Service via an ephemeral pipe. Once transcribed, the raw audio buffer is garbage collected immediately unless a specific "QA Retention" flag is set by a super-admin (with dual-control approval).
+
+---
+
+## 5. Transcription-First Architecture: Event Sourcing
+**Objective:** Immutable forensic record of proceedings.
+
+### Critical Schema Change: Event Sourcing for Transcripts
+Instead of updating text, we append correction events.
+
+**New Schema Structure:**
+```sql
+-- Immutable source of truth
+CREATE TABLE transcript_segments (
+    id UUID PRIMARY KEY,
+    room_id UUID NOT NULL,
+    seq BIGINT NOT NULL, -- Monotonic sequence per room
+    speaker_label TEXT,
+    start_ms INT,
+    end_ms INT,
+    raw_text TEXT, -- Original STT output
+    confidence NUMERIC(3,2),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(room_id, seq)
+);
+
+-- Audit trail of all human/AI corrections
+CREATE TABLE transcript_corrections (
+    id UUID PRIMARY KEY,
+    segment_id UUID REFERENCES transcript_segments(id),
+    correction_type ENUM('HUMAN_EDIT', 'AI_SUGGESTION_ACCEPTED', 'MEDIATOR_RULING'),
+    original_text_snapshot TEXT, -- Snapshot at time of correction
+    corrected_text TEXT,
+    reason_code TEXT,
+    corrected_by UUID, -- User ID or 'SYSTEM_AI'
+    digital_signature BYTEA, -- Cryptographic proof of who made the change
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- View for the "Current Official Transcript"
+CREATE VIEW official_transcript AS
+SELECT 
+    s.id, s.speaker_label, s.start_ms, s.end_ms,
+    COALESCE(c.corrected_text, s.raw_text) as final_text
+FROM transcript_segments s
+LEFT JOIN LATERAL (
+    SELECT corrected_text 
+    FROM transcript_corrections 
+    WHERE segment_id = s.id 
+    ORDER BY created_at DESC LIMIT 1
+) c ON true;
+```
+
+---
+
+## 6. AI Architecture: Deterministic vs. Probabilistic Split
+**Objective:** Eliminate hallucination risks in legal outputs.
+
+### The "Dual-Path" AI Gateway:
+1.  **Path A: Probabilistic (Low Risk)**
+    *   *Use Cases:* Summarization, sentiment analysis, drafting non-binding memos.
+    *   *Mechanism:* Standard RAG with LLM.
+    *   *Guardrail:* Output scanned for PII leakage before returning to user.
+
+2.  **Path B: Deterministic (High Risk)**
+    *   *Use Cases:* Settlement clause generation, legal precedent citation, remedy suggestions.
+    *   *Mechanism:* **Template Injection Engine**.
+        *   The AI does *not* write text. It extracts entities (`{Party_A}`, `{Amount}`, `{Date}`) and selects a pre-approved legal template from the Knowledge Base.
+        *   The final document is assembled programmatically, ensuring no unauthorized legal language is introduced.
+
+### Mandatory Audit Trail for AI:
+*   Every AI suggestion is stored in `ai_suggestions_log` with status: `PROPOSED`, `ACCEPTED`, `REJECTED`, `EDITED`.
+*   Final documents include a cryptographic hash linking back to the specific AI version and the human who approved it.
+
+---
+
+## 7. Data Model & Schema Refinements
+
+### Updated Core Entities (PostgreSQL)
+```sql
+-- Tenancy with Residency
+CREATE TABLE tenants (
+    id UUID PRIMARY KEY,
+    name TEXT,
+    data_residency_region TEXT NOT NULL, -- e.g., 'af-south-1', 'us-east-1'
+    isolation_level ENUM('SHARED_LOGICAL', 'DEDICATED_PHYSICAL') DEFAULT 'SHARED_LOGICAL',
+    created_at TIMESTAMPTZ
+);
+
+-- Participants with Granular Consent
+CREATE TABLE case_participants (
+    id UUID PRIMARY KEY,
+    case_id UUID,
+    user_id UUID,
+    role TEXT,
+    consent_flags JSONB NOT NULL DEFAULT '{}', 
+    -- Example: {"allow_ai_training": false, "crisis_alert_opt_in": true}
+    created_at TIMESTAMPTZ
+);
+
+-- Usage Metering for Monetization
+CREATE TABLE usage_metering_events (
+    id UUID PRIMARY KEY,
+    tenant_id UUID,
+    case_id UUID,
+    event_type ENUM('TRANSCRIPTION_MINUTE', 'AI_TOKEN', 'STORAGE_GB'),
+    quantity NUMERIC(10,2),
+    metadata_json JSONB, -- Anonymized context only
+    created_at TIMESTAMPTZ
+);
+```
+
+### Privacy-Preserving Analytics Pipeline
+*   **Architecture:** Operational DB -> **Anonymization Engine** (k-anonymity, differential privacy) -> Analytics Warehouse.
+*   **Rule:** Raw case data *never* enters the analytics warehouse. Only aggregated metrics (e.g., "Avg settlement time in Nairobi") are stored. This enables safe monetization of insights.
+
+---
+
+## 8. Security Framework: Zero-Trust & Cryptography
+
+### Updates:
+*   **Tenant-Specific Encryption Keys (DEK):**
+    *   Each tenant has a unique Data Encryption Key.
+    *   Keys are stored in a dedicated KMS (e.g., AWS KMS / HashiCorp Vault) with strict IAM policies.
+    *   **Benefit:** Compromise of one tenant's key does not expose others.
+*   **Context Sanitization Middleware:**
+    *   Before any data hits the LLM, a middleware layer strips all `case_id`, `user_id`, and PII not explicitly required for the prompt.
+    *   **Output Guardrails:** Post-generation scanning ensures the AI did not hallucinate or leak data from other contexts.
+*   **Digital Signatures for Integrity:**
+    *   Final settlement agreements and approved transcripts are signed using the mediator's private key (stored in HSM or secure enclave) to prove non-repudiation.
+
+---
+
+## 9. Deployment Strategy: Multi-Region Active-Active
+
+### Topology:
+*   **Regional Edge Clusters:** Deployed in key hubs (e.g., Cape Town/Nairobi for Africa, Frankfurt for EU, Virginia for US).
+*   **Routing:** Global DNS (Route53/Cloudflare) directs users to the nearest region based on latency and `data_residency_region` constraint.
+*   **Replication:**
+    *   **Knowledge Base (Read-Heavy):** Asynchronous cross-region replication.
+    *   **Active Cases (Write-Heavy):** Synchronous replication within the region; async backup to disaster recovery region.
+
+---
+
+## 10. Implementation Roadmap (Critical Path)
+
+1.  **Phase 1: Foundation & Resilience (Weeks 1-4)**
+    *   Implement Cell-Based routing logic.
+    *   Build the Offline-First Audio Buffering module for PWA.
+    *   Deploy Simulcast SFU configuration.
+
+2.  **Phase 2: Forensic Data Model (Weeks 5-8)**
+    *   Migrate schema to Event-Sourced Transcripts (`transcript_corrections`).
+    *   Implement Digital Signature workflow for final documents.
+    *   Build Context Sanitization Middleware.
+
+3.  **Phase 3: Deterministic AI & Compliance (Weeks 9-12)**
+    *   Develop the Template Injection Engine for legal clauses.
+    *   Integrate Crisis Detection keywords and localized resource mapping.
+    *   Finalize Privacy-Preserving Analytics pipeline.
+
+---
+
+### Conclusion
+This revised architecture moves the platform from a "tool" to **infrastructure**. By treating connectivity instability, data sovereignty, and forensic immutability as primary design constraints rather than afterthoughts, the platform is now robust enough to handle sensitive mediations across diverse global jurisdictions while maintaining court-grade security.
+
+This is a critical addition. Integrating payments into a legal/mediation platform requires **strict separation of concerns**: the payment processor must never see sensitive case details (attorney-client privilege), and the mediation platform must never store raw card numbers (PCI-DSS compliance).
+
+Given your target market (Pan-Africa + Global) and your specific need for **M-Pesa** (essential for Kenya/East Africa) alongside global cards, here is the updated architecture section.
+
+---
+
+# 14. Payment & Billing Architecture (New Section)
+
+## 14.1 Strategic Approach: The "Payment Orchestrator" Pattern
+We will not integrate directly with M-Pesa or Stripe/PayPal in the core application logic. Instead, we introduce a **Payment Orchestrator Service**. This decouples the business logic from specific providers, allowing you to:
+1.  **Route intelligently:** Send Kenyan users to M-Pesa (lower fees, higher success rate) and US/EU users to Stripe.
+2.  **Failover:** If M-Pesa is down, offer an alternative mobile money provider (e.g., Airtel Money) without changing code.
+3.  **Compliance:** Ensure no PII or case data leaks to payment processors.
+
+### Supported Gateways:
+*   **Africa/Mobile Money:** **M-Pesa (Daraja API)** is primary. Secondary support for Airtel Money/Tigo Pesa via aggregators like **Flutterwave** or **Paystack** (recommended over direct telco integration for easier multi-country scaling).
+*   **Global/Cards:** **Stripe** (preferred for Visa/MC/Amex handling and PCI compliance) or **PayPal**.
+
+## 14.2 Updated Data Model (Schema Additions)
+
+Add these tables to your PostgreSQL schema. Note the strict separation of `internal_reference` (your system) and `external_reference` (provider ID).
+
+```sql
+-- Billing Profiles (One per Tenant or Organization)
+CREATE TABLE billing_profiles (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    currency_code CHAR(3) DEFAULT 'USD', -- Or KES, NGN based on residency
+    default_payment_method ENUM('MPESA', 'CARD', 'BANK_TRANSFER'),
+    tax_id VARCHAR(50), -- For VAT compliance in Kenya/US
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Invoices (The Request for Payment)
+CREATE TABLE invoices (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    case_id UUID NULL, -- Nullable: some bills are for subscriptions/training, not specific cases
+    invoice_number VARCHAR(20) UNIQUE, -- e.g., INV-KE-2026-001
+    amount_minor_units BIGINT NOT NULL, -- Store in cents/cents equivalent
+    currency_code CHAR(3) NOT NULL,
+    status ENUM('DRAFT', 'PENDING', 'PAID', 'FAILED', 'REFUNDED', 'CANCELLED'),
+    due_date TIMESTAMPTZ,
+    description_json JSONB, -- Line items (e.g., "Mediation Session - 2hrs", "AI Transcript Fee")
+    -- CRITICAL: Do NOT store case details here that shouldn't appear on a bank statement
+    metadata_json JSONB, 
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Payment Transactions (The Actual Movement of Money)
+CREATE TABLE payment_transactions (
+    id UUID PRIMARY KEY,
+    invoice_id UUID REFERENCES invoices(id),
+    provider ENUM('MPESA_DARAJA', 'STRIPE', 'FLUTTERWAVE', 'PAYPAL'),
+    provider_transaction_id VARCHAR(100), -- e.g., M-Pesa Receipt Code or Stripe Charge ID
+    provider_response_json JSONB, -- Full raw response for audit/reconciliation
+    amount_minor_units BIGINT NOT NULL,
+    currency_code CHAR(3) NOT NULL,
+    status ENUM('INITIATED', 'PENDING_USER_PIN', 'SUCCESS', 'FAILED', 'REVERSED'),
+    failure_reason TEXT,
+    initiated_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+-- M-Pesa Specific State Machine (For STK Push tracking)
+CREATE TABLE mpesa_sessions (
+    checkout_request_id VARCHAR(100) PRIMARY KEY, -- From Daraja API
+    transaction_id UUID REFERENCES payment_transactions(id),
+    phone_number_hash VARCHAR(64), -- Hashed for privacy, original not stored long-term
+    merchant_request_id VARCHAR(100),
+    status ENUM('PENDING', 'COMPLETED', 'CANCELLED', 'TIMEOUT'),
+    expires_at TIMESTAMPTZ
+);
+```
+
+## 14.3 Integration Flows
+
+### A. M-Pesa Flow (STK Push - Lipa Na M-Pesa Online)
+*Optimized for mobile users in Kenya/East Africa.*
+
+1.  **Initiation:** User selects "Pay with M-Pesa" on the PWA. Enters phone number (`+254...`).
+2.  **Request:** Backend calls **M-Pesa Daraja API** (`/mpesa/stkpush/v1/processrequest`).
+    *   *Security:* Credentials stored in Vault. Request includes a unique `CheckoutRequestID`.
+3.  **User Action:** User receives a prompt on their phone. Enters PIN.
+4.  **Callback (Async):** Safaricom sends a POST request to your public webhook (`/api/webhooks/mpesa/callback`).
+    *   **Validation:** Verify the callback signature (if available) and match `CheckoutRequestID`.
+    *   **Update:** Update `payment_transactions` status to `SUCCESS`.
+    *   **Trigger:** Emit `payment.success` event -> unlocks case documents, generates receipt, updates `usage_metering`.
+5.  **Timeout Handling:** If no callback within 2 minutes, poll the Daraja Query API or mark as `FAILED` and notify user.
+
+### B. Card Flow (Visa, Mastercard, Amex)
+*Optimized for Global/US users. Uses Stripe Elements for PCI Compliance.*
+
+1.  **Tokenization:** User enters card details in the PWA.
+    *   **Critical:** Data goes **directly** to Stripe.js. Your server **never** sees the card number.
+    *   Stripe returns a `payment_method_id` token.
+2.  **Charge:** Backend sends `payment_method_id` + `amount` to Stripe API.
+3.  **Webhook:** Stripe sends `payment_intent.succeeded` to your webhook (`/api/webhooks/stripe`).
+4.  **Reconciliation:** Match Stripe `client_reference_id` (your `invoice_id`) to update your DB.
+
+## 14.4 Security & Compliance Controls
+
+1.  **PCI-DSS Scope Reduction:**
+    *   By using Stripe Elements (for cards) and M-Pesa STK Push (for mobile money), your platform operates at **SAQ A** level (lowest compliance burden). You handle tokens, not card data.
+2.  **Data Minimization in Logs:**
+    *   **NEVER** log M-Pesa phone numbers or Card PANs in plain text.
+    *   Log only the last 4 digits (e.g., `***1234`) or a hash.
+    *   Mask `provider_response_json` before writing to audit logs if it contains sensitive PII.
+3.  **Idempotency:**
+    *   Payment webhooks can be delivered multiple times by providers.
+    *   Implement **Idempotency Keys** on your transaction processing logic to prevent double-crediting an invoice if the webhook fires twice.
+4.  **Reconciliation Job:**
+    *   Run a nightly cron job that compares your `invoices` table against the Provider’s Settlement Report (CSV/API) to catch any discrepancies (e.g., successful payment but DB update failed).
+
+## 14.5 Updated Client Experience (PWA)
+
+*   **Dynamic Payment Selector:**
+    *   Detect user IP/Phone Country Code.
+    *   If `+254` (Kenya) or `+255` (Tanzania): **Default to M-Pesa**. Show Card as secondary.
+    *   If `+1` (US) or `+44` (UK): **Default to Card**.
+*   **Offline Resilience:**
+    *   If the user initiates payment on unstable 4G and the app reloads, the `invoice` status remains `PENDING`. The UI should detect this and offer to "Retry M-Pesa Prompt" without creating a duplicate invoice.
+*   **Receipt Generation:**
+    *   Upon success, automatically generate a PDF receipt (using your Document Service) containing the Transaction ID, Amount, and Date. **Do not include case details** on the receipt if it might be shared with finance departments who shouldn't know the dispute specifics.
+
+## 14.6 Monetization Logic Integration
+
+Connect this to your existing `usage_metering` plan:
+
+1.  **Pre-Paid Model (Recommended for Africa):**
+    *   User buys "Credits" (e.g., KES 5,000).
+    *   Credits are deducted per minute of mediation or per AI token.
+    *   *Why?* Avoids failed transactions interrupting a live mediation session.
+2.  **Post-Paid Model (For Enterprise/Law Firms):**
+    *   Monthly invoice generated on the 1st.
+    *   Auto-charge via saved Card/M-Pesa (requires M-Pesa B2C or recurring mandate setup).
+
+---
+
+### Implementation Roadmap Update
+
+**Phase 1.5: Payments Core (Insert between Phase 1 and 2)**
+*   Set up Sandbox accounts for **M-Pesa Daraja** and **Stripe**.
+*   Implement the `Billing Profiles` and `Invoices` schema.
+*   Build the **Webhook Handlers** (critical path: verify signatures, ensure idempotency).
+*   Develop the **M-Pesa STK Push** service and timeout polling logic.
+
+**Phase 2.5: UX & Reconciliation**
+*   Integrate Payment Selector into the PWA checkout flow.
+*   Build the "Wallet/Credits" dashboard for users to view balance.
+*   Implement the nightly Reconciliation Job.
+
+This approach ensures you can monetize immediately in Kenya (via M-Pesa) while remaining ready for global expansion (Cards), all while maintaining the court-grade security and privacy standards required for legal tech.

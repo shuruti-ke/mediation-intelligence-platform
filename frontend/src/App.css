@@ -1,0 +1,785 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f5f5f5;
+}
+
+/* Login */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+}
+
+.login-card {
+  background: white;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-logo {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 1rem;
+}
+
+.login-card h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+  color: #1a365d;
+}
+
+.login-card .back-link {
+  display: block;
+  margin-bottom: 1rem;
+  color: #2b6cb0;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.login-card .subtitle {
+  margin: 0 0 1.5rem;
+  color: #718096;
+}
+
+.login-card input {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.login-card button {
+  width: 100%;
+  padding: 0.75rem;
+  background: #2b6cb0;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.login-card button:hover {
+  background: #2c5282;
+}
+
+.login-card .error {
+  background: #fed7d7;
+  color: #c53030;
+  padding: 0.5rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+/* Dashboard */
+.dashboard {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.dashboard header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.dashboard-brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dashboard-logo {
+  height: 40px;
+  width: auto;
+}
+
+.dashboard header h1 {
+  margin: 0;
+  color: #1a365d;
+}
+
+.dashboard header nav {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.dashboard header a {
+  padding: 0.5rem 1rem;
+  background: #2b6cb0;
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+.library-page, .judiciary-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.library-section, .judiciary-page section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.library-section input[type="text"],
+.judiciary-page input[type="text"] {
+  width: 100%;
+  padding: 0.75rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.search-results, .doc-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 1rem;
+}
+
+.search-results li, .doc-list li {
+  padding: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ai-answer {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: #edf2f7;
+  border-radius: 6px;
+}
+
+.citations ul {
+  margin: 0.5rem 0 0 1rem;
+}
+
+.judiciary-results {
+  list-style: none;
+  padding: 0;
+}
+
+.judiciary-results li {
+  padding: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.source-badge {
+  margin-left: 0.5rem;
+  padding: 0.2rem 0.5rem;
+  background: #bee3f8;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.case-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.case-list li {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.case-list a {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #2d3748;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.case-list a:hover {
+  background: #edf2f7;
+}
+
+.case-number {
+  font-weight: 600;
+}
+
+.case-status {
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.status-badge.intake { background: #bee3f8; }
+.status-badge.assigned { background: #fefcbf; }
+.status-badge.active { background: #c6f6d5; }
+.status-badge.settled { background: #c6f6d5; }
+.status-badge.closed { background: #e2e8f0; }
+
+/* Case detail */
+.case-detail {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.case-detail header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.case-detail header button {
+  padding: 0.5rem 1rem;
+  background: #e2e8f0;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.mediation-room {
+  background: white;
+  padding: 1rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.room-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: #edf2f7;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.session-timer {
+  display: flex;
+  flex-direction: column;
+}
+
+.timer-label {
+  font-size: 0.75rem;
+  color: #718096;
+}
+
+.timer-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.room-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-record {
+  padding: 0.5rem 1rem;
+  background: #e53e3e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-record.active {
+  background: #c53030;
+}
+
+.btn-caucus {
+  padding: 0.5rem 1rem;
+  background: #2b6cb0;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.mediation-room .leave-btn {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: #718096;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.session-list {
+  list-style: none;
+  padding: 0;
+}
+
+.session-list li {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal h3 {
+  margin-top: 0;
+}
+
+.consent-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  cursor: pointer;
+}
+
+.consent-checkbox input {
+  margin-top: 0.25rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.modal-caucus .caucus-room-embed {
+  height: 300px;
+  margin: 1rem 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.primary {
+  padding: 0.75rem 1.5rem;
+  background: #2b6cb0;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+/* New case */
+.new-case {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.new-case form label {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.new-case form input {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  margin-top: 0.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.new-case .error {
+  background: #fed7d7;
+  color: #c53030;
+  padding: 0.5rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+/* Public pages */
+.public-landing {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, #1a365d 0%, #2c5282 50%, #2d3748 100%);
+  color: white;
+}
+
+.public-header {
+  padding: 2rem;
+  text-align: center;
+}
+
+.public-header.compact {
+  text-align: left;
+  padding: 1.5rem 2rem;
+}
+
+.header-logo {
+  max-width: 280px;
+  height: auto;
+  margin-bottom: 1rem;
+}
+
+.public-header h1 {
+  margin: 0 0 0.5rem;
+  font-size: 2rem;
+}
+
+.public-header .tagline {
+  margin: 0 0 1.5rem;
+  opacity: 0.9;
+}
+
+.public-nav {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.public-nav a {
+  color: white;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border: 1px solid rgba(255,255,255,0.5);
+  border-radius: 8px;
+}
+
+.public-nav a:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+.landing-hero {
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 2rem 2rem;
+}
+
+.hero-image {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  object-fit: cover;
+}
+
+.public-main {
+  flex: 1;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  width: 100%;
+}
+
+.awareness-section {
+  background: rgba(255,255,255,0.1);
+  padding: 1.5rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+}
+
+.awareness-section h2 {
+  margin-top: 0;
+}
+
+.awareness-block {
+  margin: 1rem 0;
+}
+
+.awareness-block h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.cta-section h2 {
+  margin-bottom: 1rem;
+}
+
+.cta-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.cta-card {
+  background: rgba(255,255,255,0.1);
+  padding: 1.5rem;
+  border-radius: 12px;
+  text-decoration: none;
+  color: white;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.cta-card:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.cta-card h3 {
+  margin: 0 0 0.5rem;
+}
+
+.cta-card p {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.public-footer {
+  padding: 1rem 2rem;
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.public-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+  color: white;
+}
+
+.public-page .public-main {
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+  padding: 2rem;
+}
+
+.assessment-form label,
+.check-eligibility label {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.assessment-form input,
+.assessment-form select,
+.check-eligibility input {
+  display: block;
+  width: 100%;
+  padding: 0.75rem;
+  margin-top: 0.25rem;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.1);
+  color: white;
+}
+
+.assessment-form select option {
+  color: #1a365d;
+}
+
+.check-eligibility form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.check-eligibility form input {
+  flex: 1;
+}
+
+.check-eligibility form button {
+  padding: 0.75rem 1rem;
+  background: #2b6cb0;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.result-card {
+  padding: 1rem 0;
+}
+
+.result-card .recommendation {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 1rem 0;
+}
+
+.eligibility-result {
+  padding: 1rem;
+  background: rgba(255,255,255,0.1);
+  border-radius: 8px;
+}
+
+.free-tier-info {
+  margin-bottom: 2rem;
+}
+
+.free-tier-info .free-sessions {
+  font-size: 1.2rem;
+}
+
+.signup-cta {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.public-page .primary {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: #2b6cb0;
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+.public-page .primary:hover {
+  background: #2c5282;
+}
+
+.public-page .error {
+  background: #fed7d7;
+  color: #c53030;
+  padding: 0.5rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+/* Offline banner */
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 0.5rem 1rem;
+  background: #e53e3e;
+  color: white;
+  text-align: center;
+  font-size: 0.9rem;
+  z-index: 9999;
+}
+
+/* Training pages */
+.training-page header,
+.cpd-page header,
+.role-play-page header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.training-page nav,
+.cpd-page nav,
+.role-play-page nav {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.module-list {
+  list-style: none;
+  padding: 0;
+}
+
+.module-card {
+  display: block;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  margin-bottom: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.module-card:hover {
+  background: #edf2f7;
+}
+
+.module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.badge {
+  padding: 0.2rem 0.5rem;
+  background: #e2e8f0;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.badge.completed {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.training-module-page .content-html {
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.module-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.cpd-progress .progress-bar {
+  height: 1.5rem;
+  background: #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+
+.cpd-progress .progress-fill {
+  height: 100%;
+  background: #2b6cb0;
+  transition: width 0.3s;
+}
+
+.generate-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.scenario-card {
+  padding: 1rem;
+  background: #edf2f7;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.scenario-list {
+  list-style: none;
+  padding: 0;
+}

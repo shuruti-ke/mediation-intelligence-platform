@@ -1,0 +1,248 @@
+================================================================================
+FILE: AI Mediation platform.docx
+================================================================================
+AI-Enabled Mediation Platform – Concept Design Structure
+Proposed Name: Mediation Focus AI Hub
+Founder: Norah Njeri Ongwenyi, MBA
+IMI Qualified Mediator | MAC Accredited Mediator
+Website: www.mediationfocus.co.ke
+
+1️⃣ PLATFORM ARCHITECTURE OVERVIEW
+The platform will consist of three integrated ecosystems:
+Mediator Portal (Professional Dashboard)
+Client / Public Portal
+Admin Dashboard (System Control & AI Engine Management)
+The system must support secure interaction between the portals while maintaining strict confidentiality and role-based access control.
+
+2️⃣ USER ROLES & ACCESS LEVELS
+A. Mediator Categories
+Super Admin (Founder – Full Control Access)
+Accredited Mediators
+New Mediators (Trainees)
+Guest Trainers
+B. Public Users
+Corporate Clients
+Individual Clients
+Students / Researchers
+
+3️⃣ MEDIATOR PORTAL
+This is the professional dashboard for mediators and trainees.
+
+A. New Mediators – Induction & Certification Track
+1. Induction Programs
+Orientation modules
+Ethics & confidentiality standards
+Introduction to court-annexed mediation
+Introduction to online mediation practice
+Court annexed vs Private mediation
+2. AI Learning Companion
+Interactive training support
+Scenario-based simulations
+Knowledge quizzes
+Certification tracking
+Progress dashboard
+
+B. Existing Mediators – Continuous Professional Development (CPD)
+a. Digital & Operational Capacity Building
+i. Use of the Online Mediation Platform
+Dashboard navigation
+Case intake workflow
+Scheduling system
+Secure messaging tools
+Virtual mediation room management
+Breakout caucus functionality
+Document review & collaboration tools
+ii. AI-Enabled Tools Training
+AI case summarization
+Issue mapping
+AI-assisted drafting (non-decision support)
+Ethical use of AI in mediation
+Bias awareness safeguards
+
+b. Interaction with Judiciary Automated Systems – cannot be activated now -  to be developed later
+Documents for processing
+i. Judiciary e-Filing Integration
+Uploading settlement agreements
+Submitting mediator reports
+Case reference management
+Tracking post-mediation case status
+ii. Court-Annexed & private mediation (CAM) Workflow
+Understanding allocation notifications
+Timeline compliance
+Updating case progress
+Filing completion reports
+iii. Private mediation Work flow
+Drafting of a private mediation settlement
+Registration of Private settlement agreement
+iv. Compliance & Submission Standards
+Required document formats
+Digital signature requirements
+File naming protocols
+Data protection compliance
+
+c. AI Compliance Assistant
+System feature to support mediators:
+Automated checklist validation
+Missing clause alerts
+Formatting verification before submission
+Risk flagging tool
+
+C. Understanding Court Case Allocation Process
+Court-Based Allocation
+Rotation systems
+Conflict of interest declarations
+Recusal procedures
+Transparency safeguards
+This may include an AI-assisted matching feature in future versions.
+
+D. Post-Mediation Documentation & Judiciary Requirements
+A. Required Core Documents
+Settlement Agreement
+Mediator’s Report
+Non-Settlement Report (where applicable)
+Attendance Record
+Confidentiality Confirmation
+B. Drafting & Structuring Standards
+Enforceable agreement structure
+Clear obligations and timelines
+Compliance with statutory requirements
+Conversion into consent judgment
+C. Submission Workflow
+Upload to Judiciary portal
+Digital signature integration
+Filing confirmation
+Secure document archiving
+
+E. International Case Studies & Comparative Learning Hub
+A. Comparative Jurisdiction Modules
+Court-annexed mediation models
+Online dispute resolution systems
+Cross-border mediation practices
+B. Case Study Library
+Anonymized real cases
+AI-generated simulations
+Recorded mock sessions
+C. Emerging Global Trends
+AI in mediation
+Digital transformation of courts
+Cross-border enforceability
+
+F. Professional Practice Enhancement
+Ethics refresher modules
+Peer discussion forum
+CPD tracking dashboard
+Mediator performance analytics
+
+G. Online Mediation Operations Suite
+
+1️⃣ Case Management System (CMS)
+The CMS must be a secure, end-to-end workflow system managing mediation cases from intake to closure.
+A. Case Intake & Registration
+Secure online intake form
+Dispute category classification
+Automated case number generation
+Upload of preliminary documents
+Conflict of interest declaration prompt
+
+B. Case Allocation System
+The CMS must support structured and transparent allocation mechanisms:
+i. Court-Annexed Allocation
+Case assignment notification
+Rotation-based allocation tracking
+Conflict-of-interest declaration workflow
+Recusal and reassignment functionality
+ii. Private Mediation Allocation
+Client-selected mediator option
+Admin-assisted assignment
+AI-assisted matching (based on expertise, availability, language, industry)
+Case complexity classification
+The system should maintain:
+Allocation audit trail
+Time-stamped assignment records
+Transparency logs
+
+C. Case Progress Tracking
+Status flow (Intake → Assigned → Active → Settlement → Closed)
+Timeline monitoring
+Session scheduling integration
+Automated reminders
+Milestone tracking
+
+D. Case Summary Upload & Reporting
+The CMS must allow:
+Secure upload of:
+Mediator’s summary report
+Settlement agreement
+Non-settlement report
+Structured case summary template (standardised format)
+AI-assisted case summarisation tool
+Version tracking of uploaded reports
+Secure archive storage
+Restricted access permissions
+Optional advanced feature:
+Exportable summary in Judiciary-compliant format
+Redacted version generator (for training purposes)
+
+E. Data Security & Confidentiality Controls
+Role-based file access
+Encrypted storage
+Two-factor authentication
+Audit log of file downloads and edits
+
+2️⃣ Document Exchange & E-Signing
+Encrypted document upload and sharing
+Version tracking system
+Settlement agreement template builder
+NDA auto-generation tool
+Digital signature integration
+Time-stamped execution record
+Export in Judiciary-compliant format
+
+3️⃣ Online Mediation Sessions
+Secure video conferencing
+Breakout caucus rooms
+Screen sharing and collaborative document review
+Optional AI transcription (confidential mode)
+Automated session summaries
+Session timer and log history
+
+4️⃣ PUBLIC / CLIENT PORTAL
+This section is for users seeking mediation or training.
+
+A. Mediation Awareness & Training
+What is mediation?
+Litigation vs mediation comparison
+Risk and cost calculator
+Corporate reputation management insights
+
+B. AI “Should I Mediate?” Assessment Tool
+Guided questionnaire
+Risk exposure scoring
+Mediator recommendation engine
+
+C. Role-Play Creation Studio
+AI case generator
+Custom industry scenarios
+Script builder for training purposes
+
+D. Mediation Booking & Intake
+Dispute category selection
+Secure document upload
+Fee transparency
+Mediator matching
+Secure payment gateway
+
+5️⃣ TRAINING & CONSULTATION BOOKINGS
+Public users should be able to:
+A. Book an Appointment
+Consultation session
+Mediation intake session
+B. Book a Training Session
+Corporate training
+Mediator training
+Institutional workshops
+C. Payment Integration
+Card payments
+M-Pesa integration
+Automated invoice generation
+

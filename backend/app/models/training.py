@@ -1,0 +1,94 @@
+"""Training, CPD, and role-play models - Phase 5."""
+import uuid
+from datetime import datetime
+from sqlalchemy import String, Text, DateTime, ForeignKey, Integer, Boolean
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.core.database import Base
+
+
+class TrainingModule(Base):
+    """Induction module: Orientation, Ethics, Online Mediation Intro."""
+
+    __tablename__ = "training_modules"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True)
+    slug: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # orientation, ethics, online_mediation
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_html: Mapped[str | None] = mapped_column(Text, nullable=True)
+    order_index: Mapped[int] = mapped_column(Integer, default=0)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class TrainingProgress(Base):
+    """User progress on training modules."""
+
+    __tablename__ = "training_progress"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    module_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("training_modules.id"), nullable=False)
+    completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    progress_pct: Mapped[int] = mapped_column(Integer, default=0)  # 0-100
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CPDProgress(Base):
+    """CPD hours and certification tracking."""
+
+    __tablename__ = "cpd_progress"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    hours_completed: Mapped[float] = mapped_column(default=0.0)
+    hours_required: Mapped[float] = mapped_column(default=12.0)  # per year
+    certifications: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # [{name, date, issuer}]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Quiz(Base):
+    """Quiz for CPD / training."""
+
+    __tablename__ = "quizzes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    module_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("training_modules.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    questions_json: Mapped[dict] = mapped_column(JSONB, nullable=False)  # [{q, options, correct_idx}]
+    passing_score_pct: Mapped[int] = mapped_column(Integer, default=70)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class QuizAttempt(Base):
+    """User quiz attempt."""
+
+    __tablename__ = "quiz_attempts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    quiz_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("quizzes.id"), nullable=False)
+    score_pct: Mapped[int] = mapped_column(Integer, nullable=False)
+    passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    answers_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class RolePlayScenario(Base):
+    """AI-generated role-play scenario for training."""
+
+    __tablename__ = "role_play_scenarios"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    dispute_category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    scenario_json: Mapped[dict] = mapped_column(JSONB, nullable=False)  # {parties, facts, objectives, script_hints}
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

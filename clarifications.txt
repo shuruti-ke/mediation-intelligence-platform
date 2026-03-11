@@ -1,0 +1,30 @@
+1. Clarify Your Revenue Model Early
+Develop options to Charge per session? Per mediator license? Enterprise tenant subscriptions?
+Add a "Usage Metrics & Billing" service to track billable events (recordings, AI queries, document storage).
+Build analytics collection into the event-sourced transcript model from Day 1 — but ensure your privacy policy clearly discloses this (you mentioned wanting to monetize analytics/phone numbers responsibly — we can help word that carefully later).
+2. Jitsi/Jibri: Operational Overhead vs. Cost
+Self-hosting Jitsi + Jibri gives you data sovereignty (great for trust), but:
+Consider a hybrid approach for MVP: Use a managed Jitsi provider (like 8x8.vc or a hosted Jitsi on AWS) for Phase 1–2 to reduce DevOps load, then migrate to self-hosted once you have revenue.
+Jibri requires dedicated VMs (4 CPU, 8GB RAM) — factor this into your cloud cost projections. If recording isn't critical for MVP, could it be a Phase 2+ premium feature?
+Design your schema with migration in mind (e.g., avoid heavy reliance on SQLite-specific features).
+When you hit scale or need advanced Postgres features (RLS, complex JSONB queries), Hyperdrive + Neon is a smooth transition.
+4. AI/RAG Costs: Guardrails for Profitability
+AI features (knowledge base, judiciary search) are powerful but can get expensive:
+Implement query rate limits per tenant based on subscription tier.
+Cache frequent judiciary search results to avoid repeated API calls to Tausi/Laws.Africa.
+Consider making advanced AI features (e.g., "AI-assisted settlement drafting") a premium add-on.
+5. Privacy & Compliance: Commercial ≠ Casual
+Even though this isn't government, your users (especially in Kenya/EU) will expect strong privacy:
+Your plan mentions consent_flags — excellent. Ensure your UI makes consent explicit and auditable.
+6. Document Handling: Watch PDF/OCR Costs
+Apache Tika is powerful but Java-heavy. For MVP:
+Start with PyMuPDF (PDF) + python-docx (DOCX) for the 80% use case.
+Add Tika later if you truly need 1000+ format support — it adds operational complexity.
+7. Go-to-Market Alignment
+Phase 4's "Public Portal" is great for user acquisition. Consider adding a free tier (e.g., 1 free mediation session) to drive adoption.
+The "Should I Mediate?" assessment could double as a lead-gen tool — capture emails/phone numbers (with consent) for follow-up.
+🚀 Quick Wins for Your Commercial Launch
+Add a /api/billing/usage endpoint early — even if billing isn't live, tracking usage helps you price correctly.
+Instrument analytics from Day 1 (privately, with consent) — understand which features drive retention.
+Create a "Commercial Configuration" profile in your tenant model: e.g., branding, payment_methods_enabled, ai_features_enabled — lets you customize per client tier.
+Draft your privacy policy early — especially around analytics, recordings, and AI training data. Happy to help refine wording that protects you and enables monetization.
