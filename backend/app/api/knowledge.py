@@ -1,8 +1,12 @@
 """Knowledge base - org vs mediator, ingest with visibility."""
 import os
+import re
 from pathlib import Path
+from urllib.parse import quote_plus, unquote, parse_qs, urlparse
 from uuid import UUID
 
+import httpx
+from bs4 import BeautifulSoup
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -45,6 +49,49 @@ def _tenant_filter(tenant_id):
 def _mime_for_ext(ext: str) -> str:
     m = {".pdf": "application/pdf", ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".doc": "application/msword", ".txt": "text/plain"}
     return m.get(ext.lower(), "application/octet-stream")
+
+
+_STOPWORDS = {"what", "are", "the", "a", "an", "is", "it", "for", "of", "to", "in", "on", "at", "by", "with", "how", "when", "where", "which", "who", "that", "this", "and", "or", "but", "if", "as", "be", "been", "being", "have", "has", "had", "do", "does", "did", "will", "would", "could", "should", "can", "may", "might", "must", "shall"}
+
+
+def _search_words(query: str) -> list[str]:
+    """Extract meaningful search terms (min 3 chars, skip stopwords)."""
+    words = re.findall(r"\b[a-zA-Z]{3,}\b", query.lower())
+    return [w for w in words if w not in _STOPWORDS][:8]
+
+
+async def _web_search_books(query: str, max_results: int = 8) -> list[dict]:
+    """Search for books on the topic via DuckDuckGo. Returns title, url, snippet."""
+    search_q = f"{query} books"
+    SCRAPE_UA = "Mozilla/5.0 (compatible; MediationPlatform/1.0; +https://mediation-intelligence-platform.vercel.app)"
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            r = await client.get(
+                "https://html.duckduckgo.com/html/",
+                params={"q": quote_plus(search_q)},
+                headers={"User-Agent": SCRAPE_UA},
+            )
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+        results = []
+        for div in soup.find_all("div", class_="result")[:max_results]:
+            link = div.find("a", class_="result__a")
+            snippet_el = div.find("a", class_="result__snippet")
+            if not link:
+                continue
+            href = link.get("href", "")
+            if "uddg=" in href:
+                parsed = urlparse(href)
+                qs = parse_qs(parsed.query)
+                real_url = unquote(qs.get("uddg", [""])[0]) if qs.get("uddg") else href
+            else:
+                real_url = href
+            title = link.get_text(strip=True)
+            snippet = snippet_el.get_text(strip=True) if snippet_el else ""
+            results.append({"title": title, "url": real_url, "snippet": snippet})
+        return results
+    except Exception:
+        return []
 
 
 # --- Mediator ingest (personal KB, optional share to org) ---
@@ -376,68 +423,97 @@ async def query_knowledge(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    """AI-powered Q&A. scope in body: org, personal, or all."""
+    """AI-powered Q&A. Searches KB first; if no docs found, web search for book recommendations."""
     if not data.query.strip():
         return {"answer": "", "citations": []}
     scope = (data.scope or "all") if data.scope in ("org", "personal", "all") else "all"
 
-    q_filter = f"%{data.query.strip()}%"
-    base = select(KnowledgeBaseChunk, KnowledgeBaseDocument).join(
-        KnowledgeBaseDocument, KnowledgeBaseChunk.document_id == KnowledgeBaseDocument.id
-    ).where(KnowledgeBaseChunk.content.ilike(q_filter))
-
+    # Build scope filter
     if scope == "org":
-        base = base.where(_org_or_public_filter(), _tenant_filter(user.tenant_id))
+        scope_filter = and_(_org_or_public_filter(), _tenant_filter(user.tenant_id))
     elif scope == "personal":
-        base = base.where(KnowledgeBaseDocument.owner_id == user.id)
+        scope_filter = KnowledgeBaseDocument.owner_id == user.id
     else:
-        base = base.where(
-            or_(
-                and_(_org_or_public_filter(), _tenant_filter(user.tenant_id)),
-                KnowledgeBaseDocument.owner_id == user.id,
-            ),
+        scope_filter = or_(
+            and_(_org_or_public_filter(), _tenant_filter(user.tenant_id)),
+            KnowledgeBaseDocument.owner_id == user.id,
         )
 
-    result = await db.execute(base.limit(5))
+    # Try full phrase first, then word-based search for better recall
+    q_stripped = data.query.strip()
+    words = _search_words(q_stripped)
+    base = (
+        select(KnowledgeBaseChunk, KnowledgeBaseDocument)
+        .join(KnowledgeBaseDocument, KnowledgeBaseChunk.document_id == KnowledgeBaseDocument.id)
+        .where(scope_filter)
+    )
+    # Match full phrase OR any meaningful word
+    if words:
+        phrase_filter = KnowledgeBaseChunk.content.ilike(f"%{q_stripped}%")
+        word_filters = [KnowledgeBaseChunk.content.ilike(f"%{w}%") for w in words]
+        base = base.where(or_(phrase_filter, *word_filters))
+    else:
+        base = base.where(KnowledgeBaseChunk.content.ilike(f"%{q_stripped}%"))
+
+    result = await db.execute(base.limit(10))
     rows = result.all()
 
     citations = []
     context_parts = []
+    seen_doc_ids = set()
     for chunk, doc in rows:
+        if doc.id not in seen_doc_ids:
+            seen_doc_ids.add(doc.id)
+            citations.append({"document_title": doc.title, "snippet": chunk.content[:200]})
         context_parts.append(chunk.content)
-        citations.append({"document_title": doc.title, "snippet": chunk.content[:200]})
 
-    if not context_parts:
-        return {
-            "answer": "No relevant documents found in the knowledge base for your query.",
-            "citations": [],
-        }
+    if context_parts:
+        context = "\n\n---\n\n".join(context_parts)
+        if settings.openai_api_key:
+            try:
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    r = await client.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+                        json={
+                            "model": "gpt-4o-mini",
+                            "messages": [
+                                {"role": "system", "content": "Answer based only on the provided context. Cite document titles. NEVER quote or cite any law unless it appears verbatim in the context from a verified source. Do not invent laws or present them as real. If legal specifics are needed, direct users to Kenya Law (new.kenyalaw.org) or a qualified legal professional."},
+                                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {data.query}"},
+                            ],
+                            "max_tokens": 500,
+                        },
+                        timeout=30,
+                    )
+                    if r.status_code == 200:
+                        data_res = r.json()
+                        answer = data_res.get("choices", [{}])[0].get("message", {}).get("content", "")
+                        return {"answer": answer, "citations": citations}
+            except Exception:
+                pass
+        answer = f"Based on the knowledge base:\n\n{context_parts[0][:500]}..."
+        return {"answer": answer, "citations": citations}
 
-    context = "\n\n---\n\n".join(context_parts)
-
-    if settings.openai_api_key:
-        try:
-            import httpx
-            async with httpx.AsyncClient() as client:
-                r = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {settings.openai_api_key}"},
-                    json={
-                        "model": "gpt-4o-mini",
-                        "messages": [
-                            {"role": "system", "content": "Answer based only on the provided context. Cite document titles. NEVER quote or cite any law unless it appears verbatim in the context from a verified source. Do not invent laws or present them as real. If legal specifics are needed, direct users to Kenya Law (new.kenyalaw.org) or a qualified legal professional."},
-                            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {data.query}"},
-                        ],
-                        "max_tokens": 500,
-                    },
-                    timeout=30,
-                )
-                if r.status_code == 200:
-                    data_res = r.json()
-                    answer = data_res.get("choices", [{}])[0].get("message", {}).get("content", "")
-                    return {"answer": answer, "citations": citations}
-        except Exception:
-            pass
-
-    answer = f"Based on the knowledge base:\n\n{context_parts[0][:500]}..."
-    return {"answer": answer, "citations": citations}
+    # No docs found: web search for book recommendations
+    book_results = await _web_search_books(data.query, max_results=8)
+    if book_results:
+        lines = [
+            "No relevant documents found in the knowledge base for your query.",
+            "",
+            "Here are some books and resources that may help:",
+            "",
+        ]
+        for i, r in enumerate(book_results[:6], 1):
+            lines.append(f"{i}. {r['title']}")
+            if r.get("snippet"):
+                lines.append(f"   {r['snippet'][:150]}...")
+            if r.get("url"):
+                lines.append(f"   {r['url']}")
+            lines.append("")
+        answer = "\n".join(lines)
+        return {"answer": answer, "citations": [], "source": "web_search"}
+    return {
+        "answer": "No relevant documents found in the knowledge base for your query. Try rephrasing or uploading documents on this topic.",
+        "citations": [],
+    }
