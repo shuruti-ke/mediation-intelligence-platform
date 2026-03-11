@@ -2,6 +2,7 @@
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -17,6 +18,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+@router.options("/login")
+async def login_options():
+    """CORS preflight for login."""
+    return Response(status_code=200)
 
 
 @router.post("/login")

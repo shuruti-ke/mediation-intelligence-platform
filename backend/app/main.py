@@ -26,12 +26,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Parse CORS origins: strip whitespace, filter empty
+_cors_origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins.split(","),
+    allow_origins=_cors_origins,
+    allow_origin_regex=r"^https://[a-z0-9-]+\.vercel\.app$",  # Vercel preview deployments
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # API routes - prefix /api
