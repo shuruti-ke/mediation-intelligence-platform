@@ -349,21 +349,69 @@ async def get_cpd_dashboard(
     }
 
 
+async def _generate_dynamic_scenario(category: str) -> dict | None:
+    """Use OpenAI to generate a unique scenario when API key is set."""
+    from app.core.config import get_settings
+    settings = get_settings()
+    if not settings.openai_api_key:
+        return None
+    cat_names = {"employment": "employment/workplace", "commercial": "commercial/contract", "family": "family/custody or inheritance"}
+    cat_name = cat_names.get(category, category)
+    try:
+        import httpx
+        import json
+        system = """You are a mediation training designer. Generate a unique, realistic mediation scenario in JSON.
+Return ONLY valid JSON with this structure (no markdown, no extra text):
+{"title": "Short scenario title", "parties": ["Party A (Name)", "Party B (Name)"], "facts": "2-3 sentences of background", "objectives": {"party_a": "interest", "party_b": "interest"}}
+Make it culturally relevant to East Africa when possible. Vary names, industries, and specifics each time."""
+        r = await httpx.AsyncClient().post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {settings.openai_api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": f"Generate a {cat_name} dispute scenario. Use different names and facts than before."},
+                ],
+                "max_tokens": 350,
+            },
+            timeout=15.0,
+        )
+        if r.status_code == 200:
+            content = (r.json().get("choices", [{}])[0].get("message", {}).get("content") or "").strip()
+            if content:
+                content = content.replace("```json", "").replace("```", "").strip()
+                scenario = json.loads(content)
+                if isinstance(scenario, dict) and scenario.get("title") and scenario.get("parties"):
+                    scenario["script_hints"] = [
+                        "Open with introductions and ground rules",
+                        "Allow each party to state their perspective",
+                        "Identify common interests",
+                        "Brainstorm options",
+                    ]
+                    return scenario
+    except Exception:
+        pass
+    return None
+
+
 @router.post("/role-play/generate")
 async def generate_role_play(
     data: RolePlayGenerate,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("mediator", "trainee", "super_admin")),
 ) -> dict:
-    """AI case generator - returns scenario for role-play. Uses defaults when no AI."""
+    """AI case generator - returns scenario for role-play. Uses OpenAI when available, else defaults."""
     cat = data.dispute_category or "employment"
-    scenario = DEFAULT_SCENARIOS.get(cat, DEFAULT_SCENARIOS["employment"]).copy()
-    scenario["script_hints"] = [
-        "Open with introductions and ground rules",
-        "Allow each party to state their perspective",
-        "Identify common interests",
-        "Brainstorm options",
-    ]
+    scenario = await _generate_dynamic_scenario(cat)
+    if not scenario:
+        scenario = DEFAULT_SCENARIOS.get(cat, DEFAULT_SCENARIOS["employment"]).copy()
+        scenario["script_hints"] = [
+            "Open with introductions and ground rules",
+            "Allow each party to state their perspective",
+            "Identify common interests",
+            "Brainstorm options",
+        ]
     rp = RolePlayScenario(
         user_id=user.id,
         dispute_category=cat,
@@ -427,11 +475,12 @@ def _generate_party_response(scenario: dict, messages: list, next_party: str, pa
     idx = 0 if next_party == "party_a" else 1
     name = parties[idx] if idx < len(parties) else ("Party A" if next_party == "party_a" else "Party B")
     objectives = scenario.get("objectives", {})
-    obj_key = objectives.get("employee") or objectives.get("supplier") or objectives.get("parent_a") or "their interests"
     if next_party == "party_a":
-        obj_key = objectives.get("employee") or objectives.get("supplier") or objectives.get("parent_a") or "their interests"
+        obj_key = (objectives.get("party_a") or objectives.get("employee") or objectives.get("supplier") or
+                   objectives.get("parent_a") or "their interests")
     else:
-        obj_key = objectives.get("manager") or objectives.get("buyer") or objectives.get("parent_b") or "their interests"
+        obj_key = (objectives.get("party_b") or objectives.get("manager") or objectives.get("buyer") or
+                   objectives.get("parent_b") or "their interests")
     hints = [
         f"{name} acknowledges the mediator's point and reflects on their position.",
         f"{name} shares more about their perspective, seeking understanding.",

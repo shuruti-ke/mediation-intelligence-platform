@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { trainingApi } from '../api/client';
 
@@ -33,6 +33,9 @@ export default function RolePlayPage() {
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [loadingScenario, setLoadingScenario] = useState(false);
+  const [scenarioError, setScenarioError] = useState(null);
+  const scenarioDisplayRef = useRef(null);
 
   useEffect(() => {
     trainingApi.listRolePlays()
@@ -53,10 +56,24 @@ export default function RolePlayPage() {
     }
   }, [sessionId]);
 
+  const loadScenario = (id) => {
+    setScenarioError(null);
+    setLoadingScenario(true);
+    trainingApi.getRolePlayScenario(id)
+      .then(({ data }) => {
+        setCurrentScenario(data);
+        setScenarioError(null);
+        scenarioDisplayRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      })
+      .catch(() => setScenarioError('Could not load scenario. It may have been deleted.'))
+      .finally(() => setLoadingScenario(false));
+  };
+
   const handleGenerate = async () => {
     setGenerating(true);
     setCurrentScenario(null);
     setSession(null);
+    setScenarioError(null);
     try {
       const { data } = await trainingApi.generateRolePlay({ dispute_category: disputeCategory });
       setCurrentScenario(data);
@@ -134,6 +151,9 @@ export default function RolePlayPage() {
     return (
       <div className="role-play-page role-play-chat-view">
         <header>
+          <div className="role-play-phase-badge">
+            {isEnded ? 'Phase 3: Debrief' : 'Phase 2: Role play'}
+          </div>
           <h1>Role-Play: {session.scenario?.title || 'Session'}</h1>
           <nav>
             <Link to="/training/role-play">← Back to Studio</Link>
@@ -141,9 +161,16 @@ export default function RolePlayPage() {
         </header>
 
         <div className="role-play-chat-container">
+          {isActiveSession && (
+            <div className="role-play-process-hints">
+              <span>Process: Opening → Party statements → Facilitation → Closing</span>
+            </div>
+          )}
           <div className="role-play-chat-messages">
             {(!session.messages || session.messages.length === 0) && (
-              <p className="role-play-chat-empty">Start the mediation. Introduce yourself and set ground rules.</p>
+              <p className="role-play-chat-empty">
+                Start the mediation: introduce yourself, set ground rules, then invite each party to share their perspective.
+              </p>
             )}
             {session.messages?.map((m, i) => (
               <div key={i} className={`role-play-msg role-play-msg-${m.role}`}>
@@ -224,8 +251,10 @@ export default function RolePlayPage() {
       </section>
 
       {currentScenario && (
-        <section className="scenario-display">
+        <section className="scenario-display" ref={scenarioDisplayRef}>
+          <div className="role-play-phase-badge">Phase 1: Preparation</div>
           <h2>{currentScenario.scenario?.title}</h2>
+          <p className="phase-instruction">Read the scenario below. When ready, start the role-play to practice as the mediator.</p>
           <div className="scenario-card">
             <div className="scenario-section">
               <h4>Parties</h4>
@@ -256,7 +285,7 @@ export default function RolePlayPage() {
           </div>
 
           <button onClick={handleStartRolePlay} disabled={sessionLoading} className="primary role-play-start-btn">
-            {sessionLoading ? 'Starting...' : '▶ Start role play'}
+            {sessionLoading ? 'Starting...' : 'I\'ve reviewed – Start role play (Phase 2)'}
           </button>
 
           <div className="reflection-section">
@@ -272,30 +301,32 @@ export default function RolePlayPage() {
       )}
 
       <section className="recent-scenarios">
-        <h3>Recent scenarios</h3>
+        <h3>Your scenarios – click to open</h3>
         {loading ? (
           <p>Loading...</p>
         ) : scenarios.length === 0 ? (
           <p>No scenarios yet. Generate one above.</p>
         ) : (
-          <ul className="scenario-list">
-            {scenarios.map((s) => (
-              <li key={s.id}>
-                <button
-                  type="button"
-                  className="scenario-list-item-btn"
-                  onClick={() => {
-                    trainingApi.getRolePlayScenario(s.id)
-                      .then(({ data }) => setCurrentScenario(data))
-                      .catch(() => {});
-                  }}
-                >
-                  <span className="scenario-title">{s.title || s.dispute_category}</span>
-                  <span className="scenario-date">{s.created_at?.slice(0, 10)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            {scenarioError && <p className="scenario-error">{scenarioError}</p>}
+            {loadingScenario && <p className="scenario-loading">Loading scenario...</p>}
+            <ul className="scenario-list">
+              {scenarios.map((s) => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    className="scenario-list-item-btn"
+                    onClick={() => loadScenario(s.id)}
+                    aria-label={`Open ${s.title || s.dispute_category}`}
+                  >
+                    <span className="scenario-title">{s.title || s.dispute_category}</span>
+                    <span className="scenario-date">{s.created_at?.slice(0, 10)}</span>
+                    <span className="scenario-open-hint">→ Open</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </section>
     </div>
