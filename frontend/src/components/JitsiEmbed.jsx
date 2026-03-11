@@ -1,15 +1,33 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * Jitsi Meet embed - mediation room video.
- * Room name format: mediation-{case_id}-{session_id}
+ * For JaaS: loads script from 8x8.vc/{app_id}/external_api.js, uses domain 8x8.vc.
  */
-export default function JitsiEmbed({ roomName, domain = 'meet.jit.si', jwt, displayName = 'Mediator', onReady }) {
+export default function JitsiEmbed({ roomName, domain = 'meet.jit.si', jwt, jaasAppId, displayName = 'Mediator', onReady }) {
   const containerRef = useRef(null);
   const apiRef = useRef(null);
+  const [scriptLoaded, setScriptLoaded] = useState(!jaasAppId);
 
   useEffect(() => {
-    if (!roomName || !containerRef.current || typeof window.JitsiMeetExternalAPI === 'undefined') return;
+    if (jaasAppId) {
+      if (document.querySelector(`script[src*="8x8.vc/${jaasAppId}"]`)) {
+        setScriptLoaded(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = `https://8x8.vc/${jaasAppId}/external_api.js`;
+      script.async = true;
+      script.onload = () => setScriptLoaded(true);
+      document.head.appendChild(script);
+      return () => script.remove();
+    } else {
+      setScriptLoaded(true);
+    }
+  }, [jaasAppId]);
+
+  useEffect(() => {
+    if (!roomName || !containerRef.current || !scriptLoaded || typeof window.JitsiMeetExternalAPI === 'undefined') return;
 
     const options = {
       roomName,
@@ -46,7 +64,7 @@ export default function JitsiEmbed({ roomName, domain = 'meet.jit.si', jwt, disp
       api.dispose();
       apiRef.current = null;
     };
-  }, [roomName, domain, jwt, displayName]);
+  }, [roomName, domain, jwt, displayName, scriptLoaded]);
 
   return <div ref={containerRef} style={{ width: '100%', height: '500px', minHeight: '400px' }} />;
 }

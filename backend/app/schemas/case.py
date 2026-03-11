@@ -44,4 +44,5 @@ class SessionResponse(BaseModel):
 class JitsiRoomResponse(BaseModel):
     room_name: str
     jitsi_domain: str
-    jwt: str | None = None  # JaaS JWT when JITSI_APP_ID/SECRET configured
+    jwt: str | None = None  # JaaS JWT when configured
+    jaas_app_id: str | None = None  # For loading script from 8x8.vc/{app_id}/external_api.js

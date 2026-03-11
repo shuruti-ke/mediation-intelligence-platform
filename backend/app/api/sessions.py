@@ -86,9 +86,18 @@ async def get_jitsi_room(
         raise HTTPException(status_code=404, detail="Case not found")
     if user.tenant_id and case.tenant_id != user.tenant_id:
         raise HTTPException(status_code=403, detail="Access denied")
-    room_name = session.jitsi_room_name or f"mediation-{session_id}"
+    base_room = session.jitsi_room_name or f"mediation-{session_id}"
     jwt_token = None
-    if settings.jitsi_app_id and settings.jitsi_app_secret:
+    jaas_app_id = None
+    room_name = base_room
+    domain = settings.jitsi_domain
+    if settings.jaas_app_id and settings.jaas_private_key and settings.jaas_api_key_id:
+        sub = settings.jaas_app_id
+        if not sub.startswith("vpaas-magic-cookie-"):
+            sub = f"vpaas-magic-cookie-{sub}"
+        room_name = f"{sub}/{base_room}"  # JaaS format: vpaas-magic-cookie-xxx/roomName
+        domain = "8x8.vc"
+        jaas_app_id = sub
         jwt_token = create_jitsi_jwt(
             room_name=room_name,
             user_id=str(user.id),
@@ -97,8 +106,9 @@ async def get_jitsi_room(
         )
     return JitsiRoomResponse(
         room_name=room_name,
-        jitsi_domain=settings.jitsi_domain,
+        jitsi_domain=domain,
         jwt=jwt_token,
+        jaas_app_id=jaas_app_id,
     )
 
 

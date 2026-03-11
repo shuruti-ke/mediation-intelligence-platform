@@ -27,10 +27,11 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
 
-    # Jitsi / JaaS (8x8)
+    # Jitsi / JaaS (8x8) - use JAAS_API_KEY_ID, JAAS_APP_ID, JAAS_PRIVATE_KEY in Render
     jitsi_domain: str = "meet.jit.si"
-    jitsi_app_id: str | None = None  # JaaS App ID (vpaas-magic-cookie-xxx or app id)
-    jitsi_app_secret: str | None = None  # JaaS App Secret for JWT signing
+    jaas_api_key_id: str | None = None  # API Key ID (kid in JWT header)
+    jaas_app_id: str | None = None  # App ID (sub in JWT, vpaas-magic-cookie-xxx)
+    jaas_private_key: str | None = None  # RSA private key (PEM) for RS256 signing
 
     # CORS
     cors_origins: str = "http://localhost:5173,http://localhost:3000,https://mediation-intelligence-platform.vercel.app"

@@ -44,13 +44,13 @@ def create_jitsi_jwt(
     moderator: bool = False,
     expires_minutes: int = 120,
 ) -> str | None:
-    """Create JWT for Jitsi/JaaS room access. Returns None if JaaS not configured."""
-    if not settings.jitsi_app_id or not settings.jitsi_app_secret:
+    """Create JWT for Jitsi/JaaS room access (RS256). Returns None if JaaS not configured."""
+    if not settings.jaas_app_id or not settings.jaas_private_key or not settings.jaas_api_key_id:
         return None
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
     exp = now + timedelta(minutes=expires_minutes)
-    sub = settings.jitsi_app_id
+    sub = settings.jaas_app_id
     if not sub.startswith("vpaas-magic-cookie-"):
         sub = f"vpaas-magic-cookie-{sub}"
     payload = {
@@ -68,8 +68,12 @@ def create_jitsi_jwt(
             }
         },
     }
+    headers = {"kid": settings.jaas_api_key_id}
+    # PEM from env often has literal \n - ensure proper newlines
+    private_key = settings.jaas_private_key.replace("\\n", "\n")
     return jwt.encode(
         payload,
-        settings.jitsi_app_secret,
-        algorithm="HS256",
+        private_key,
+        algorithm="RS256",
+        headers=headers,
     )

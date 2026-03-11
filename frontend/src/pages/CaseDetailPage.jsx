@@ -52,7 +52,7 @@ export default function CaseDetailPage() {
       await sessions.start(data.id);
       const roomRes = await sessions.getRoom(data.id);
       setCurrentSession({ ...data, status: 'ACTIVE', started_at: new Date().toISOString() });
-      setRoomInfo({ roomName: roomRes.data.room_name, domain: roomRes.data.jitsi_domain, jwt: roomRes.data.jwt, sessionId: data.id });
+      setRoomInfo({ roomName: roomRes.data.room_name, domain: roomRes.data.jitsi_domain, jwt: roomRes.data.jwt, jaasAppId: roomRes.data.jaas_app_id, sessionId: data.id });
       setShowRoom(true);
       loadSessions();
     } catch (err) {
@@ -107,7 +107,7 @@ export default function CaseDetailPage() {
   const openCaucus = async (party) => {
     try {
       const { data } = await caucus.getRoom(roomInfo.sessionId, party);
-      setCaucusRoom({ roomName: data.room_name, domain: data.jitsi_domain, jwt: data.jwt });
+      setCaucusRoom({ roomName: data.room_name, domain: data.jitsi_domain, jwt: data.jwt, jaasAppId: data.jaas_app_id });
       setShowCaucusModal(true);
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to get caucus room');
@@ -147,6 +147,7 @@ export default function CaseDetailPage() {
             roomName={roomInfo.roomName}
             domain={roomInfo.domain}
             jwt={roomInfo.jwt}
+            jaasAppId={roomInfo.jaasAppId}
             displayName="Mediator"
           />
         </div>
@@ -233,6 +234,7 @@ export default function CaseDetailPage() {
                 roomName={caucusRoom.roomName}
                 domain={caucusRoom.domain}
                 jwt={caucusRoom.jwt}
+                jaasAppId={caucusRoom.jaasAppId}
                 displayName="Mediator"
               />
             </div>

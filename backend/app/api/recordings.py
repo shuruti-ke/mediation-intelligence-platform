@@ -102,13 +102,22 @@ async def create_caucus_room(
         raise HTTPException(status_code=404, detail="Session not found")
 
     settings = get_settings()
-    room_name = f"mediation-{session.case_id}-caucus-{party}"
+    base_room = f"mediation-{session.case_id}-caucus-{party}"
+    room_name = base_room
+    domain = settings.jitsi_domain
     jwt_token = None
-    if settings.jitsi_app_id and settings.jitsi_app_secret:
+    jaas_app_id = None
+    if settings.jaas_app_id and settings.jaas_private_key and settings.jaas_api_key_id:
+        sub = settings.jaas_app_id
+        if not sub.startswith("vpaas-magic-cookie-"):
+            sub = f"vpaas-magic-cookie-{sub}"
+        room_name = f"{sub}/{base_room}"
+        domain = "8x8.vc"
+        jaas_app_id = sub
         jwt_token = create_jitsi_jwt(
             room_name=room_name,
             user_id=str(user.id),
             display_name=user.display_name or user.email,
             moderator=True,
         )
-    return {"room_name": room_name, "jitsi_domain": settings.jitsi_domain, "jwt": jwt_token}
+    return {"room_name": room_name, "jitsi_domain": domain, "jwt": jwt_token, "jaas_app_id": jaas_app_id}
