@@ -1,7 +1,7 @@
 """Document and knowledge base models."""
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, ForeignKey, Integer
+from sqlalchemy import String, Text, DateTime, ForeignKey, Integer, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,6 +39,7 @@ class KnowledgeBaseDocument(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     source_type: Mapped[str] = mapped_column(String(50), default="upload")  # upload, url, manual, curated
     file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    file_content: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)  # Original file bytes (persists on Render)
     metadata_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     content_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

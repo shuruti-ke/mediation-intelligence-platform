@@ -19,7 +19,6 @@ from app.services.chunker import chunk_text
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 settings = get_settings()
-KB_UPLOAD_DIR = Path(settings.storage_path) / "kb"
 
 
 class QueryRequest(BaseModel):
@@ -84,12 +83,8 @@ async def ingest_document(
     db.add(kb_doc)
     await db.flush()
 
-    # Store original file for download in original format
-    KB_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    storage_path = KB_UPLOAD_DIR / f"{kb_doc.id}{ext}"
-    with open(storage_path, "wb") as f:
-        f.write(content)
-    kb_doc.file_path = str(storage_path)
+    # Store original file in DB (persists on Render's ephemeral filesystem)
+    kb_doc.file_content = content
     kb_doc.metadata_json = {
         "original_filename": file.filename or doc_title,
         "mime_type": file.content_type or _mime_for_ext(ext),
@@ -142,12 +137,8 @@ async def ingest_org_document(
     db.add(kb_doc)
     await db.flush()
 
-    # Store original file for download in original format
-    KB_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    storage_path = KB_UPLOAD_DIR / f"{kb_doc.id}{ext}"
-    with open(storage_path, "wb") as f:
-        f.write(content)
-    kb_doc.file_path = str(storage_path)
+    # Store original file in DB (persists on Render's ephemeral filesystem)
+    kb_doc.file_content = content
     kb_doc.metadata_json = {
         "original_filename": file.filename or doc_title,
         "mime_type": file.content_type or _mime_for_ext(ext),
@@ -276,7 +267,20 @@ async def download_document(
     elif doc.owner_id != user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Serve original file if stored
+    # Serve original file from DB (persists on Render)
+    if doc.file_content:
+        meta = doc.metadata_json or {}
+        filename = meta.get("original_filename") or (doc.title or "document")
+        mime = meta.get("mime_type") or "application/octet-stream"
+        from fastapi.responses import Response
+        safe_name = (filename or "document").replace('"', "_").replace("\\", "_")
+        return Response(
+            content=bytes(doc.file_content),
+            media_type=mime,
+            headers={"Content-Disposition": f'attachment; filename="{safe_name}"'},
+        )
+
+    # Fallback: file on disk (local dev)
     if doc.file_path and os.path.exists(doc.file_path):
         meta = doc.metadata_json or {}
         filename = meta.get("original_filename") or (doc.title or "document")
