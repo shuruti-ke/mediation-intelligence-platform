@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, BookOpen, Scale, GraduationCap, Calendar, FolderOpen } from 'lucide-react';
+import { Plus, BookOpen, Scale, GraduationCap, Calendar, FolderOpen, LogOut } from 'lucide-react';
 import { cases } from '../api/client';
 
 export default function DashboardPage() {
@@ -26,6 +26,7 @@ export default function DashboardPage() {
           <Link to="/judiciary"><Scale size={16} /> Judiciary</Link>
           <Link to="/training"><GraduationCap size={16} /> Training</Link>
           <Link to="/calendar"><Calendar size={16} /> Calendar</Link>
+          <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><LogOut size={16} /> Sign out</Link>
         </nav>
       </header>
       <section>
