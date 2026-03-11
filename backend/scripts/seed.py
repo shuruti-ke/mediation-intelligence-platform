@@ -125,11 +125,15 @@ async def seed():
             print("Seeded: 3 training modules")
 
         # Seed interactive configs for modules (branching, different experiences, same outcomes)
-        cfg_result = await session.execute(select(TrainingModuleConfig).limit(1))
-        if not cfg_result.scalar_one_or_none():
-            mods = (await session.execute(select(TrainingModule).where(TrainingModule.slug.in_(["ethics", "orientation", "online_mediation_intro"])))).scalars().all()
-            for mod in mods:
-                if mod.slug == "ethics":
+        # Add configs for any module that doesn't have one yet
+        mods = (await session.execute(select(TrainingModule).where(TrainingModule.slug.in_(["ethics", "orientation", "online_mediation_intro"])))).scalars().all()
+        existing_cfg_mod_ids = set(
+            c.module_id for c in (await session.execute(select(TrainingModuleConfig.module_id))).scalars().all()
+        )
+        for mod in mods:
+            if mod.id in existing_cfg_mod_ids:
+                continue
+            if mod.slug == "ethics":
                     config = {
                         "steps": [
                             {"id": "intro", "type": "content", "content": "<p>Mediation rests on trust. Parties must believe you are neutral, that their words stay confidential, and that they participate voluntarily.</p>", "next": "s1"},
@@ -144,7 +148,7 @@ async def seed():
                         ],
                         "learning_outcomes": ["confidentiality", "neutrality"],
                     }
-                elif mod.slug == "orientation":
+            elif mod.slug == "orientation":
                     config = {
                         "steps": [
                             {"id": "intro", "type": "content", "content": "<p>This platform supports mediators with case management, online sessions, and tools. Your judgment drives outcomes—the platform supports, it does not replace.</p>", "next": "s1"},
@@ -159,7 +163,7 @@ async def seed():
                         ],
                         "learning_outcomes": ["platform_use", "privacy"],
                     }
-                else:
+            else:
                     config = {
                         "steps": [
                             {"id": "intro", "type": "content", "content": "<p>Online mediation offers flexibility but poses challenges for rapport and non-verbal cues.</p>", "next": "s1"},
@@ -174,8 +178,9 @@ async def seed():
                         ],
                         "learning_outcomes": ["online_best_practices"],
                     }
-                session.add(TrainingModuleConfig(module_id=mod.id, config_json=config))
-            print("Seeded: interactive module configs")
+            session.add(TrainingModuleConfig(module_id=mod.id, config_json=config))
+        if mods:
+            print("Seeded/updated: interactive module configs")
 
         await session.commit()
 
