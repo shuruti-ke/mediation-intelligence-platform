@@ -15,18 +15,12 @@ async def migrate():
     engine = create_async_engine(settings.database_url, echo=True)
     async with engine.begin() as conn:
         for col, sql in [
-            ("status", "ALTER TABLE users ADD COLUMN status VARCHAR(20) DEFAULT 'active'"),
-            ("onboarded_at", "ALTER TABLE users ADD COLUMN onboarded_at TIMESTAMPTZ"),
-            ("last_login_at", "ALTER TABLE users ADD COLUMN last_login_at TIMESTAMPTZ"),
+            ("status", "ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'"),
+            ("onboarded_at", "ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarded_at TIMESTAMPTZ"),
+            ("last_login_at", "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ"),
         ]:
-            try:
-                await conn.execute(text(sql))
-                print(f"Added column: {col}")
-            except Exception as e:
-                if "already exists" in str(e).lower() or "duplicate" in str(e).lower():
-                    print(f"Column {col} already exists, skipping")
-                else:
-                    raise
+            await conn.execute(text(sql))
+            print(f"Ensured column: {col}")
     await engine.dispose()
     print("Migration complete.")
 
