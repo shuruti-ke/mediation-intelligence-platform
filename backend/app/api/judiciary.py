@@ -1,11 +1,14 @@
 """Judiciary case search - Phase 3. Tausi, Laws.Africa, cache."""
 import hashlib
 import logging
+from urllib.parse import quote_plus, unquote, parse_qs, urlparse
 
+import httpx
+from bs4 import BeautifulSoup
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
-from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -17,6 +20,46 @@ from app.models.document import JudiciarySearchCache
 
 router = APIRouter(prefix="/judiciary", tags=["judiciary"])
 settings = get_settings()
+
+# User-Agent for scraping (identify as a bot, be respectful)
+SCRAPE_UA = "Mozilla/5.0 (compatible; MediationPlatform/1.0; +https://mediation-intelligence-platform.vercel.app)"
+
+
+async def scrape_kenya_law(query: str, max_results: int = 10) -> tuple[list[dict], list[str]]:
+    """Search Kenya Law via DuckDuckGo HTML (site:new.kenyalaw.org). No API keys needed."""
+    q = quote_plus(f"{query} site:new.kenyalaw.org")
+    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        r = await client.get(
+            "https://html.duckduckgo.com/html/",
+            params={"q": q},
+            headers={"User-Agent": SCRAPE_UA},
+        )
+    r.raise_for_status()
+    soup = BeautifulSoup(r.text, "html.parser")
+    results = []
+    for div in soup.find_all("div", class_="result")[:max_results]:
+        link = div.find("a", class_="result__a")
+        snippet_el = div.find("a", class_="result__snippet")
+        if not link:
+            continue
+        href = link.get("href", "")
+        if "uddg=" in href:
+            parsed = urlparse(href)
+            qs = parse_qs(parsed.query)
+            real_url = unquote(qs.get("uddg", [""])[0]) if qs.get("uddg") else href
+        else:
+            real_url = href
+        if "kenyalaw.org" not in real_url:
+            continue
+        title = link.get_text(strip=True)
+        snippet = snippet_el.get_text(strip=True) if snippet_el else ""
+        results.append({
+            "title": title,
+            "url": real_url,
+            "snippet": snippet,
+            "source": "Kenya Law",
+        })
+    return results, ["Kenya Law"] if results else []
 
 
 class SearchRequest(BaseModel):
@@ -51,7 +94,6 @@ async def search_judiciary(
     # Laws.Africa API (legislation, not cases - but useful for legal context)
     if settings.laws_africa_api_key:
         try:
-            import httpx
             async with httpx.AsyncClient() as client:
                 r = await client.get(
                     "https://api.laws.africa/v3/search",
@@ -79,7 +121,6 @@ async def search_judiciary(
     # Tausi API (Kenya judicial decisions)
     if data.region.upper() == "KE" and settings.tausi_api_key:
         try:
-            import httpx
             async with httpx.AsyncClient() as client:
                 r = await client.get(
                     "https://api.tausi.laws.africa/v1/decisions",
@@ -104,14 +145,33 @@ async def search_judiciary(
         except Exception:
             pass
 
-    # Fallback: return placeholder with search tips
+    # Fallback: scrape Kenya Law via DuckDuckGo search (no API keys needed)
+    if not results and data.region.upper() == "KE":
+        try:
+            results, sources = await scrape_kenya_law(data.query)
+        except Exception as e:
+            logger.warning("Kenya Law scrape error: %s", e)
+            results = []
+            sources = []
+
+    # Final fallback when nothing worked
     if not results:
-        results = [{
-            "title": "No API results",
-            "snippet": f"Configure LAWS_AFRICA_API_KEY and/or TAUSI_API_KEY for {data.region} to search judiciary databases. See IMPLEMENTATION_PLAN.md.",
-            "source": "system",
-        }]
-        sources = ["system"]
+        if data.region.upper() == "KE":
+            from urllib.parse import quote_plus
+            results = [{
+                "title": "Search on Kenya Law",
+                "snippet": "Could not fetch results. Search directly on Kenya Law.",
+                "url": f"https://new.kenyalaw.org/search/?q={quote_plus(data.query)}",
+                "source": "Kenya Law",
+            }]
+            sources = ["Kenya Law"]
+        else:
+            results = [{
+                "title": "No API results",
+                "snippet": f"Configure LAWS_AFRICA_API_KEY and/or TAUSI_API_KEY for {data.region}. See IMPLEMENTATION_PLAN.md.",
+                "source": "system",
+            }]
+            sources = ["system"]
 
     # Cache results
     cache_entry = JudiciarySearchCache(
@@ -136,7 +196,7 @@ async def list_sources(
     if settings.tausi_api_key:
         sources.append("Tausi (Kenya)")
     if not sources:
-        sources.append("Configure API keys for judiciary search")
+        sources.append("Kenya Law (fallback when API keys not configured)")
     return {
         "sources": sources,
         "keys_configured": {

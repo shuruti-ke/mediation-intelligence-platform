@@ -24,6 +24,7 @@ python-dotenv==1.0.1
 
 # HTTP Client (for external APIs)
 httpx==0.28.1
+beautifulsoup4==4.12.3
 
 # Phase 3: Document parsing
 pymupdf==1.25.1
