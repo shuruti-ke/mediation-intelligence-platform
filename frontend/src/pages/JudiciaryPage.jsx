@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Scale, Search } from 'lucide-react';
 import { judiciary } from '../api/client';
 
 export default function JudiciaryPage() {
@@ -31,7 +33,8 @@ export default function JudiciaryPage() {
 
   return (
     <div className="judiciary-page">
-      <h1>Judiciary Case Search</h1>
+      <Link to="/dashboard" className="back-link"><ArrowLeft size={16} /> Dashboard</Link>
+      <h1 className="icon-text"><Scale size={28} /> Judiciary Case Search</h1>
       <p className="subtitle">Search publicly available judiciary and case law databases</p>
 
       <section>
@@ -48,7 +51,7 @@ export default function JudiciaryPage() {
             <option value="NG">Nigeria</option>
           </select>
           <button type="submit" disabled={loading}>
-            {loading ? 'Searching...' : 'Search'}
+            <Search size={16} /> {loading ? 'Searching...' : 'Search'}
           </button>
         </form>
       </section>

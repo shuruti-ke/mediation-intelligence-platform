@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { LogIn, UserCircle, Shield, HelpCircle, Gift } from 'lucide-react';
 import { publicApiClient } from '../api/client';
 
 const PROCESS_STEPS = [
@@ -29,12 +30,12 @@ export default function PublicLandingPage() {
             <img src="/logo.png" alt="Mediation Intelligence Platform" className="header-logo" />
           </Link>
           <nav className="topbar-nav">
-            <Link to="/login">Client Log In</Link>
-            <Link to="/login">Mediator Log In</Link>
-            <Link to="/login">Admin Log In</Link>
-            <Link to="/should-i-mediate">Should I Mediate?</Link>
-            <Link to="/free-tier">Free Session</Link>
-            <Link to="/login" className="btn-demo">Request a Demo</Link>
+            <Link to="/login"><UserCircle size={16} /> Client Log In</Link>
+            <Link to="/login"><LogIn size={16} /> Mediator Log In</Link>
+            <Link to="/login"><Shield size={16} /> Admin Log In</Link>
+            <Link to="/should-i-mediate"><HelpCircle size={16} /> Should I Mediate?</Link>
+            <Link to="/free-tier"><Gift size={16} /> Free Session</Link>
+            <Link to="/login" className="btn-demo"><LogIn size={16} /> Request a Demo</Link>
           </nav>
         </div>
       </header>
@@ -43,7 +44,7 @@ export default function PublicLandingPage() {
         <div className="hero-inner">
           <h1>Experts in Mediation & Dispute Resolution</h1>
           <p className="hero-sub">Utilizing Kenya&apos;s mediation framework and industry best practices</p>
-          <Link to="/login" className="btn-hero">Request a Demo</Link>
+          <Link to="/login" className="btn-hero"><LogIn size={18} /> Request a Demo</Link>
         </div>
       </section>
 
@@ -74,7 +75,7 @@ export default function PublicLandingPage() {
           <p>
             With an exclusive focus on <strong>mediation and alternative dispute resolution</strong>, Mediation Intelligence Platform supports individuals and organizations across Kenya and beyond. Our work reinforces fair outcomes in employment, commercial, family, and community disputes—ensuring parties can resolve conflicts without costly litigation.
           </p>
-          <Link to="/login" className="btn-demo">Request a Demo</Link>
+          <Link to="/login" className="btn-demo"><LogIn size={16} /> Request a Demo</Link>
         </div>
       </section>
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { trainingApi } from '../api/client';
 import { FALLBACK_CONFIGS } from '../data/moduleConfigs';
 
@@ -125,7 +126,7 @@ export default function TrainingModulePage() {
   return (
     <div className="training-module-page training-module-page-modern">
       <header>
-        <Link to="/training">← Back to Training</Link>
+        <Link to="/training"><ArrowLeft size={16} /> Back to Training</Link>
         <h1>{module.title}</h1>
       </header>
 

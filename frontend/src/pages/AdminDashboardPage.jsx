@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2 } from 'lucide-react';
 import { tenantsApi, usersApi, analyticsApi, knowledge } from '../api/client';
 
 const STATUS_BADGES = {
@@ -75,18 +76,18 @@ export default function AdminDashboardPage() {
           <h1>Admin Dashboard</h1>
         </div>
         <nav>
-          <button className={tab === 'dashboard' ? 'nav-active' : ''} onClick={() => setTab('dashboard')}>Dashboard</button>
-          <button className={tab === 'users' ? 'nav-active' : ''} onClick={() => setTab('users')}>Users</button>
-          <button className={tab === 'tenants' ? 'nav-active' : ''} onClick={() => setTab('tenants')}>Tenants</button>
-          <button className={tab === 'orgkb' ? 'nav-active' : ''} onClick={() => setTab('orgkb')}>Org Knowledge Base</button>
-          <Link to="/calendar">Calendar</Link>
-          <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}>Sign out</Link>
+          <button className={tab === 'dashboard' ? 'nav-active' : ''} onClick={() => setTab('dashboard')}><LayoutDashboard size={16} /> Dashboard</button>
+          <button className={tab === 'users' ? 'nav-active' : ''} onClick={() => setTab('users')}><Users size={16} /> Users</button>
+          <button className={tab === 'tenants' ? 'nav-active' : ''} onClick={() => setTab('tenants')}><Building2 size={16} /> Tenants</button>
+          <button className={tab === 'orgkb' ? 'nav-active' : ''} onClick={() => setTab('orgkb')}><BookOpen size={16} /> Org KB</button>
+          <Link to="/calendar"><Calendar size={16} /> Calendar</Link>
+          <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><LogOut size={16} /> Sign out</Link>
         </nav>
       </header>
 
       {tab === 'dashboard' && (
         <section className="admin-dashboard-section">
-          <h2>Analytics</h2>
+          <h2 className="icon-text"><BarChart3 size={22} /> Analytics</h2>
           {loading ? <p>Loading...</p> : analytics ? (
             <div className="analytics-widgets">
               <div className="widget-card">
@@ -117,8 +118,8 @@ export default function AdminDashboardPage() {
       {tab === 'users' && (
         <section className="admin-dashboard-section">
           <div className="section-header">
-            <h2>User Management</h2>
-            <button className="primary" onClick={() => setOnboardOpen(true)}>Onboard User</button>
+            <h2 className="icon-text"><Users size={22} /> User Management</h2>
+            <button className="primary" onClick={() => setOnboardOpen(true)}><UserPlus size={16} /> Onboard User</button>
           </div>
           {loading ? <p>Loading...</p> : (
             <div className="user-table-wrapper">
@@ -172,7 +173,7 @@ export default function AdminDashboardPage() {
       {tab === 'orgkb' && (
         <section className="admin-dashboard-section">
           <div className="section-header">
-            <h2>Organization Knowledge Base</h2>
+            <h2 className="icon-text"><BookOpen size={22} /> Organization Knowledge Base</h2>
           </div>
           <p className="section-desc">Documents here are visible to all mediators. Mediators can also contribute by marking their uploads as &quot;Share with organization&quot;.</p>
           <div className="orgkb-upload">
@@ -186,6 +187,7 @@ export default function AdminDashboardPage() {
             <button
               className="primary"
               disabled={!orgUploadFile || orgUploading}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
               onClick={async () => {
                 if (!orgUploadFile) return;
                 setOrgUploading(true);
@@ -201,7 +203,7 @@ export default function AdminDashboardPage() {
                 }
               }}
             >
-              {orgUploading ? 'Uploading…' : 'Upload to Org KB'}
+              <Upload size={16} /> {orgUploading ? 'Uploading…' : 'Upload to Org KB'}
             </button>
           </div>
           {loading ? <p>Loading...</p> : (
@@ -223,7 +225,7 @@ export default function AdminDashboardPage() {
                         }
                       }}
                     >
-                      Delete
+                      <Trash2 size={14} /> Delete
                     </button>
                   )}
                 </li>
@@ -236,7 +238,7 @@ export default function AdminDashboardPage() {
 
       {tab === 'tenants' && (
         <section className="admin-dashboard-section">
-          <h2>Tenants</h2>
+          <h2 className="icon-text"><Building2 size={22} /> Tenants</h2>
           {loading ? <p>Loading...</p> : tenants.length === 0 ? (
             <p>No tenants yet.</p>
           ) : (

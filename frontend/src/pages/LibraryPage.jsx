@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeft, BookOpen, Upload, FileText, Search, Sparkles, Building2, User, Lock, Share2, Trash2 } from 'lucide-react';
 import { knowledge } from '../api/client';
 
 export default function LibraryPage() {
@@ -84,16 +85,16 @@ export default function LibraryPage() {
   return (
     <div className="library-page-modern">
       <header className="library-header">
-        <Link to="/dashboard" className="back-link">← Dashboard</Link>
+        <Link to="/dashboard" className="back-link"><ArrowLeft size={16} /> Dashboard</Link>
         <div className="library-hero">
-          <span className="library-badge">📚 Knowledge Base</span>
+          <span className="library-badge"><BookOpen size={14} /> Knowledge Base</span>
           <h1>Your Mediation Library</h1>
           <p>Organization knowledge base + your personal documents. Upload with private or share to org.</p>
         </div>
       </header>
 
       <div className="library-upload-card">
-        <div className="upload-icon">📤</div>
+        <div className="upload-icon"><Upload size={32} /></div>
         <h3>Add to My Knowledge Base</h3>
         <p>Upload to your personal library. Choose whether to share with the organization.</p>
         <form onSubmit={handleUpload} className="upload-form">
@@ -107,11 +108,11 @@ export default function LibraryPage() {
           <div className="visibility-toggle">
             <label className={uploadVisibility === 'private' ? 'active' : ''}>
               <input type="radio" name="visibility" value="private" checked={uploadVisibility === 'private'} onChange={() => setUploadVisibility('private')} />
-              Private (only me)
+              <Lock size={14} /> Private (only me)
             </label>
             <label className={uploadVisibility === 'public' ? 'active' : ''}>
               <input type="radio" name="visibility" value="public" checked={uploadVisibility === 'public'} onChange={() => setUploadVisibility('public')} />
-              Share with organization
+              <Share2 size={14} /> Share with organization
             </label>
           </div>
           <div className="upload-row">
@@ -130,22 +131,22 @@ export default function LibraryPage() {
 
       <div className="library-tabs">
         <button className={activeTab === 'documents' ? 'active' : ''} onClick={() => setActiveTab('documents')}>
-          Documents ({documents.length})
+          <FileText size={16} /> Documents ({documents.length})
         </button>
         <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>
-          Search
+          <Search size={16} /> Search
         </button>
         <button className={activeTab === 'ai' ? 'active' : ''} onClick={() => setActiveTab('ai')}>
-          Ask AI
+          <Sparkles size={16} /> Ask AI
         </button>
       </div>
 
       {activeTab === 'documents' && (
         <section className="library-section">
           <div className="doc-scope-tabs">
-            <button className={docScope === 'all' ? 'active' : ''} onClick={() => setDocScope('all')}>All</button>
-            <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}>Organization</button>
-            <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}>My Documents</button>
+            <button className={docScope === 'all' ? 'active' : ''} onClick={() => setDocScope('all')}><FileText size={14} /> All</button>
+            <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}><Building2 size={14} /> Organization</button>
+            <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}><User size={14} /> My Documents</button>
           </div>
           {documents.length === 0 ? (
             <div className="library-empty">
@@ -156,13 +157,13 @@ export default function LibraryPage() {
             <ul className="doc-grid">
               {documents.map((d) => (
                 <li key={d.id} className="doc-card">
-                  <span className="doc-icon">📑</span>
+                  <span className="doc-icon"><FileText size={20} /></span>
                   <span className="doc-title">{d.title}</span>
                   <span className={`doc-visibility-badge ${d.is_org ? 'org' : d.visibility}`}>
                     {d.is_org ? 'Org' : d.visibility === 'public' ? 'Shared' : 'Private'}
                   </span>
                   {!d.is_org && (
-                    <button className="doc-delete-btn" onClick={() => handleDelete(d)} title="Delete">×</button>
+                    <button className="doc-delete-btn" onClick={() => handleDelete(d)} title="Delete"><Trash2 size={16} /></button>
                   )}
                 </li>
               ))}
@@ -174,9 +175,9 @@ export default function LibraryPage() {
       {activeTab === 'search' && (
         <section className="library-section">
           <div className="doc-scope-tabs">
-            <button className={docScope === 'all' ? 'active' : ''} onClick={() => setDocScope('all')}>All</button>
-            <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}>Organization</button>
-            <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}>My Documents</button>
+            <button className={docScope === 'all' ? 'active' : ''} onClick={() => setDocScope('all')}><FileText size={14} /> All</button>
+            <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}><Building2 size={14} /> Organization</button>
+            <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}><User size={14} /> My Documents</button>
           </div>
           <form onSubmit={handleSearch} className="search-form">
             <input
@@ -187,7 +188,7 @@ export default function LibraryPage() {
               className="search-input"
             />
             <button type="submit" disabled={loading} className="search-btn">
-              {loading ? '…' : 'Search'}
+              <Search size={16} /> {loading ? '…' : 'Search'}
             </button>
           </form>
           {searchResults.length > 0 && (
@@ -210,9 +211,9 @@ export default function LibraryPage() {
       {activeTab === 'ai' && (
         <section className="library-section">
           <div className="doc-scope-tabs">
-            <button className={docScope === 'all' ? 'active' : ''} onClick={() => setDocScope('all')}>All</button>
-            <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}>Organization</button>
-            <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}>My Documents</button>
+            <button className={docScope === 'all' ? 'active' : ''} onClick={() => setDocScope('all')}><FileText size={14} /> All</button>
+            <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}><Building2 size={14} /> Organization</button>
+            <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}><User size={14} /> My Documents</button>
           </div>
           <form onSubmit={handleAiQuery} className="ai-form">
             <input
@@ -223,7 +224,7 @@ export default function LibraryPage() {
               className="ai-input"
             />
             <button type="submit" disabled={loading} className="ai-btn">
-              {loading ? 'Thinking…' : 'Ask'}
+              <Sparkles size={16} /> {loading ? 'Thinking…' : 'Ask'}
             </button>
           </form>
           {aiAnswer && (

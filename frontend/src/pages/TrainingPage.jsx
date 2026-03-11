@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeft, GraduationCap, BarChart3, Theater, BookOpen, Sparkles } from 'lucide-react';
 import { trainingApi } from '../api/client';
 
 export default function TrainingPage() {
@@ -31,31 +32,31 @@ export default function TrainingPage() {
   return (
     <div className="training-page-modern">
       <header className="training-header">
-        <Link to="/dashboard" className="back-link">← Dashboard</Link>
+        <Link to="/dashboard" className="back-link"><ArrowLeft size={16} /> Dashboard</Link>
         <div className="training-hero-modern">
-          <span className="training-badge">🎓 Training & Induction</span>
+          <span className="training-badge"><GraduationCap size={14} /> Training & Induction</span>
           <h1>Grow Your Practice</h1>
           <p>Complete modules, earn CPD credits, and sharpen your skills.</p>
         </div>
         <nav className="training-nav-modern">
-          <Link to="/training/cpd" className="nav-pill cpd">CPD Dashboard</Link>
-          <Link to="/training/role-play" className="nav-pill roleplay">Role-Play Studio</Link>
+          <Link to="/training/cpd" className="nav-pill cpd"><BarChart3 size={14} /> CPD Dashboard</Link>
+          <Link to="/training/role-play" className="nav-pill roleplay"><Theater size={14} /> Role-Play Studio</Link>
         </nav>
       </header>
 
       <section className="stats-grid-modern">
         <div className="stat-card-modern primary">
-          <span className="stat-icon">📚</span>
+          <span className="stat-icon"><BookOpen size={24} /></span>
           <span className="stat-value">{completedCount}/{totalModules || '—'}</span>
           <span className="stat-label">Modules completed</span>
         </div>
         <div className="stat-card-modern">
-          <span className="stat-icon">⏱</span>
+          <span className="stat-icon"><BarChart3 size={24} /></span>
           <span className="stat-value">{cpd ? `${cpd.hours_completed}/${cpd.hours_required}h` : '—'}</span>
           <span className="stat-label">CPD hours this year</span>
         </div>
         <div className="stat-card-modern">
-          <span className="stat-icon">📈</span>
+          <span className="stat-icon"><Sparkles size={24} /></span>
           <span className="stat-value">{cpdPct.toFixed(0)}%</span>
           <span className="stat-label">CPD progress</span>
         </div>
@@ -112,12 +113,12 @@ export default function TrainingPage() {
 
       <section className="quick-actions-modern">
         <Link to="/training/cpd" className="quick-card-modern cpd">
-          <span className="quick-icon-modern">📊</span>
+          <span className="quick-icon-modern"><BarChart3 size={28} /></span>
           <h4>CPD Dashboard</h4>
           <p>Track your continuing professional development hours and certifications.</p>
         </Link>
         <Link to="/training/role-play" className="quick-card-modern roleplay">
-          <span className="quick-icon-modern">🎭</span>
+          <span className="quick-icon-modern"><Theater size={28} /></span>
           <h4>Role-Play Studio</h4>
           <p>Practice with AI-generated scenarios. Employment, commercial, family disputes.</p>
         </Link>

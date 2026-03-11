@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowLeft, CalendarPlus, CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { calendarApi } from '../api/client';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -129,27 +130,27 @@ export default function CalendarPage() {
     <div className="calendar-page">
       <header className="calendar-header">
         <div className="calendar-brand">
-          <Link to={user?.role === 'super_admin' ? '/admin' : isMediator ? '/dashboard' : '/client'}>← Back</Link>
+          <Link to={user?.role === 'super_admin' ? '/admin' : isMediator ? '/dashboard' : '/client'}><ArrowLeft size={16} /> Back</Link>
           <h1>Calendar</h1>
         </div>
         <div className="calendar-actions">
           {isMediator && (
             <button className="btn-primary" onClick={() => setModal('add-slot')}>
-              + Add availability
+              <CalendarPlus size={16} /> Add availability
             </button>
           )}
           {isClient && mediators.length > 0 && (
             <button className="btn-primary" onClick={() => setModal('book')}>
-              Book a session
+              <CalendarCheck size={16} /> Book a session
             </button>
           )}
         </div>
       </header>
 
       <div className="calendar-nav">
-        <button onClick={handlePrevMonth}>←</button>
+        <button onClick={handlePrevMonth}><ChevronLeft size={20} /></button>
         <h2>{MONTHS[current.month]} {current.year}</h2>
-        <button onClick={handleNextMonth}>→</button>
+        <button onClick={handleNextMonth}><ChevronRight size={20} /></button>
       </div>
 
       {loading ? (

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, LogIn } from 'lucide-react';
 import { auth } from '../api/client';
 
 export default function LoginPage() {
@@ -41,7 +42,7 @@ export default function LoginPage() {
   return (
     <div className="login-page">
       <div className="login-card">
-        <Link to="/" className="back-link">← Back to home</Link>
+        <Link to="/" className="back-link"><ArrowLeft size={16} /> Back to home</Link>
         <img src="/logo.png" alt="Mediation Intelligence Platform" className="login-logo" />
         <p className="subtitle">Sign in to your account</p>
         <form onSubmit={handleSubmit}>
@@ -61,7 +62,7 @@ export default function LoginPage() {
             required
           />
           <button type="submit" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign in'}
+            <LogIn size={18} /> {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
       </div>
