@@ -144,6 +144,10 @@ export const trainingApi = {
   getRolePlaySession: (sessionId) => api.get(`/training/role-play/sessions/${sessionId}`),
   sendRolePlayMessage: (sessionId, text) => api.post(`/training/role-play/sessions/${sessionId}/message`, { text }),
   endRolePlaySession: (sessionId) => api.post(`/training/role-play/sessions/${sessionId}/end`),
+  getTraineeModules: () => api.get('/training/trainee-academy/modules'),
+  getTraineeProgress: () => api.get('/training/trainee-academy/progress'),
+  updateTraineeProgress: (data) => api.post('/training/trainee-academy/progress', data),
+  getTraineeFinalExam: () => api.get('/training/trainee-academy/final-exam'),
 };
 
 export const auditApi = {

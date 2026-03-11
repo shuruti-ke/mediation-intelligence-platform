@@ -469,6 +469,7 @@ async def query_knowledge(
 
     if context_parts:
         context = "\n\n---\n\n".join(context_parts)
+        answer = ""
         if settings.openai_api_key:
             try:
                 import httpx
@@ -489,10 +490,22 @@ async def query_knowledge(
                     if r.status_code == 200:
                         data_res = r.json()
                         answer = data_res.get("choices", [{}])[0].get("message", {}).get("content", "")
-                        return {"answer": answer, "citations": citations}
             except Exception:
                 pass
-        answer = f"Based on the knowledge base:\n\n{context_parts[0][:500]}..."
+        if not answer:
+            answer = f"Based on the knowledge base:\n\n{context_parts[0][:500]}..."
+
+        # Always run web search to supplement with books and external resources
+        book_results = await _web_search_books(data.query, max_results=6)
+        if book_results:
+            answer += "\n\n---\n\nAdditional resources from the web (books and articles that may help):\n\n"
+            for i, r in enumerate(book_results[:5], 1):
+                answer += f"{i}. {r['title']}\n"
+                if r.get("snippet"):
+                    answer += f"   {r['snippet'][:120]}...\n"
+                if r.get("url"):
+                    answer += f"   {r['url']}\n"
+                answer += "\n"
         return {"answer": answer, "citations": citations}
 
     # No docs found: web search for book recommendations

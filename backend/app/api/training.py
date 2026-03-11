@@ -11,7 +11,7 @@ from sqlalchemy import select, and_
 from app.api.deps import get_current_user, require_role
 from app.core.database import get_db
 from app.models.tenant import User
-from app.models.training import TrainingModule, TrainingProgress, CPDProgress, Quiz, QuizAttempt, RolePlayScenario, RolePlaySession, TrainingModuleConfig, UserModuleResponse
+from app.models.training import TrainingModule, TrainingProgress, CPDProgress, Quiz, QuizAttempt, RolePlayScenario, RolePlaySession, TraineeAcademyProgress, TrainingModuleConfig, UserModuleResponse
 
 router = APIRouter(prefix="/training", tags=["training"])
 
@@ -741,3 +741,161 @@ async def end_role_play_session(
         "debrief": debrief,
         "messages": sess.messages_json or [],
     }
+
+
+# Trainee Academy: curated modules with real YouTube videos
+TRAINEE_MODULES = [
+    {
+        "id": "module-1",
+        "title": "Fundamentals of Mediation",
+        "description": "Understanding core mediation principles, processes, and the role of a mediator",
+        "duration": "2 weeks",
+        "icon": "🎯",
+        "lessons_data": [
+            {"id": "l1-1", "title": "What is Mediation?", "type": "video", "duration": "15 min", "video_id": "r_OEZ2QPM5w", "content": "Community Mediation Maryland's full mediation demonstration. Watch the intro and Step 1 (0:00–20:00) for process overview."},
+            {"id": "l1-2", "title": "The Role of a Mediator", "type": "video", "duration": "20 min", "video_id": "r_OEZ2QPM5w", "content": "Same video, 10:50–30:00: mediator prep, seating, explaining the process, and the mediator's responsibilities."},
+            {"id": "l1-3", "title": "Mediation vs Arbitration", "type": "article", "duration": "10 min", "content": "**Mediation**: A neutral third party facilitates dialogue. Parties make their own decisions. Non-binding unless they agree. **Arbitration**: An arbitrator hears evidence and makes a binding decision. Like a private judge. Key difference: In mediation you control the outcome; in arbitration someone else decides."},
+            {"id": "l1-4", "title": "Ethical Standards", "type": "video", "duration": "15 min", "video_id": "r_OEZ2QPM5w", "content": "Watch 19:00–35:00: The Big Three—non-judgmental, confidentiality, voluntary. Maryland Standards of Conduct for Mediators."},
+            {"id": "l1-5", "title": "Active Listening", "type": "video", "duration": "12 min", "video_id": "NpJ9X6WVjnw", "content": "The Art of Active Listening: recognize the unsaid, seek to understand, reflect, take action, close the loop."},
+            {"id": "l1-6", "title": "Opening Statements", "type": "video", "duration": "18 min", "video_id": "r_OEZ2QPM5w", "content": "Watch 10:50–28:00: How mediators explain the process, consent to mediate, and set expectations."},
+            {"id": "l1-7", "title": "Information Gathering", "type": "video", "duration": "25 min", "video_id": "r_OEZ2QPM5w", "content": "Watch 19:48–48:00: Step 2—reflecting feelings and values, asking open-ended questions, process mapping."},
+            {"id": "l1-8", "title": "Module Review", "type": "summary", "duration": "5 min", "content": "Review: mediator facilitates, doesn't decide; confidentiality and voluntariness; active listening and reflection before questions."},
+        ],
+        "module_exam": {
+            "questions": [
+                {"id": "q1", "question": "What is the primary role of a mediator?", "options": [{"id": "a", "text": "To make a binding decision"}, {"id": "b", "text": "To facilitate communication and help parties reach their own agreement"}, {"id": "c", "text": "To represent one party"}, {"id": "d", "text": "To judge who is right"}], "correct": "b"},
+                {"id": "q2", "question": "Key ethical principles for mediators include:", "options": [{"id": "a", "text": "Impartiality only"}, {"id": "b", "text": "Confidentiality only"}, {"id": "c", "text": "Impartiality, confidentiality, and competence"}, {"id": "d", "text": "None of the above"}], "correct": "c"},
+                {"id": "q3", "question": "Active listening involves:", "options": [{"id": "a", "text": "Just hearing words"}, {"id": "b", "text": "Understanding, processing, and responding"}, {"id": "c", "text": "Planning your reply while they speak"}, {"id": "d", "text": "Interrupting to clarify"}], "correct": "b"},
+                {"id": "q4", "question": "Main difference between mediation and arbitration?", "options": [{"id": "a", "text": "Mediation is faster"}, {"id": "b", "text": "Arbitrator decides; mediator facilitates"}, {"id": "c", "text": "Arbitration is for businesses only"}, {"id": "d", "text": "No real difference"}], "correct": "b"},
+                {"id": "q5", "question": "Opening statements should include:", "options": [{"id": "a", "text": "Mediator's opinion"}, {"id": "b", "text": "Process, confidentiality, parties' roles"}, {"id": "c", "text": "Legal advice"}, {"id": "d", "text": "Guaranteed outcomes"}], "correct": "b"},
+            ],
+        },
+    },
+    {
+        "id": "module-2",
+        "title": "Communication & Conflict Management",
+        "description": "Advanced communication techniques and conflict styles",
+        "duration": "2 weeks",
+        "icon": "💬",
+        "lessons_data": [
+            {"id": "l2-1", "title": "The Mediation Process (Full Demo)", "type": "video", "duration": "95 min", "video_id": "r_OEZ2QPM5w", "content": "Full 5-step mediation: Explain process, Information gathering, Topics, Brainstorming, Agreement. Timestamps in video description."},
+            {"id": "l2-2", "title": "Online Mediation Demo", "type": "video", "duration": "45 min", "video_id": "klqYftdeTcU", "content": "CMM Online Basic Mediation Demo. Watch mediator prep (0–13 min) and Step 1 (13–27 min) for online-specific techniques."},
+            {"id": "l2-3", "title": "Reflecting Feelings & Values", "type": "video", "duration": "30 min", "video_id": "r_OEZ2QPM5w", "content": "Watch 27:00–57:00: How to reflect before asking questions; inclusive listening; process mapping when parties offer solutions early."},
+            {"id": "l2-4", "title": "Framing Topics", "type": "video", "duration": "15 min", "video_id": "r_OEZ2QPM5w", "content": "Watch 48:00–58:00: Step 3—identifying and framing topics using each party's values."},
+            {"id": "l2-5", "title": "Brainstorming Solutions", "type": "video", "duration": "35 min", "video_id": "r_OEZ2QPM5w", "content": "Watch 57:55–1:30: Step 4—open-ended questions, win-win prompts, picking solutions, getting details, reality testing."},
+            {"id": "l2-6", "title": "Agreement Writing", "type": "video", "duration": "10 min", "video_id": "r_OEZ2QPM5w", "content": "Watch 1:30:40–end: Step 5—writing the agreement, big three, voluntary signing."},
+        ],
+    },
+    {
+        "id": "module-3",
+        "title": "Kenya's Mediation Framework",
+        "description": "Kenyan mediation laws, Constitution, and ADR mechanisms",
+        "duration": "3 weeks",
+        "icon": "⚖️",
+        "lessons_data": [
+            {"id": "l3-1", "title": "Constitutional Framework", "type": "article", "duration": "12 min", "content": "**Article 159(2)(c)** of the Kenya Constitution recognises alternative dispute resolution, including mediation. The Judiciary promotes court-annexed mediation. Mediation is a constitutional mechanism for access to justice."},
+            {"id": "l3-2", "title": "The Mediation Act", "type": "article", "duration": "15 min", "content": "The Mediation Act provides for mediation of civil and commercial disputes. Key points: confidentiality, enforceability of agreements (if parties agree to be bound), mediator qualifications, and the Mediation Accreditation Committee (MAC)."},
+            {"id": "l3-3", "title": "Court-Annexed Mediation", "type": "article", "duration": "10 min", "content": "Court-referred mediation allows parties to resolve disputes before or during litigation. Mediators are accredited. Agreements can be recorded as consent judgments. Check the Judiciary's Court-Annexed Mediation Scheme for current practice."},
+            {"id": "l3-4", "title": "ADR in East Africa", "type": "video", "duration": "20 min", "video_id": "1XtDPs1pwMU", "content": "Overview of ADR and mediation in the region. Watch for regional context and practice."},
+        ],
+    },
+    {
+        "id": "module-4",
+        "title": "Practical Mediation Techniques",
+        "description": "Negotiation, problem-solving, and agreement drafting",
+        "duration": "3 weeks",
+        "icon": "💼",
+        "lessons_data": [
+            {"id": "l4-1", "title": "Interests vs Positions", "type": "article", "duration": "10 min", "content": "**Positions**: What parties say they want (e.g. 'I want the car'). **Interests**: Why they want it (e.g. transport, fairness, recognition). Mediators help uncover interests to find creative solutions."},
+            {"id": "l4-2", "title": "Brainstorming in Practice", "type": "video", "duration": "35 min", "video_id": "r_OEZ2QPM5w", "content": "Re-watch 57:55–1:30: Stage A (ideas), Stage B (picking), Stage C (adjusting), Stage D (details), reality testing."},
+            {"id": "l4-3", "title": "Reality Testing", "type": "article", "duration": "8 min", "content": "Use feelings to test if agreements will work: 'If you both follow through, would you still feel [humiliated/insulted]?' Helps parties commit to realistic solutions."},
+        ],
+    },
+    {
+        "id": "module-5",
+        "title": "Specialized Mediation Areas",
+        "description": "Family, commercial, community, and land disputes",
+        "duration": "3 weeks",
+        "icon": "🌍",
+        "lessons_data": [
+            {"id": "l5-1", "title": "Family & Interpersonal Disputes", "type": "video", "duration": "45 min", "video_id": "klqYftdeTcU", "content": "Online mediation demo features a family/roommate dispute. Watch for emotional dynamics, boundaries, and reframing."},
+            {"id": "l5-2", "title": "Commercial Disputes", "type": "article", "duration": "12 min", "content": "Commercial mediation: contract breaches, payment disputes, partnership issues. Focus on interests (relationship, reputation, cash flow). Document agreements clearly."},
+            {"id": "l5-3", "title": "Community & Land", "type": "article", "duration": "10 min", "content": "Community and land disputes often involve boundaries, inheritance, and shared resources. Cultural sensitivity, shuttle mediation, and involving elders or community leaders may help."},
+        ],
+    },
+]
+
+TRAINEE_FINAL_QUESTIONS = [
+    {"id": "f1", "question": "One party becomes angry and stops communicating. Best approach?", "options": [{"id": "a", "text": "Ask them to leave"}, {"id": "b", "text": "Continue with the other party"}, {"id": "c", "text": "Take a break, meet individually, help them regain composure"}, {"id": "d", "text": "Tell them emotions are irrelevant"}], "correct": "c"},
+    {"id": "f2", "question": "Confidentiality in mediation means:", "options": [{"id": "a", "text": "Only protecting private meetings"}, {"id": "b", "text": "Not disclosing without consent"}, {"id": "c", "text": "Keeping mediator notes only"}, {"id": "d", "text": "All of the above"}], "correct": "d"},
+    {"id": "f3", "question": "One party is not disclosing relevant information. You should:", "options": [{"id": "a", "text": "Ignore it"}, {"id": "b", "text": "Tell the other party"}, {"id": "c", "text": "Address it privately with the non-disclosing party"}, {"id": "d", "text": "Terminate immediately"}], "correct": "c"},
+    {"id": "f4", "question": "Central to effective problem-solving?", "options": [{"id": "a", "text": "Focus on positions"}, {"id": "b", "text": "Creative solutions that address underlying interests"}, {"id": "c", "text": "Let parties determine all outcomes"}, {"id": "d", "text": "Quick compromises"}], "correct": "b"},
+    {"id": "f5", "question": "Under Kenyan law, mediated agreements are:", "options": [{"id": "a", "text": "Never binding"}, {"id": "b", "text": "Binding only if parties agree to be bound"}, {"id": "c", "text": "Always binding"}, {"id": "d", "text": "Require court approval"}], "correct": "b"},
+]
+
+
+class TraineeProgressUpdate(BaseModel):
+    module_id: str
+    lesson_id: str | None = None
+    exam_passed: bool | None = None
+    exam_score: int | None = None
+    final_passed: bool | None = None
+
+
+@router.get("/trainee-academy/modules")
+async def get_trainee_modules(
+    user: User = Depends(require_role("mediator", "trainee", "super_admin")),
+) -> list:
+    """Get Trainee Academy module config with real video IDs."""
+    return TRAINEE_MODULES
+
+
+@router.get("/trainee-academy/progress")
+async def get_trainee_progress(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("mediator", "trainee", "super_admin")),
+) -> dict:
+    """Get user's Trainee Academy progress."""
+    result = await db.execute(
+        select(TraineeAcademyProgress).where(TraineeAcademyProgress.user_id == user.id)
+    )
+    row = result.scalar_one_or_none()
+    return {"progress": row.progress_json if row else {}}
+
+
+@router.post("/trainee-academy/progress")
+async def update_trainee_progress(
+    data: TraineeProgressUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("mediator", "trainee", "super_admin")),
+) -> dict:
+    """Update Trainee Academy progress: lesson complete, exam result, or final passed."""
+    result = await db.execute(
+        select(TraineeAcademyProgress).where(TraineeAcademyProgress.user_id == user.id)
+    )
+    row = result.scalar_one_or_none()
+    if not row:
+        row = TraineeAcademyProgress(user_id=user.id, progress_json={})
+        db.add(row)
+        await db.flush()
+    prog = dict(row.progress_json or {})
+    mod = prog.setdefault(data.module_id, {"lessons": [], "exam_passed": False, "exam_score": None, "final_passed": False})
+    if data.lesson_id and data.lesson_id not in mod.get("lessons", []):
+        mod.setdefault("lessons", []).append(data.lesson_id)
+    if data.exam_passed is not None:
+        mod["exam_passed"] = data.exam_passed
+    if data.exam_score is not None:
+        mod["exam_score"] = data.exam_score
+    if data.final_passed is not None:
+        mod["final_passed"] = data.final_passed
+    row.progress_json = prog
+    await db.flush()
+    return {"progress": prog}
+
+
+@router.get("/trainee-academy/final-exam")
+async def get_trainee_final_exam(
+    user: User = Depends(require_role("mediator", "trainee", "super_admin")),
+) -> list:
+    """Get final exam questions."""
+    return TRAINEE_FINAL_QUESTIONS

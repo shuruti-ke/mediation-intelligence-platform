@@ -6,7 +6,7 @@ from app.models.analytics import AnalyticsEvent
 from app.models.document import Document, KnowledgeBaseDocument, KnowledgeBaseChunk, JudiciarySearchCache
 from app.models.booking import Lead, Booking, FreeTierUsage
 from app.models.payment import Invoice, PaymentTransaction
-from app.models.training import TrainingModule, TrainingProgress, CPDProgress, Quiz, QuizAttempt, RolePlayScenario, RolePlaySession, TrainingModuleConfig, UserModuleResponse
+from app.models.training import TrainingModule, TrainingProgress, CPDProgress, Quiz, QuizAttempt, RolePlayScenario, RolePlaySession, TraineeAcademyProgress, TrainingModuleConfig, UserModuleResponse
 from app.models.audit import AuditLog
 from app.models.announcement import Announcement
 from app.models.calendar import MediatorAvailability, CalendarBooking

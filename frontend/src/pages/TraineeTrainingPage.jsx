@@ -1,115 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, CheckCircle, Clock, Award, Play, Menu, X, Brain, Zap, AlertCircle, Lightbulb } from 'lucide-react';
-
-const TRAINING_MODULES = [
-  {
-    id: 'module-1',
-    title: 'Fundamentals of Mediation',
-    description: 'Understanding core mediation principles, processes, and the role of a mediator',
-    duration: '2 weeks',
-    lessons: 8,
-    icon: '🎯',
-    status: 'completed',
-    lessons_data: [
-      { id: 'l1-1', title: 'What is Mediation?', type: 'video', duration: '12 min' },
-      { id: 'l1-2', title: 'The Role of a Mediator', type: 'video', duration: '15 min' },
-      { id: 'l1-3', title: 'Mediation vs Arbitration', type: 'article', duration: '10 min' },
-      { id: 'l1-4', title: 'Ethical Standards', type: 'video', duration: '18 min' },
-      { id: 'l1-5', title: 'Communication Fundamentals', type: 'interactive', duration: '20 min' },
-      { id: 'l1-6', title: 'Active Listening Techniques', type: 'video', duration: '16 min' },
-      { id: 'l1-7', title: 'Opening Statements', type: 'interactive', duration: '15 min' },
-      { id: 'l1-8', title: 'Module Review', type: 'summary', duration: '10 min' },
-    ],
-    moduleExam: {
-      questions: [
-        { id: 'q1', question: 'What is the primary role of a mediator in dispute resolution?', type: 'multiple-choice', options: [{ id: 'a', text: 'To make a binding decision for the parties' }, { id: 'b', text: 'To facilitate communication and help parties reach their own agreement' }, { id: 'c', text: 'To represent one of the parties' }, { id: 'd', text: 'To judge who is right or wrong' }], correctAnswer: 'b', explanation: 'A mediator facilitates the dispute resolution process without making binding decisions.' },
-        { id: 'q2', question: 'Which of the following is a key ethical principle for mediators?', type: 'multiple-choice', options: [{ id: 'a', text: 'Impartiality and neutrality' }, { id: 'b', text: 'Confidentiality' }, { id: 'c', text: 'Competence' }, { id: 'd', text: 'All of the above' }], correctAnswer: 'd', explanation: 'All these principles are fundamental to ethical mediation practice.' },
-        { id: 'q3', question: 'Active listening involves:', type: 'multiple-choice', options: [{ id: 'a', text: 'Simply hearing what the other person says' }, { id: 'b', text: 'Understanding, processing, and responding to what is said' }, { id: 'c', text: 'Planning your response while listening' }, { id: 'd', text: 'Interrupting to clarify points immediately' }], correctAnswer: 'b', explanation: 'Active listening is a comprehensive process of engagement with the speaker.' },
-        { id: 'q4', question: 'What is the main difference between mediation and arbitration?', type: 'multiple-choice', options: [{ id: 'a', text: 'Mediation is faster' }, { id: 'b', text: 'In arbitration, the arbitrator makes a binding decision; in mediation, parties decide' }, { id: 'c', text: 'Arbitration is only for businesses' }, { id: 'd', text: 'There is no real difference' }], correctAnswer: 'b', explanation: 'The key distinction is that arbitrators impose decisions while mediators facilitate agreement.' },
-        { id: 'q5', question: 'Which of these should be included in a mediator\'s opening statement?', type: 'multiple-choice', options: [{ id: 'a', text: 'The mediator\'s opinion on the case' }, { id: 'b', text: 'Process explanation, confidentiality rules, and the parties\' roles' }, { id: 'c', text: 'Legal advice to the parties' }, { id: 'd', text: 'Promises of guaranteed outcomes' }], correctAnswer: 'b', explanation: 'Opening statements set expectations about the mediation process.' },
-      ],
-    },
-  },
-  {
-    id: 'module-2',
-    title: 'Communication & Conflict Management',
-    description: 'Master advanced communication techniques and strategies for managing various conflict styles',
-    duration: '2 weeks',
-    lessons: 8,
-    icon: '💬',
-    status: 'in-progress',
-    lessons_data: [
-      { id: 'l2-1', title: 'Conflict Styles Framework', type: 'video', duration: '14 min' },
-      { id: 'l2-2', title: 'Non-Violent Communication', type: 'interactive', duration: '22 min' },
-      { id: 'l2-3', title: 'De-escalation Techniques', type: 'video', duration: '16 min' },
-      { id: 'l2-4', title: 'Reframing & Neutralization', type: 'interactive', duration: '18 min' },
-      { id: 'l2-5', title: 'Managing Emotions', type: 'article', duration: '12 min' },
-      { id: 'l2-6', title: 'Asking Powerful Questions', type: 'interactive', duration: '20 min' },
-      { id: 'l2-7', title: 'Reflective Listening', type: 'video', duration: '15 min' },
-      { id: 'l2-8', title: 'Module Review', type: 'summary', duration: '10 min' },
-    ],
-  },
-  {
-    id: 'module-3',
-    title: "Kenya's Mediation Framework & Law",
-    description: 'Comprehensive overview of Kenyan mediation laws, constitutional framework, and ADR mechanisms',
-    duration: '3 weeks',
-    lessons: 10,
-    icon: '⚖️',
-    status: 'not-started',
-    lessons_data: [
-      { id: 'l3-1', title: 'Constitutional Framework', type: 'video', duration: '20 min' },
-      { id: 'l3-2', title: 'The Mediation Act Overview', type: 'article', duration: '15 min' },
-      { id: 'l3-3', title: 'ADR Mechanisms in Kenya', type: 'interactive', duration: '18 min' },
-      { id: 'l3-4', title: 'Court-Annexed Mediation', type: 'video', duration: '16 min' },
-    ],
-  },
-  {
-    id: 'module-4',
-    title: 'Practical Mediation Techniques',
-    description: 'Hands-on training in negotiation, problem-solving, and agreement drafting',
-    duration: '3 weeks',
-    lessons: 9,
-    icon: '💼',
-    status: 'not-started',
-    lessons_data: [
-      { id: 'l4-1', title: 'Interests vs Positions', type: 'video', duration: '14 min' },
-      { id: 'l4-2', title: 'Principled Negotiation', type: 'interactive', duration: '25 min' },
-      { id: 'l4-3', title: 'Problem-Solving Frameworks', type: 'interactive', duration: '20 min' },
-    ],
-  },
-  {
-    id: 'module-5',
-    title: 'Specialized Mediation Areas',
-    description: 'Training in family, commercial, community, and land dispute mediation',
-    duration: '3 weeks',
-    lessons: 9,
-    icon: '🌍',
-    status: 'not-started',
-    lessons_data: [
-      { id: 'l5-1', title: 'Family Dispute Mediation', type: 'video', duration: '18 min' },
-      { id: 'l5-2', title: 'Commercial Mediation', type: 'interactive', duration: '20 min' },
-      { id: 'l5-3', title: 'Community & Land Disputes', type: 'video', duration: '16 min' },
-    ],
-  },
-];
-
-const FINAL_EXAM_QUESTIONS = [
-  { id: 'final-q1', question: 'In a mediation session, one party becomes angry and stops communicating. As a mediator, what is your best approach?', type: 'multiple-choice', options: [{ id: 'a', text: 'Ask them to leave the session immediately' }, { id: 'b', text: 'Continue the session with the other party' }, { id: 'c', text: 'Take a break, meet individually, and help them regain composure' }, { id: 'd', text: 'Tell them their emotions are irrelevant to the dispute' }], correctAnswer: 'c', explanation: 'Managing emotions and maintaining engagement is crucial to effective mediation.' },
-  { id: 'final-q2', question: 'What is the most important characteristic of confidentiality in mediation?', type: 'multiple-choice', options: [{ id: 'a', text: 'Protecting information shared in private meetings' }, { id: 'b', text: 'Not disclosing anything discussed without written consent' }, { id: 'c', text: 'Keeping mediator notes confidential' }, { id: 'd', text: 'All of the above' }], correctAnswer: 'd', explanation: 'Comprehensive confidentiality is essential to the mediation process.' },
-  { id: 'final-q3', question: 'You discover that one party is not disclosing relevant information. What should you do?', type: 'multiple-choice', options: [{ id: 'a', text: 'Continue the mediation without addressing it' }, { id: 'b', text: 'Share this with the other party' }, { id: 'c', text: 'Address it privately with the non-disclosing party' }, { id: 'd', text: 'Terminate the mediation immediately' }], correctAnswer: 'c', explanation: 'Address disclosure issues privately to maintain fairness and process integrity.' },
-  { id: 'final-q4', question: 'Which principle is central to effective problem-solving in mediation?', type: 'multiple-choice', options: [{ id: 'a', text: 'Focusing on positions rather than interests' }, { id: 'b', text: 'Generating creative solutions that address underlying interests' }, { id: 'c', text: 'Letting the parties determine all outcomes' }, { id: 'd', text: 'Finding quick compromises' }], correctAnswer: 'b', explanation: 'Interest-based problem-solving leads to sustainable agreements.' },
-  { id: 'final-q5', question: 'Under Kenyan law, what is the enforceability of a mediated agreement?', type: 'multiple-choice', options: [{ id: 'a', text: 'It has no legal effect' }, { id: 'b', text: 'It is binding only if parties agree to be bound' }, { id: 'c', text: 'It is always binding' }, { id: 'd', text: 'It requires court approval' }], correctAnswer: 'b', explanation: 'Mediated agreements are binding only if parties explicitly agree to be legally bound.' },
-];
+import { trainingApi } from '../api/client';
 
 export default function TraineeTrainingPage() {
+  const [modules, setModules] = useState([]);
+  const [progress, setProgress] = useState({});
+  const [loading, setLoading] = useState(true);
   const [currentModule, setCurrentModule] = useState(null);
   const [currentLesson, setCurrentLesson] = useState(null);
   const [activeTab, setActiveTab] = useState('modules');
-  const [completedModules, setCompletedModules] = useState([]);
-  const [moduleExams, setModuleExams] = useState({});
-  const [finalExamStarted, setFinalExamStarted] = useState(false);
+  const [finalQuestions, setFinalQuestions] = useState([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [examMode, setExamMode] = useState(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -117,18 +18,75 @@ export default function TraineeTrainingPage() {
   const [examSubmitted, setExamSubmitted] = useState(false);
   const [examScore, setExamScore] = useState(null);
 
-  const questions = examMode === 'module-exam' && currentModule?.moduleExam
-    ? currentModule.moduleExam.questions
+  useEffect(() => {
+    Promise.all([
+      trainingApi.getTraineeModules().then(({ data }) => setModules(data || [])),
+      trainingApi.getTraineeProgress().then(({ data }) => setProgress(data?.progress || {})),
+      trainingApi.getTraineeFinalExam().then(({ data }) => setFinalQuestions(data || [])),
+    ]).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const completedModules = Object.entries(progress).filter(([, p]) => p?.exam_passed).map(([id]) => id);
+  const finalPassed = Object.values(progress).some((p) => p?.final_passed);
+  const questions = examMode === 'module-exam' && currentModule?.module_exam
+    ? (currentModule.module_exam.questions || []).map((q) => ({
+        id: q.id,
+        question: q.question,
+        options: q.options || [],
+        correctAnswer: q.correct,
+      }))
     : examMode === 'final-exam'
-    ? FINAL_EXAM_QUESTIONS
+    ? (finalQuestions || []).map((q) => ({
+        id: q.id,
+        question: q.question,
+        options: q.options || [],
+        correctAnswer: q.correct,
+      }))
     : [];
+
+  const markLessonComplete = async (moduleId, lessonId) => {
+    const modProg = progress[moduleId] || {};
+    const lessons = modProg.lessons || [];
+    if (lessons.includes(lessonId)) return;
+    try {
+      const { data } = await trainingApi.updateTraineeProgress({ module_id: moduleId, lesson_id: lessonId });
+      setProgress({ ...progress, [moduleId]: data?.progress?.[moduleId] || { ...modProg, lessons: [...lessons, lessonId] } });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const saveExamResult = async (moduleId, passed, score) => {
+    try {
+      const { data } = await trainingApi.updateTraineeProgress({
+        module_id: moduleId,
+        exam_passed: passed,
+        exam_score: score,
+      });
+      setProgress(data?.progress || progress);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const saveFinalResult = async (passed) => {
+    try {
+      if (modules.length > 0) {
+        await trainingApi.updateTraineeProgress({
+          module_id: modules[0].id,
+          final_passed: passed,
+        });
+      }
+      const { data } = await trainingApi.getTraineeProgress();
+      setProgress(data?.progress || {});
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const handleSelectAnswer = (optionId) => {
     if (!examSubmitted) {
-      setSelectedAnswers({
-        ...selectedAnswers,
-        [currentQuestionIndex]: optionId,
-      });
+      setSelectedAnswers({ ...selectedAnswers, [currentQuestionIndex]: optionId });
     }
   };
 
@@ -140,6 +98,13 @@ export default function TraineeTrainingPage() {
     const score = Math.round((correct / questions.length) * 100);
     setExamScore(score);
     setExamSubmitted(true);
+    if (examMode === 'module-exam' && currentModule) {
+      const passed = score >= 70;
+      saveExamResult(currentModule.id, passed, score);
+    }
+    if (examMode === 'final-exam') {
+      saveFinalResult(score >= 70);
+    }
   };
 
   const handleNextQuestion = () => {
@@ -158,13 +123,31 @@ export default function TraineeTrainingPage() {
     setExamScore(null);
   };
 
+  const getModuleStatus = (mod) => {
+    const p = progress[mod.id] || {};
+    if (p.exam_passed) return 'completed';
+    const lessons = (p.lessons || []).length;
+    const total = (mod.lessons_data || []).length;
+    if (lessons > 0 || total === 0) return 'in-progress';
+    return 'not-started';
+  };
+
+  const getModuleProgress = (mod) => {
+    const p = progress[mod.id] || {};
+    const lessons = (p.lessons || []).length;
+    const total = (mod.lessons_data || []).length;
+    return total ? Math.round((lessons / total) * 100) : 0;
+  };
+
+  const isLessonComplete = (modId, lessonId) => (progress[modId]?.lessons || []).includes(lessonId);
+
   const ExamInterface = () => {
     const currentQuestion = questions[currentQuestionIndex];
     const isAnswered = selectedAnswers[currentQuestionIndex] !== undefined;
     const isLastQuestion = currentQuestionIndex === questions.length - 1;
 
     if (examSubmitted) {
-      const correct = Object.keys(selectedAnswers).filter(idx => selectedAnswers[idx] === questions[idx].correctAnswer).length;
+      const correct = Object.keys(selectedAnswers).filter((idx) => selectedAnswers[idx] === questions[idx]?.correctAnswer).length;
       const passed = examScore >= 70;
 
       return (
@@ -178,33 +161,6 @@ export default function TraineeTrainingPage() {
             {!passed && <p className="text-sm mt-4 text-orange-600">Pass score is 70%. Review the material and try again.</p>}
           </div>
 
-          <div className="bg-white/60 backdrop-blur rounded-2xl border border-orange-200 p-8">
-            <h3 className="text-2xl font-bold text-orange-900 mb-6">Answer Review</h3>
-            <div className="space-y-4">
-              {questions.map((q, idx) => {
-                const userAnswer = selectedAnswers[idx];
-                const isCorrect = userAnswer === q.correctAnswer;
-                const userOption = q.options.find(o => o.id === userAnswer);
-                const correctOption = q.options.find(o => o.id === q.correctAnswer);
-                return (
-                  <div key={q.id} className={`p-4 rounded-lg border-2 ${isCorrect ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
-                    <div className="flex items-start gap-3 mb-2">
-                      <span className={`font-bold text-lg ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
-                        {isCorrect ? '✓' : '✗'} Q{idx + 1}
-                      </span>
-                      <div>
-                        <p className="font-semibold text-gray-900 mb-2">{q.question}</p>
-                        <p className={`text-sm mb-2 ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>Your answer: {userOption?.text}</p>
-                        {!isCorrect && <p className="text-sm text-green-700 mb-2">Correct answer: {correctOption?.text}</p>}
-                        <p className="text-sm text-slate-700 italic">{q.explanation}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
           <div className="flex gap-4">
             <button onClick={resetExam} className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-700 to-orange-600 text-white rounded-lg hover:shadow-lg font-semibold">
               Try Again
@@ -212,8 +168,6 @@ export default function TraineeTrainingPage() {
             {examMode === 'module-exam' && passed && currentModule && (
               <button
                 onClick={() => {
-                  setCompletedModules([...completedModules, currentModule.id]);
-                  setModuleExams({ ...moduleExams, [currentModule.id]: { score: examScore, passed: true } });
                   resetExam();
                   setCurrentModule(null);
                 }}
@@ -238,6 +192,8 @@ export default function TraineeTrainingPage() {
       );
     }
 
+    if (!currentQuestion) return null;
+
     return (
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="bg-white/60 backdrop-blur rounded-xl border border-orange-200 p-4">
@@ -253,7 +209,7 @@ export default function TraineeTrainingPage() {
         <div className="bg-white/60 backdrop-blur rounded-2xl border border-orange-200 p-8">
           <h2 className="text-xl font-bold text-orange-900 mb-6">{currentQuestion.question}</h2>
           <div className="space-y-3 mb-8">
-            {currentQuestion.options.map((option) => (
+            {(currentQuestion.options || []).map((option) => (
               <button
                 key={option.id}
                 onClick={() => handleSelectAnswer(option.id)}
@@ -316,8 +272,8 @@ export default function TraineeTrainingPage() {
   };
 
   const ModuleCard = ({ module }) => {
-    const lessonsCompleted = Math.floor(module.lessons * (module.status === 'completed' ? 1 : module.status === 'in-progress' ? 0.5 : 0));
-    const progress = (lessonsCompleted / module.lessons) * 100;
+    const status = getModuleStatus(module);
+    const progressPct = getModuleProgress(module);
 
     return (
       <div className="bg-white/60 backdrop-blur rounded-2xl border border-orange-200 hover:border-orange-400 overflow-hidden hover:shadow-lg transition-all">
@@ -328,66 +284,122 @@ export default function TraineeTrainingPage() {
           <div className="space-y-3 mb-4">
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-600 flex items-center gap-2"><Clock className="w-4 h-4" /> {module.duration}</span>
-              <span className="text-slate-600">{module.lessons} lessons</span>
+              <span className="text-slate-600">{(module.lessons_data || []).length} lessons</span>
             </div>
             <div>
               <div className="flex justify-between items-center text-xs mb-1">
                 <span className="text-slate-600">Progress</span>
-                <span className="font-semibold text-orange-700">{Math.round(progress)}%</span>
+                <span className="font-semibold text-orange-700">{progressPct}%</span>
               </div>
               <div className="w-full bg-orange-100 rounded-full h-2">
-                <div className="bg-gradient-to-r from-orange-700 to-orange-600 h-2 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                <div className="bg-gradient-to-r from-orange-700 to-orange-600 h-2 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
               </div>
             </div>
           </div>
           <button
-            onClick={() => { setCurrentModule(module); setCurrentLesson(module.lessons_data[0]); }}
+            onClick={() => { setCurrentModule(module); setCurrentLesson((module.lessons_data || [])[0]); }}
             className={`w-full py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all ${
-              module.status === 'completed' ? 'bg-green-100 text-green-700 hover:bg-green-200' :
-              module.status === 'in-progress' ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' :
+              status === 'completed' ? 'bg-green-100 text-green-700 hover:bg-green-200' :
+              status === 'in-progress' ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' :
               'bg-gradient-to-r from-orange-700 to-orange-600 text-white hover:shadow-lg'
             }`}
           >
-            {module.status === 'completed' && <CheckCircle className="w-4 h-4" />}
-            {module.status === 'completed' ? 'Completed' : module.status === 'in-progress' ? 'Continue' : 'Start'}
+            {status === 'completed' && <CheckCircle className="w-4 h-4" />}
+            {status === 'completed' ? 'Completed' : status === 'in-progress' ? 'Continue' : 'Start'}
           </button>
         </div>
       </div>
     );
   };
 
-  const CertificateTab = () => {
-    const passed = Object.values(moduleExams).every(e => e?.passed);
+  const LessonContent = ({ lesson, module }) => {
+    const done = isLessonComplete(module.id, lesson.id);
+
     return (
-      <div className="max-w-2xl mx-auto">
-        {passed ? (
-          <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl border-4 border-yellow-400 p-12 shadow-2xl">
-            <div className="text-center">
-              <div className="text-6xl mb-4">🏆</div>
-              <h1 className="text-4xl font-bold text-yellow-900 mb-2">Certificate of Completion</h1>
-              <p className="text-xl text-yellow-800 mb-8">Mediation Intelligence Platform – Trainee Mediator Certification</p>
-              <div className="bg-white/50 rounded-xl p-8 mb-8">
-                <p className="text-gray-700 mb-4">This is to certify that</p>
-                <p className="text-2xl font-bold text-gray-900 mb-4">Trainee Mediator</p>
-                <p className="text-gray-700 mb-6">has successfully completed the comprehensive training program in mediation</p>
-                <div className="grid md:grid-cols-3 gap-4 my-8 pt-8 border-t-2 border-yellow-300">
-                  <div><p className="text-xs text-gray-600">Date</p><p className="font-bold text-gray-900">{new Date().toLocaleDateString()}</p></div>
-                  <div><p className="text-xs text-gray-600">Status</p><p className="font-bold text-green-700">CERTIFIED</p></div>
-                </div>
+      <div className="space-y-6">
+        <div className="bg-white/60 backdrop-blur rounded-2xl border border-orange-200 p-8">
+          <h2 className="text-2xl font-bold text-orange-900 mb-2">{lesson.title}</h2>
+          <p className="text-sm text-slate-600 mb-4">{lesson.type} • {lesson.duration}</p>
+
+          {lesson.video_id && (
+            <div className="mb-6">
+              <div className="aspect-video rounded-xl overflow-hidden bg-black">
+                <iframe
+                  src={`https://www.youtube.com/embed/${lesson.video_id}`}
+                  title={lesson.title}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="w-full h-full"
+                />
               </div>
-              <button className="px-8 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-bold">Download Certificate</button>
+              <p className="text-sm text-slate-700 mt-2">{lesson.content}</p>
             </div>
-          </div>
-        ) : (
-          <div className="bg-white/60 backdrop-blur rounded-2xl border border-orange-200 p-8 text-center">
-            <AlertCircle className="w-12 h-12 text-orange-600 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-orange-900 mb-2">Certification In Progress</h2>
-            <p className="text-orange-700">Complete all modules and pass the final exam to earn your certificate.</p>
-          </div>
-        )}
+          )}
+
+          {lesson.type === 'article' && lesson.content && (
+            <div className="prose prose-orange max-w-none">
+              <div className="whitespace-pre-wrap text-slate-700">{lesson.content}</div>
+            </div>
+          )}
+
+          {lesson.type === 'summary' && lesson.content && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <p className="text-slate-700">{lesson.content}</p>
+            </div>
+          )}
+
+          <button
+            onClick={() => markLessonComplete(module.id, lesson.id)}
+            disabled={done}
+            className={`mt-6 px-6 py-2 rounded-lg font-semibold ${done ? 'bg-green-100 text-green-700' : 'bg-orange-600 text-white hover:bg-orange-700'}`}
+          >
+            {done ? '✓ Completed' : 'Mark as complete'}
+          </button>
+        </div>
       </div>
     );
   };
+
+  const CertificateTab = () => (
+    <div className="max-w-2xl mx-auto">
+      {finalPassed ? (
+        <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl border-4 border-yellow-400 p-12 shadow-2xl">
+          <div className="text-center">
+            <div className="text-6xl mb-4">🏆</div>
+            <h1 className="text-4xl font-bold text-yellow-900 mb-2">Certificate of Completion</h1>
+            <p className="text-xl text-yellow-800 mb-8">Mediation Intelligence Platform – Trainee Mediator Certification</p>
+            <div className="bg-white/50 rounded-xl p-8 mb-8">
+              <p className="text-gray-700 mb-4">This is to certify that</p>
+              <p className="text-2xl font-bold text-gray-900 mb-4">Trainee Mediator</p>
+              <p className="text-gray-700 mb-6">has successfully completed the comprehensive training program in mediation</p>
+              <div className="grid md:grid-cols-3 gap-4 my-8 pt-8 border-t-2 border-yellow-300">
+                <div><p className="text-xs text-gray-600">Date</p><p className="font-bold text-gray-900">{new Date().toLocaleDateString()}</p></div>
+                <div><p className="text-xs text-gray-600">Status</p><p className="font-bold text-green-700">CERTIFIED</p></div>
+              </div>
+            </div>
+            <button className="px-8 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-bold">Download Certificate</button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white/60 backdrop-blur rounded-2xl border border-orange-200 p-8 text-center">
+          <AlertCircle className="w-12 h-12 text-orange-600 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-orange-900 mb-2">Certification In Progress</h2>
+          <p className="text-orange-700">Complete all modules and pass the final exam to earn your certificate.</p>
+        </div>
+      )}
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="loading-spinner w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p>Loading Trainee Academy...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
@@ -427,7 +439,7 @@ export default function TraineeTrainingPage() {
                 <Brain className="w-6 h-6 text-orange-700" />
                 <h2 className="text-2xl font-bold text-orange-900">{currentModule?.title} – Module Exam</h2>
               </div>
-              <p className="text-slate-700">Answer all questions to proceed to the next module</p>
+              <p className="text-slate-700">Answer all questions to proceed. Pass score: 70%</p>
             </div>
             <ExamInterface />
           </div>
@@ -448,17 +460,24 @@ export default function TraineeTrainingPage() {
             <button onClick={() => setCurrentModule(null)} className="flex items-center gap-2 text-orange-700 hover:text-orange-900 font-semibold">← Back to Modules</button>
             <div className="grid lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 space-y-6">
-                <div className="bg-white/60 backdrop-blur rounded-2xl border border-orange-200 p-8">
-                  <h1 className="text-3xl font-bold text-orange-900 mb-4">{currentModule.title}</h1>
-                  <p className="text-slate-700 text-lg">{currentModule.description}</p>
-                </div>
+                {currentLesson ? (
+                  <LessonContent lesson={currentLesson} module={currentModule} />
+                ) : (
+                  <div className="bg-white/60 backdrop-blur rounded-2xl border border-orange-200 p-8">
+                    <h1 className="text-3xl font-bold text-orange-900 mb-4">{currentModule.title}</h1>
+                    <p className="text-slate-700 text-lg">{currentModule.description}</p>
+                    <p className="text-sm text-slate-600 mt-4">Select a lesson from the list.</p>
+                  </div>
+                )}
+
                 <div className="bg-white/60 backdrop-blur rounded-2xl border border-orange-200 p-8">
                   <h2 className="text-2xl font-bold text-orange-900 mb-6">Course Content</h2>
                   <div className="space-y-3">
-                    {currentModule.lessons_data.map((lesson) => (
+                    {(currentModule.lessons_data || []).map((lesson) => (
                       <div
                         key={lesson.id}
                         className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          isLessonComplete(currentModule.id, lesson.id) ? 'bg-green-50 border-green-300' :
                           currentLesson?.id === lesson.id ? 'bg-orange-50 border-orange-400' : 'bg-white border-orange-100 hover:border-orange-300'
                         }`}
                         onClick={() => setCurrentLesson(lesson)}
@@ -469,6 +488,7 @@ export default function TraineeTrainingPage() {
                             <p className="font-semibold text-gray-900">{lesson.title}</p>
                             <p className="text-sm text-slate-600">{lesson.type} • {lesson.duration}</p>
                           </div>
+                          {isLessonComplete(currentModule.id, lesson.id) && <CheckCircle className="w-5 h-5 text-green-600 ml-auto" />}
                         </div>
                       </div>
                     ))}
@@ -482,14 +502,14 @@ export default function TraineeTrainingPage() {
                     <div>
                       <div className="flex justify-between mb-2">
                         <span>Lessons Completed</span>
-                        <span className="font-bold">{Math.floor(currentModule.lessons / 2)}/{currentModule.lessons}</span>
+                        <span className="font-bold">{(progress[currentModule.id]?.lessons || []).length}/{(currentModule.lessons_data || []).length}</span>
                       </div>
                       <div className="w-full bg-orange-500 rounded-full h-3">
-                        <div className="bg-white h-3 rounded-full" style={{ width: `${(Math.floor(currentModule.lessons / 2) / currentModule.lessons) * 100}%` }} />
+                        <div className="bg-white h-3 rounded-full" style={{ width: `${getModuleProgress(currentModule)}%` }} />
                       </div>
                     </div>
                   </div>
-                  {currentModule.moduleExam && (
+                  {currentModule.module_exam && (
                     <button
                       onClick={() => { setExamMode('module-exam'); setCurrentQuestionIndex(0); setSelectedAnswers({}); setExamSubmitted(false); }}
                       className="w-full bg-white text-orange-700 font-bold py-3 rounded-lg hover:bg-orange-50 transition-all"
@@ -506,20 +526,20 @@ export default function TraineeTrainingPage() {
             <div className="bg-gradient-to-br from-orange-600 to-orange-700 rounded-2xl p-8 text-white">
               <h2 className="text-2xl font-bold mb-6">Your Training Progress</h2>
               <div className="grid md:grid-cols-4 gap-6">
-                <div><p className="text-sm opacity-90">Total Modules</p><p className="text-3xl font-bold">{TRAINING_MODULES.length}</p></div>
+                <div><p className="text-sm opacity-90">Total Modules</p><p className="text-3xl font-bold">{modules.length}</p></div>
                 <div><p className="text-sm opacity-90">Completed</p><p className="text-3xl font-bold">{completedModules.length}</p></div>
-                <div><p className="text-sm opacity-90">Status</p><p className="text-xl font-bold">{completedModules.length === TRAINING_MODULES.length ? 'Ready for Final' : 'In Progress'}</p></div>
+                <div><p className="text-sm opacity-90">Status</p><p className="text-xl font-bold">{completedModules.length === modules.length ? 'Ready for Final' : 'In Progress'}</p></div>
               </div>
             </div>
             <div>
               <h3 className="text-2xl font-bold text-orange-900 mb-6">Modules</h3>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {TRAINING_MODULES.map((module) => (
+                {modules.map((module) => (
                   <ModuleCard key={module.id} module={module} />
                 ))}
               </div>
             </div>
-            {completedModules.length === TRAINING_MODULES.length && (
+            {completedModules.length === modules.length && modules.length > 0 && (
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border-2 border-blue-300 p-8 text-center">
                 <Award className="w-12 h-12 text-blue-600 mx-auto mb-4" />
                 <h3 className="text-2xl font-bold text-blue-900 mb-2">Ready for Final Exam?</h3>
@@ -528,7 +548,7 @@ export default function TraineeTrainingPage() {
                   onClick={() => { setExamMode('final-exam'); setCurrentQuestionIndex(0); setSelectedAnswers({}); setExamSubmitted(false); }}
                   className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:shadow-lg font-bold"
                 >
-                  Take Final Exam ({FINAL_EXAM_QUESTIONS.length} Questions)
+                  Take Final Exam ({finalQuestions.length} Questions)
                 </button>
               </div>
             )}

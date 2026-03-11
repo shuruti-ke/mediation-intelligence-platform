@@ -120,6 +120,17 @@ class TrainingModuleConfig(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 
+class TraineeAcademyProgress(Base):
+    """Trainee Academy progress: completed lessons, module exams, final exam."""
+
+    __tablename__ = "trainee_academy_progress"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
+    progress_json: Mapped[dict] = mapped_column(JSONB, default=lambda: {})  # {module_id: {lessons: [id], exam_passed, exam_score}, final_passed}
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class UserModuleResponse(Base):
     """User responses to interactive module steps. Used for personalization and improving training."""
 
