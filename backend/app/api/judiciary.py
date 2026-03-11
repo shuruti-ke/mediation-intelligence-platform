@@ -1,7 +1,10 @@
 """Judiciary case search - Phase 3. Tausi, Laws.Africa, cache."""
 import hashlib
+import logging
 
 from fastapi import APIRouter, Depends
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -51,7 +54,7 @@ async def search_judiciary(
             import httpx
             async with httpx.AsyncClient() as client:
                 r = await client.get(
-                    f"https://api.laws.africa/v3/search",
+                    "https://api.laws.africa/v3/search",
                     params={"q": data.query, "country": data.region.lower()},
                     headers={"Authorization": f"Token {settings.laws_africa_api_key}"},
                     timeout=15,
@@ -68,8 +71,10 @@ async def search_judiciary(
                         })
                     if items:
                         sources.append("Laws.Africa")
-        except Exception:
-            pass
+                else:
+                    logger.warning("Laws.Africa API returned %s: %s", r.status_code, r.text[:200])
+        except Exception as e:
+            logger.warning("Laws.Africa API error: %s", e)
 
     # Tausi API (Kenya judicial decisions)
     if data.region.upper() == "KE" and settings.tausi_api_key:
@@ -132,4 +137,22 @@ async def list_sources(
         sources.append("Tausi (Kenya)")
     if not sources:
         sources.append("Configure API keys for judiciary search")
-    return {"sources": sources}
+    return {
+        "sources": sources,
+        "keys_configured": {
+            "laws_africa": bool(settings.laws_africa_api_key),
+            "tausi": bool(settings.tausi_api_key),
+        },
+    }
+
+
+@router.delete("/cache")
+async def clear_cache(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Clear judiciary search cache (e.g. after configuring API keys)."""
+    from sqlalchemy import delete
+    await db.execute(delete(JudiciarySearchCache))
+    await db.flush()
+    return {"message": "Cache cleared"}

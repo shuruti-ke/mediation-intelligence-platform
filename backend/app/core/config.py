@@ -1,11 +1,13 @@
 """Application configuration."""
-from pydantic_settings import BaseSettings
 from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
     """App settings from environment."""
+
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
     # Database (Render/Neon give postgresql://; we need postgresql+asyncpg for async)
     database_url: str = "postgresql+asyncpg://mediation:mediation_secret@localhost:5432/mediation_platform"
@@ -40,10 +42,6 @@ class Settings(BaseSettings):
     def database_url_sync(self) -> str:
         """Sync URL for Alembic (replace asyncpg with psycopg2)."""
         return self.database_url.replace("+asyncpg", "")
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
 
 
 @lru_cache
