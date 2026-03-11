@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     jitsi_domain: str = "meet.jit.si"
 
     # CORS
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = "http://localhost:5173,http://localhost:3000,https://mediation-intelligence-platform.vercel.app"
 
     # Phase 3: Documents & AI
     storage_path: str = "./uploads"
