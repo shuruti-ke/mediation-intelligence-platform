@@ -44,3 +44,4 @@ class SessionResponse(BaseModel):
 class JitsiRoomResponse(BaseModel):
     room_name: str
     jitsi_domain: str
+    jwt: str | None = None  # JaaS JWT when JITSI_APP_ID/SECRET configured

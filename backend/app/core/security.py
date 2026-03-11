@@ -35,3 +35,41 @@ def decode_access_token(token: str) -> str | None:
         return payload.get("sub")
     except JWTError:
         return None
+
+
+def create_jitsi_jwt(
+    room_name: str,
+    user_id: str,
+    display_name: str,
+    moderator: bool = False,
+    expires_minutes: int = 120,
+) -> str | None:
+    """Create JWT for Jitsi/JaaS room access. Returns None if JaaS not configured."""
+    if not settings.jitsi_app_id or not settings.jitsi_app_secret:
+        return None
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    exp = now + timedelta(minutes=expires_minutes)
+    sub = settings.jitsi_app_id
+    if not sub.startswith("vpaas-magic-cookie-"):
+        sub = f"vpaas-magic-cookie-{sub}"
+    payload = {
+        "aud": "jitsi",
+        "iss": "chat",
+        "sub": sub,
+        "room": room_name,
+        "exp": int(exp.timestamp()),
+        "nbf": int(now.timestamp()),
+        "moderator": moderator,
+        "context": {
+            "user": {
+                "id": user_id,
+                "name": display_name,
+            }
+        },
+    }
+    return jwt.encode(
+        payload,
+        settings.jitsi_app_secret,
+        algorithm="HS256",
+    )

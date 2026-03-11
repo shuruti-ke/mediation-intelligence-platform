@@ -10,6 +10,7 @@ from sqlalchemy import select
 from app.api.deps import get_current_user, require_role
 from app.core.config import get_settings
 from app.core.database import get_db
+from app.core.security import create_jitsi_jwt
 from app.models.tenant import User
 from app.models.case import Case, MediationSession
 from app.models.booking import FreeTierUsage
@@ -85,9 +86,19 @@ async def get_jitsi_room(
         raise HTTPException(status_code=404, detail="Case not found")
     if user.tenant_id and case.tenant_id != user.tenant_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    room_name = session.jitsi_room_name or f"mediation-{session_id}"
+    jwt_token = None
+    if settings.jitsi_app_id and settings.jitsi_app_secret:
+        jwt_token = create_jitsi_jwt(
+            room_name=room_name,
+            user_id=str(user.id),
+            display_name=user.display_name or user.email,
+            moderator=user.role in ("super_admin", "mediator"),
+        )
     return JitsiRoomResponse(
-        room_name=session.jitsi_room_name or f"mediation-{session_id}",
+        room_name=room_name,
         jitsi_domain=settings.jitsi_domain,
+        jwt=jwt_token,
     )
 
 

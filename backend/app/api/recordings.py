@@ -93,10 +93,22 @@ async def create_caucus_room(
     user: User = Depends(require_role("super_admin", "mediator")),
 ) -> dict:
     """Create caucus (breakout) room. Separate Jitsi room per party."""
+    from app.core.config import get_settings
+    from app.core.security import create_jitsi_jwt
+
     result = await db.execute(select(MediationSession).where(MediationSession.id == session_id))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    settings = get_settings()
     room_name = f"mediation-{session.case_id}-caucus-{party}"
-    return {"room_name": room_name, "jitsi_domain": "meet.jit.si"}
+    jwt_token = None
+    if settings.jitsi_app_id and settings.jitsi_app_secret:
+        jwt_token = create_jitsi_jwt(
+            room_name=room_name,
+            user_id=str(user.id),
+            display_name=user.display_name or user.email,
+            moderator=True,
+        )
+    return {"room_name": room_name, "jitsi_domain": settings.jitsi_domain, "jwt": jwt_token}
