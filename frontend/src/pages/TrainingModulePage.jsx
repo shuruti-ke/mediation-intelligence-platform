@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { trainingApi } from '../api/client';
+import { FALLBACK_CONFIGS } from '../data/moduleConfigs';
 
 const MODULE_REFLECT_PROMPTS = {
   orientation: 'How might the platform\'s structure support—or limit—your ability to remain neutral in a case?',
@@ -25,7 +26,7 @@ export default function TrainingModulePage() {
         setModule(data);
         setProgress(data.progress_pct ?? 0);
         setCompleted(data.completed ?? false);
-        const cfg = data.interactive_config;
+        const cfg = data.interactive_config || (data.slug && FALLBACK_CONFIGS[data.slug]);
         if (cfg?.steps?.length) {
           setCurrentStep(cfg.steps[0]);
         } else {
@@ -36,56 +37,79 @@ export default function TrainingModulePage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  const interactiveConfig = useMemo(() => {
+    return module?.interactive_config || (module?.slug && FALLBACK_CONFIGS[module.slug]) || null;
+  }, [module?.interactive_config, module?.slug]);
+
+  const stepsMap = useMemo(() => {
+    if (!interactiveConfig?.steps) return {};
+    return Object.fromEntries(interactiveConfig.steps.map(s => [s.id, s]));
+  }, [interactiveConfig]);
+
   const handleChoice = async (choiceIdx) => {
-    if (!module?.interactive_config || submitting) return;
+    if (!interactiveConfig || submitting) return;
+    const choice = currentStep?.choices?.[choiceIdx];
+    if (!choice) return;
     setSubmitting(true);
-    setFeedback(null);
-    try {
-      const { data } = await trainingApi.respondToStep(id, { step_id: currentStep.id, choice_idx: choiceIdx });
-      setProgress(data.progress_pct ?? progress);
-      setCompleted(data.completed ?? false);
-      if (data.feedback) setFeedback(data.feedback);
-      if (data.next_step) {
-        setCurrentStep(data.next_step);
-      } else if (data.completed || !data.next_step_id) {
-        setCurrentStep(null);
+    setFeedback(choice.feedback ?? null);
+    const nextStep = stepsMap[choice.next];
+    if (interactiveConfig === module?.interactive_config) {
+      try {
+        const { data } = await trainingApi.respondToStep(id, { step_id: currentStep.id, choice_idx: choiceIdx });
+        setProgress(data.progress_pct ?? progress);
+        setCompleted(data.completed ?? false);
+        setCurrentStep(data.next_step ?? nextStep ?? null);
+      } catch (err) {
+        console.error(err);
+        setCurrentStep(nextStep ?? null);
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSubmitting(false);
+    } else {
+      setCurrentStep(nextStep ?? null);
+      if (!nextStep?.next && !nextStep?.choices?.length) {
+        setCompleted(true);
+        setProgress(100);
+      }
     }
+    setSubmitting(false);
   };
 
   const handleAdvance = async () => {
-    if (!module?.interactive_config || submitting || !currentStep?.next) return;
+    if (!interactiveConfig || submitting || !currentStep?.next) return;
     setSubmitting(true);
     setFeedback(null);
-    try {
-      const { data } = await trainingApi.respondToStep(id, { step_id: currentStep.id, text: 'continue' });
-      setProgress(data.progress_pct ?? progress);
-      setCompleted(data.completed ?? false);
-      setCurrentStep(data.next_step ?? module.interactive_config.steps.find(s => s.id === currentStep.next) ?? null);
-    } catch (err) {
-      console.error(err);
-      setCurrentStep(module.interactive_config.steps.find(s => s.id === currentStep.next) ?? null);
-    } finally {
-      setSubmitting(false);
+    const nextStep = stepsMap[currentStep.next];
+    if (interactiveConfig === module?.interactive_config) {
+      try {
+        const { data } = await trainingApi.respondToStep(id, { step_id: currentStep.id, text: 'continue' });
+        setProgress(data.progress_pct ?? progress);
+        setCompleted(data.completed ?? false);
+        setCurrentStep(data.next_step ?? nextStep ?? null);
+      } catch (err) {
+        console.error(err);
+        setCurrentStep(nextStep ?? null);
+      }
+    } else {
+      setCurrentStep(nextStep ?? null);
+      if (!nextStep?.next && !nextStep?.choices?.length) {
+        setCompleted(true);
+        setProgress(100);
+      }
     }
+    setSubmitting(false);
   };
 
   const handleComplete = async () => {
     try {
       await trainingApi.updateProgress(id, { progress_pct: 100, completed: true });
-      setProgress(100);
-      setCompleted(true);
     } catch (err) {
       console.error(err);
     }
+    setProgress(100);
+    setCompleted(true);
   };
 
   const reflectPrompt = module ? MODULE_REFLECT_PROMPTS[module.slug] : null;
-  const isInteractive = module?.interactive_config && currentStep;
+  const isInteractive = interactiveConfig && currentStep;
 
   if (loading || !module) {
     return (
