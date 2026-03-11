@@ -113,7 +113,7 @@ export default function TrainingModulePage() {
 
   if (loading || !module) {
     return (
-      <div className="training-module-page">
+      <div className="training-module-page training-module-page-modern">
         <div className="module-loading">
           <div className="loading-spinner" />
           <p>Loading module...</p>
@@ -123,7 +123,7 @@ export default function TrainingModulePage() {
   }
 
   return (
-    <div className="training-module-page">
+    <div className="training-module-page training-module-page-modern">
       <header>
         <Link to="/training">← Back to Training</Link>
         <h1>{module.title}</h1>

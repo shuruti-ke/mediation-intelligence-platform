@@ -143,3 +143,13 @@ export const usersApi = {
 export const analyticsApi = {
   getDashboard: () => api.get('/analytics/dashboard'),
 };
+
+export const calendarApi = {
+  listAvailability: (params) => api.get('/calendar/availability', { params }),
+  createAvailability: (data) => api.post('/calendar/availability', data),
+  deleteAvailability: (id) => api.delete(`/calendar/availability/${id}`),
+  listBookings: (params) => api.get('/calendar/bookings', { params }),
+  createBooking: (data) => api.post('/calendar/bookings', data),
+  updateBookingStatus: (id, status) => api.patch(`/calendar/bookings/${id}`, null, { params: { status } }),
+  listMediators: () => api.get('/calendar/mediators'),
+};

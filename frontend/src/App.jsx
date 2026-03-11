@@ -15,6 +15,7 @@ import TrainingPage from './pages/TrainingPage';
 import TrainingModulePage from './pages/TrainingModulePage';
 import CPDDashboardPage from './pages/CPDDashboardPage';
 import RolePlayPage from './pages/RolePlayPage';
+import CalendarPage from './pages/CalendarPage';
 import OfflineBanner from './components/OfflineBanner';
 import { auth } from './api/client';
 import './App.css';
@@ -129,6 +130,14 @@ export default function App() {
               <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
                 <CaseDetailPage />
               </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/calendar"
+          element={
+            <ProtectedRoute>
+              <CalendarPage />
             </ProtectedRoute>
           }
         />

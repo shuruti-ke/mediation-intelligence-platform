@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { knowledge } from '../api/client';
 
 export default function LibraryPage() {
@@ -10,6 +11,7 @@ export default function LibraryPage() {
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadTitle, setUploadTitle] = useState('');
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('documents'); // documents | search | ai
 
   useEffect(() => {
     knowledge.listDocuments().then(({ data }) => setDocuments(data)).catch(() => setDocuments([]));
@@ -19,6 +21,7 @@ export default function LibraryPage() {
     e?.preventDefault();
     if (!query.trim()) return;
     setLoading(true);
+    setActiveTab('search');
     try {
       const { data } = await knowledge.search(query);
       setSearchResults(data.results || []);
@@ -34,6 +37,7 @@ export default function LibraryPage() {
     if (!aiQuery.trim()) return;
     setLoading(true);
     setAiAnswer(null);
+    setActiveTab('ai');
     try {
       const { data } = await knowledge.query(aiQuery);
       setAiAnswer({ answer: data.answer, citations: data.citations || [] });
@@ -61,82 +65,136 @@ export default function LibraryPage() {
   };
 
   return (
-    <div className="library-page">
-      <h1>Knowledge Base</h1>
+    <div className="library-page-modern">
+      <header className="library-header">
+        <Link to="/dashboard" className="back-link">← Dashboard</Link>
+        <div className="library-hero">
+          <span className="library-badge">📚 Knowledge Base</span>
+          <h1>Your Mediation Library</h1>
+          <p>Upload documents, search, and ask AI-powered questions.</p>
+        </div>
+      </header>
 
-      <section className="library-section">
-        <h2>Add Document</h2>
-        <form onSubmit={handleUpload}>
+      <div className="library-upload-card">
+        <div className="upload-icon">📤</div>
+        <h3>Add Document</h3>
+        <p>PDF, DOCX, or TXT. Files are automatically indexed for search.</p>
+        <form onSubmit={handleUpload} className="upload-form">
           <input
             type="text"
             placeholder="Title (optional)"
             value={uploadTitle}
             onChange={(e) => setUploadTitle(e.target.value)}
+            className="upload-title-input"
           />
-          <input type="file" accept=".pdf,.docx,.doc,.txt" onChange={(e) => setUploadFile(e.target.files?.[0])} />
-          <button type="submit" disabled={!uploadFile || loading}>Ingest</button>
-        </form>
-      </section>
-
-      <section className="library-section">
-        <h2>Search</h2>
-        <form onSubmit={handleSearch}>
-          <input
-            type="text"
-            placeholder="Search knowledge base..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <button type="submit" disabled={loading}>Search</button>
-        </form>
-        {searchResults.length > 0 && (
-          <ul className="search-results">
-            {searchResults.map((r, i) => (
-              <li key={i}>
-                <strong>{r.document_title}</strong>
-                <p>{r.content}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="library-section">
-        <h2>Ask AI</h2>
-        <form onSubmit={handleAiQuery}>
-          <input
-            type="text"
-            placeholder="e.g. What are best practices for employment mediation?"
-            value={aiQuery}
-            onChange={(e) => setAiQuery(e.target.value)}
-          />
-          <button type="submit" disabled={loading}>Query</button>
-        </form>
-        {aiAnswer && (
-          <div className="ai-answer">
-            <p>{aiAnswer.answer}</p>
-            {aiAnswer.citations?.length > 0 && (
-              <div className="citations">
-                <strong>Sources:</strong>
-                <ul>
-                  {aiAnswer.citations.map((c, i) => (
-                    <li key={i}>{c.document_title}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          <div className="upload-row">
+            <input
+              type="file"
+              accept=".pdf,.docx,.doc,.txt"
+              onChange={(e) => setUploadFile(e.target.files?.[0])}
+              className="upload-file"
+            />
+            <button type="submit" disabled={!uploadFile || loading} className="upload-btn">
+              {loading ? 'Ingesting…' : 'Ingest'}
+            </button>
           </div>
-        )}
-      </section>
+        </form>
+      </div>
 
-      <section className="library-section">
-        <h2>Documents ({documents.length})</h2>
-        <ul className="doc-list">
-          {documents.map((d) => (
-            <li key={d.id}>{d.title}</li>
-          ))}
-        </ul>
-      </section>
+      <div className="library-tabs">
+        <button className={activeTab === 'documents' ? 'active' : ''} onClick={() => setActiveTab('documents')}>
+          Documents ({documents.length})
+        </button>
+        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>
+          Search
+        </button>
+        <button className={activeTab === 'ai' ? 'active' : ''} onClick={() => setActiveTab('ai')}>
+          Ask AI
+        </button>
+      </div>
+
+      {activeTab === 'documents' && (
+        <section className="library-section">
+          {documents.length === 0 ? (
+            <div className="library-empty">
+              <span className="empty-icon">📄</span>
+              <p>No documents yet. Upload your first document above.</p>
+            </div>
+          ) : (
+            <ul className="doc-grid">
+              {documents.map((d) => (
+                <li key={d.id} className="doc-card">
+                  <span className="doc-icon">📑</span>
+                  <span className="doc-title">{d.title}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {activeTab === 'search' && (
+        <section className="library-section">
+          <form onSubmit={handleSearch} className="search-form">
+            <input
+              type="text"
+              placeholder="Search knowledge base..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="search-input"
+            />
+            <button type="submit" disabled={loading} className="search-btn">
+              {loading ? '…' : 'Search'}
+            </button>
+          </form>
+          {searchResults.length > 0 && (
+            <ul className="search-results-modern">
+              {searchResults.map((r, i) => (
+                <li key={i} className="search-result-card">
+                  <strong>{r.document_title}</strong>
+                  <p>{r.content}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+          {activeTab === 'search' && searchResults.length === 0 && query && !loading && (
+            <p className="no-results">No results found.</p>
+          )}
+        </section>
+      )}
+
+      {activeTab === 'ai' && (
+        <section className="library-section">
+          <form onSubmit={handleAiQuery} className="ai-form">
+            <input
+              type="text"
+              placeholder="e.g. What are best practices for employment mediation?"
+              value={aiQuery}
+              onChange={(e) => setAiQuery(e.target.value)}
+              className="ai-input"
+            />
+            <button type="submit" disabled={loading} className="ai-btn">
+              {loading ? 'Thinking…' : 'Ask'}
+            </button>
+          </form>
+          {aiAnswer && (
+            <div className="ai-answer-card">
+              <span className="ai-badge">✨ AI Answer</span>
+              <p className="ai-answer-text">{aiAnswer.answer}</p>
+              {aiAnswer.citations?.length > 0 && (
+                <div className="citations-modern">
+                  <strong>Sources</strong>
+                  <ul>
+                    {aiAnswer.citations.map((c, i) => (
+                      <li key={i}>{c.document_title}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

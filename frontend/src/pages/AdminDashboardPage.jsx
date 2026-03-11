@@ -68,6 +68,7 @@ export default function AdminDashboardPage() {
           <button className={tab === 'dashboard' ? 'nav-active' : ''} onClick={() => setTab('dashboard')}>Dashboard</button>
           <button className={tab === 'users' ? 'nav-active' : ''} onClick={() => setTab('users')}>Users</button>
           <button className={tab === 'tenants' ? 'nav-active' : ''} onClick={() => setTab('tenants')}>Tenants</button>
+          <Link to="/calendar">Calendar</Link>
           <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}>Sign out</Link>
         </nav>
       </header>

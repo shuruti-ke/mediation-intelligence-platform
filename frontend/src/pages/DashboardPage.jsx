@@ -22,6 +22,7 @@ export default function DashboardPage() {
           <Link to="/library">Library</Link>
           <Link to="/judiciary">Judiciary Search</Link>
           <Link to="/training">Training</Link>
+          <Link to="/calendar">Calendar</Link>
         </nav>
       </header>
       <section>
