@@ -9,6 +9,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  const getRedirectForRole = (role) => {
+    if (role === 'super_admin') return '/admin';
+    if (role === 'client_corporate' || role === 'client_individual') return '/client';
+    return '/dashboard'; // mediator, trainee
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -16,7 +22,12 @@ export default function LoginPage() {
     try {
       const { data } = await auth.login(email, password);
       localStorage.setItem('token', data.access_token);
-      navigate('/dashboard');
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user));
+        navigate(getRedirectForRole(data.user.role));
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Login failed');
     } finally {

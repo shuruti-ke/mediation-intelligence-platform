@@ -208,6 +208,81 @@ html, body {
   margin-bottom: 0.5rem;
 }
 
+.tenant-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tenant-list li {
+  margin-bottom: 0.75rem;
+}
+
+.tenant-card {
+  display: block;
+  padding: 1.25rem;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.tenant-name {
+  font-weight: 600;
+  color: #1a202c;
+}
+
+.tenant-region {
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+  color: #718096;
+}
+
+.client-welcome {
+  padding: 2rem 0;
+}
+
+.client-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.client-actions .action-card {
+  display: block;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s;
+}
+
+.client-actions .action-card:hover {
+  border-color: #2b6cb0;
+  box-shadow: 0 4px 12px rgba(43, 108, 176, 0.12);
+}
+
+.client-actions .action-icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.client-actions .action-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  color: #1a202c;
+}
+
+.client-actions .action-card p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #4a5568;
+  line-height: 1.5;
+}
+
 .case-list a {
   display: flex;
   gap: 1rem;
@@ -1273,6 +1348,16 @@ html, body {
   align-items: center;
   gap: 0.75rem;
   padding: 2rem;
+  color: #718096;
+}
+
+.loading-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  gap: 1rem;
   color: #718096;
 }
 

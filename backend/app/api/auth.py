@@ -7,10 +7,11 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.models.tenant import User, Tenant
-from app.schemas.auth import Token, UserCreate, UserResponse
+from app.schemas.auth import Token, UserCreate, UserResponse, LoginResponse, LoginUserInfo
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -26,18 +27,39 @@ async def login_options():
     return Response(status_code=200)
 
 
-@router.post("/login")
+@router.post("/login", response_model=LoginResponse)
 async def login(
     data: LoginRequest,
     db: AsyncSession = Depends(get_db),
-) -> Token:
-    """Login with email and password. Returns JWT."""
+) -> LoginResponse:
+    """Login with email and password. Returns JWT and user info for role-based redirect."""
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
     if not user or not verify_password(data.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token(subject=str(user.id))
-    return Token(access_token=token)
+    return LoginResponse(
+        access_token=token,
+        user=LoginUserInfo(
+            id=str(user.id),
+            email=user.email,
+            role=user.role,
+            display_name=user.display_name,
+        ),
+    )
+
+
+@router.get("/me", response_model=LoginUserInfo)
+async def get_current_user_info(
+    user: User = Depends(get_current_user),
+) -> LoginUserInfo:
+    """Get current user info. Used for role-based routing on page load."""
+    return LoginUserInfo(
+        id=str(user.id),
+        email=user.email,
+        role=user.role,
+        display_name=user.display_name,
+    )
 
 
 @router.post("/register", response_model=UserResponse)

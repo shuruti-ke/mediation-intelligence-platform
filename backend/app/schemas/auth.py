@@ -7,6 +7,19 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class LoginUserInfo(BaseModel):
+    id: str
+    email: str
+    role: str
+    display_name: str | None
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: LoginUserInfo
+
+
 class UserCreate(BaseModel):
     email: EmailStr
     password: str

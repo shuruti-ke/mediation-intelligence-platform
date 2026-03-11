@@ -1,6 +1,9 @@
+import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
+import ClientDashboardPage from './pages/ClientDashboardPage';
 import CaseDetailPage from './pages/CaseDetailPage';
 import NewCasePage from './pages/NewCasePage';
 import LibraryPage from './pages/LibraryPage';
@@ -13,11 +16,59 @@ import TrainingModulePage from './pages/TrainingModulePage';
 import CPDDashboardPage from './pages/CPDDashboardPage';
 import RolePlayPage from './pages/RolePlayPage';
 import OfflineBanner from './components/OfflineBanner';
+import { auth } from './api/client';
 import './App.css';
+
+function getRedirectForRole(role) {
+  if (role === 'super_admin') return '/admin';
+  if (role === 'client_corporate' || role === 'client_individual') return '/client';
+  return '/dashboard';
+}
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem('token');
   if (!token) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function RoleRedirect() {
+  const token = localStorage.getItem('token');
+  if (!token) return <Navigate to="/login" replace />;
+  const userStr = localStorage.getItem('user');
+  let role = 'mediator';
+  try {
+    if (userStr) role = JSON.parse(userStr).role;
+  } catch {}
+  return <Navigate to={getRedirectForRole(role)} replace />;
+}
+
+function RoleBasedRoute({ children, allowedRoles }) {
+  const [user, setUser] = useState(() => {
+    try {
+      const u = localStorage.getItem('user');
+      return u ? JSON.parse(u) : null;
+    } catch { return null; }
+  });
+  const [loading, setLoading] = useState(!user);
+
+  useEffect(() => {
+    if (user) {
+      setLoading(false);
+      return;
+    }
+    auth.getMe()
+      .then(({ data }) => {
+        localStorage.setItem('user', JSON.stringify(data));
+        setUser(data);
+      })
+      .catch(() => setUser(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="loading-screen"><div className="loading-spinner" /><p>Loading...</p></div>;
+  if (!user) return <Navigate to="/login" replace />;
+  const allowed = allowedRoles.includes(user.role);
+  if (!allowed) return <Navigate to={getRedirectForRole(user.role)} replace />;
   return children;
 }
 
@@ -32,10 +83,32 @@ export default function App() {
         <Route path="/free-tier" element={<FreeTierPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <RoleBasedRoute allowedRoles={['super_admin']}>
+                <AdminDashboardPage />
+              </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/client"
+          element={
+            <ProtectedRoute>
+              <RoleBasedRoute allowedRoles={['client_corporate', 'client_individual']}>
+                <ClientDashboardPage />
+              </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <DashboardPage />
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee']}>
+                <DashboardPage />
+              </RoleBasedRoute>
             </ProtectedRoute>
           }
         />
@@ -43,7 +116,9 @@ export default function App() {
           path="/cases/new"
           element={
             <ProtectedRoute>
-              <NewCasePage />
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+                <NewCasePage />
+              </RoleBasedRoute>
             </ProtectedRoute>
           }
         />
@@ -51,7 +126,9 @@ export default function App() {
           path="/cases/:id"
           element={
             <ProtectedRoute>
-              <CaseDetailPage />
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+                <CaseDetailPage />
+              </RoleBasedRoute>
             </ProtectedRoute>
           }
         />
@@ -59,7 +136,9 @@ export default function App() {
           path="/library"
           element={
             <ProtectedRoute>
-              <LibraryPage />
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+                <LibraryPage />
+              </RoleBasedRoute>
             </ProtectedRoute>
           }
         />
@@ -67,7 +146,9 @@ export default function App() {
           path="/judiciary"
           element={
             <ProtectedRoute>
-              <JudiciaryPage />
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+                <JudiciaryPage />
+              </RoleBasedRoute>
             </ProtectedRoute>
           }
         />
@@ -75,7 +156,9 @@ export default function App() {
           path="/training"
           element={
             <ProtectedRoute>
-              <TrainingPage />
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+                <TrainingPage />
+              </RoleBasedRoute>
             </ProtectedRoute>
           }
         />
@@ -83,7 +166,9 @@ export default function App() {
           path="/training/modules/:id"
           element={
             <ProtectedRoute>
-              <TrainingModulePage />
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+                <TrainingModulePage />
+              </RoleBasedRoute>
             </ProtectedRoute>
           }
         />
@@ -91,7 +176,9 @@ export default function App() {
           path="/training/cpd"
           element={
             <ProtectedRoute>
-              <CPDDashboardPage />
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+                <CPDDashboardPage />
+              </RoleBasedRoute>
             </ProtectedRoute>
           }
         />
@@ -99,11 +186,13 @@ export default function App() {
           path="/training/role-play"
           element={
             <ProtectedRoute>
-              <RolePlayPage />
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+                <RolePlayPage />
+              </RoleBasedRoute>
             </ProtectedRoute>
           }
         />
-        <Route path="/app" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/app" element={<RoleRedirect />} />
       </Routes>
     </BrowserRouter>
     </>

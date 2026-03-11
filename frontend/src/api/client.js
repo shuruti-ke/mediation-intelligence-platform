@@ -18,7 +18,10 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      localStorage.removeItem('user');
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(err);
   }
@@ -26,6 +29,7 @@ api.interceptors.response.use(
 
 export const auth = {
   login: (email, password) => api.post('/auth/login', { email, password }),
+  getMe: () => api.get('/auth/me'),
   register: (data) => api.post('/auth/register', data),
 };
 
@@ -122,4 +126,9 @@ export const trainingApi = {
 
 export const auditApi = {
   listLogs: (params) => api.get('/audit/logs', { params }),
+};
+
+export const tenantsApi = {
+  list: () => api.get('/tenants'),
+  create: (data) => api.post('/tenants', data),
 };
