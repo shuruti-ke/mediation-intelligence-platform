@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { LogIn, UserCircle, Shield, HelpCircle, Gift } from 'lucide-react';
+import { LogIn, HelpCircle, Gift } from 'lucide-react';
 import { publicApiClient } from '../api/client';
 
 const PROCESS_STEPS = [
@@ -30,9 +30,7 @@ export default function PublicLandingPage() {
             <img src="/logo.png" alt="Mediation Intelligence Platform" className="header-logo" />
           </Link>
           <nav className="topbar-nav">
-            <Link to="/login"><UserCircle size={16} /> Client Log In</Link>
-            <Link to="/login"><LogIn size={16} /> Mediator Log In</Link>
-            <Link to="/login"><Shield size={16} /> Admin Log In</Link>
+            <Link to="/login"><LogIn size={16} /> Log in</Link>
             <Link to="/should-i-mediate"><HelpCircle size={16} /> Should I Mediate?</Link>
             <Link to="/free-tier"><Gift size={16} /> Free Session</Link>
             <Link to="/login" className="btn-demo"><LogIn size={16} /> Request a Demo</Link>
