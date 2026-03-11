@@ -2,10 +2,16 @@
   box-sizing: border-box;
 }
 
-body {
+html, body {
   margin: 0;
+  width: 100%;
   font-family: system-ui, -apple-system, sans-serif;
   background: #f5f5f5;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
 }
 
 /* Login */
@@ -437,24 +443,28 @@ body {
   color: white;
 }
 
-/* HaloMD-style: white background */
+/* HaloMD-style: white background, full width */
 .public-landing.halomd-style {
   background: #ffffff;
   color: #1a202c;
+  width: 100%;
 }
 
 .landing-topbar {
   background: #fff;
   border-bottom: 1px solid #e2e8f0;
   padding: 1rem 2rem;
+  width: 100%;
 }
 
 .topbar-inner {
-  max-width: 1200px;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  box-sizing: border-box;
 }
 
 .logo-link .header-logo {
@@ -494,11 +504,15 @@ body {
   background: #f7fafc;
   padding: 4rem 2rem;
   text-align: center;
+  width: 100%;
 }
 
 .hero-inner {
-  max-width: 800px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
+  padding: 0 2rem;
+  box-sizing: border-box;
 }
 
 .hero-section h1 {
@@ -532,15 +546,19 @@ body {
   background: #fff;
   padding: 3rem 2rem;
   border-bottom: 1px solid #e2e8f0;
+  width: 100%;
 }
 
 .stats-inner {
-  max-width: 1000px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
+  padding: 0 2rem;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 2rem;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .stat-item {
@@ -564,11 +582,15 @@ body {
 .process-section {
   padding: 4rem 2rem;
   background: #fff;
+  width: 100%;
 }
 
 .section-inner {
-  max-width: 1000px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
+  padding: 0 2rem;
+  box-sizing: border-box;
 }
 
 .pioneering-section h2,
@@ -627,8 +649,16 @@ body {
   line-height: 1.5;
 }
 
+.landing-hero {
+  width: 100%;
+}
+
 .landing-hero .section-inner {
-  max-width: 1000px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  box-sizing: border-box;
 }
 
 .hero-image {
@@ -642,6 +672,7 @@ body {
 .awareness-section.halomd-aware {
   background: #f7fafc;
   padding: 4rem 2rem;
+  width: 100%;
 }
 
 .awareness-section.halomd-aware h2 {
@@ -660,6 +691,7 @@ body {
 .cta-section.halomd-cta {
   padding: 4rem 2rem;
   background: #fff;
+  width: 100%;
 }
 
 .cta-section.halomd-cta h2 {
@@ -705,11 +737,15 @@ body {
   color: rgba(255, 255, 255, 0.9);
   padding: 2rem;
   text-align: center;
+  width: 100%;
 }
 
 .footer-inner {
-  max-width: 1000px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
+  padding: 0 2rem;
+  box-sizing: border-box;
 }
 
 .landing-footer p {
