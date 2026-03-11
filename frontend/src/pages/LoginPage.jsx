@@ -29,7 +29,10 @@ export default function LoginPage() {
         navigate('/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed');
+      const detail = err.response?.data?.detail;
+      setError(err.response?.status === 401
+        ? 'Invalid email or password. Run the seed script on the backend if this is a new deployment.'
+        : (typeof detail === 'string' ? detail : 'Login failed'));
     } finally {
       setLoading(false);
     }

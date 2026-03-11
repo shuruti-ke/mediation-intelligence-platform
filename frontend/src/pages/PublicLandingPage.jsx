@@ -30,6 +30,8 @@ export default function PublicLandingPage() {
           </Link>
           <nav className="topbar-nav">
             <Link to="/login">Client Log In</Link>
+            <Link to="/login">Mediator Log In</Link>
+            <Link to="/login">Admin Log In</Link>
             <Link to="/should-i-mediate">Should I Mediate?</Link>
             <Link to="/free-tier">Free Session</Link>
             <Link to="/login" className="btn-demo">Request a Demo</Link>
