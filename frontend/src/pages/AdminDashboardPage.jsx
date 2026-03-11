@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X } from 'lucide-react';
 import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi } from '../api/client';
 
 const STATUS_BADGES = {
@@ -69,6 +69,8 @@ export default function AdminDashboardPage() {
   const [orgUploadFile, setOrgUploadFile] = useState(null);
   const [orgUploadTitle, setOrgUploadTitle] = useState('');
   const [orgUploading, setOrgUploading] = useState(false);
+  const [viewDoc, setViewDoc] = useState(null);
+  const [viewDocContent, setViewDocContent] = useState(null);
 
   useEffect(() => {
     if (tab === 'users') {
@@ -395,8 +397,42 @@ export default function AdminDashboardPage() {
             <ul className="orgkb-list">
               {orgDocs.map((d) => (
                 <li key={d.id} className="orgkb-item">
-                  <span className="orgkb-title">{d.title}</span>
+                  <button
+                    type="button"
+                    className="orgkb-title-btn"
+                    onClick={async () => {
+                      setViewDoc(d);
+                      setViewDocContent(null);
+                      try {
+                        const { data } = await knowledge.getDocumentContent(d.id);
+                        setViewDocContent(data);
+                      } catch (err) {
+                        setViewDocContent({ error: err.response?.data?.detail || 'Failed to load' });
+                      }
+                    }}
+                  >
+                    {d.title}
+                  </button>
                   <span className="orgkb-badge">{d.is_org ? 'Org' : 'Shared'}</span>
+                  <button
+                    className="btn-sm"
+                    title="Download as text"
+                    onClick={async () => {
+                      try {
+                        const { data } = await knowledge.downloadDocument(d.id);
+                        const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type: 'text/plain' }));
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${d.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch (err) {
+                        alert(err.response?.data?.detail || 'Download failed');
+                      }
+                    }}
+                  >
+                    <Download size={14} />
+                  </button>
                   {d.is_org && (
                     <button
                       className="btn-sm btn-danger"
@@ -405,6 +441,7 @@ export default function AdminDashboardPage() {
                         try {
                           await knowledge.deleteDocument(d.id);
                           setOrgDocs(orgDocs.filter(x => x.id !== d.id));
+                          if (viewDoc?.id === d.id) setViewDoc(null);
                         } catch (err) {
                           alert(err.response?.data?.detail || 'Delete failed');
                         }
@@ -417,6 +454,49 @@ export default function AdminDashboardPage() {
               ))}
               {orgDocs.length === 0 && <p className="empty-msg">No organization documents yet.</p>}
             </ul>
+          )}
+          {viewDoc && (
+            <div className="modal-overlay" onClick={() => { setViewDoc(null); setViewDocContent(null); }}>
+              <div className="modal-card modal-doc-view" onClick={e => e.stopPropagation()}>
+                <div className="modal-doc-header">
+                  <h3>{viewDoc.title}</h3>
+                  <button type="button" className="btn-close" onClick={() => { setViewDoc(null); setViewDocContent(null); }}>
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="modal-doc-body">
+                  {viewDocContent === null ? (
+                    <p>Loading...</p>
+                  ) : viewDocContent.error ? (
+                    <p className="doc-error">{viewDocContent.error}</p>
+                  ) : (
+                    <pre className="doc-content">{viewDocContent.content_text || '(No content)'}</pre>
+                  )}
+                </div>
+                <div className="modal-doc-actions">
+                  {viewDocContent && !viewDocContent.error && (
+                    <button
+                      className="primary"
+                      onClick={async () => {
+                        try {
+                          const { data } = await knowledge.downloadDocument(viewDoc.id);
+                          const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type: 'text/plain' }));
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `${viewDoc.title.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } catch (err) {
+                          alert(err.response?.data?.detail || 'Download failed');
+                        }
+                      }}
+                    >
+                      <Download size={16} /> Download as TXT
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </section>
       )}

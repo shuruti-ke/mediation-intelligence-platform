@@ -197,6 +197,58 @@ async def list_org_documents(
     ]
 
 
+# --- Get document content (view / download) ---
+
+@router.get("/documents/{document_id}/content")
+async def get_document_content(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Get document title and content for viewing or downloading as text."""
+    result = await db.execute(select(KnowledgeBaseDocument).where(KnowledgeBaseDocument.id == document_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    # Access check: org/public docs or own docs
+    if doc.owner_id is None:
+        if doc.tenant_id is not None and doc.tenant_id != user.tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif doc.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return {
+        "id": str(doc.id),
+        "title": doc.title,
+        "content_text": doc.content_text or "",
+    }
+
+
+@router.get("/documents/{document_id}/download")
+async def download_document(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Download document as plain text file."""
+    from fastapi.responses import Response
+    result = await db.execute(select(KnowledgeBaseDocument).where(KnowledgeBaseDocument.id == document_id))
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if doc.owner_id is None:
+        if doc.tenant_id is not None and doc.tenant_id != user.tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif doc.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    content = doc.content_text or ""
+    safe_title = "".join(c for c in (doc.title or "document") if c.isalnum() or c in " -_.")[:80]
+    return Response(
+        content=content.encode("utf-8"),
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{safe_title}.txt"'},
+    )
+
+
 # --- Delete ---
 
 @router.delete("/documents/{document_id}")

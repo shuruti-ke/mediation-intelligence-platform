@@ -91,6 +91,8 @@ export const knowledge = {
   query: (query, scope = 'all') => api.post('/knowledge/query', { query, scope }),
   listDocuments: (scope = 'all') => api.get('/knowledge/documents', { params: { scope } }),
   listOrgDocuments: () => api.get('/knowledge/org/documents'),
+  getDocumentContent: (id) => api.get(`/knowledge/documents/${id}/content`),
+  downloadDocument: (id) => api.get(`/knowledge/documents/${id}/download`, { responseType: 'blob' }),
   deleteDocument: (id) => api.delete(`/knowledge/documents/${id}`),
 };
 
