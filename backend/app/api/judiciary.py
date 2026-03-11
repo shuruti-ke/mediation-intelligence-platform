@@ -85,8 +85,16 @@ async def search_judiciary(
         )
     )
     cached = result.scalar_one_or_none()
+    # Don't use cache for placeholder results - run fresh search (including Kenya Law scrape)
     if cached:
-        return {"results": cached.results_json, "sources": ["cache"], "query": data.query, "cached": True}
+        cached_results = cached.results_json or []
+        is_placeholder = (
+            not cached_results
+            or (len(cached_results) == 1 and cached_results[0].get("source") == "system")
+            or (len(cached_results) == 1 and "Search on Kenya Law" in cached_results[0].get("title", ""))
+        )
+        if not is_placeholder:
+            return {"results": cached_results, "sources": ["cache"], "query": data.query, "cached": True}
 
     results = []
     sources = []
@@ -173,14 +181,22 @@ async def search_judiciary(
             }]
             sources = ["system"]
 
-    # Cache results
-    cache_entry = JudiciarySearchCache(
-        query_hash=query_hash,
-        region=data.region,
-        results_json=results,
+    # Cache results (skip caching placeholders so next search tries scrape again)
+    is_placeholder = (
+        len(results) == 1
+        and (
+            results[0].get("source") == "system"
+            or "Search on Kenya Law" in results[0].get("title", "")
+        )
     )
-    db.add(cache_entry)
-    await db.flush()
+    if not is_placeholder:
+        cache_entry = JudiciarySearchCache(
+            query_hash=query_hash,
+            region=data.region,
+            results_json=results,
+        )
+        db.add(cache_entry)
+        await db.flush()
 
     return {"results": results, "sources": sources, "query": data.query, "cached": False}
 
