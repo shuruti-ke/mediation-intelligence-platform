@@ -611,9 +611,17 @@ a:hover {
 }
 
 /* Admin Dashboard */
+/* Mediator & Admin dashboards: compact nav, single line */
+.mediator-dashboard header nav,
 .admin-dashboard header nav {
   flex-wrap: nowrap;
   gap: 0.35rem;
+}
+
+.mediator-dashboard nav a {
+  padding: 0.4rem 0.65rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .admin-dashboard nav button,

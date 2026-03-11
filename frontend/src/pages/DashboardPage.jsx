@@ -14,7 +14,7 @@ export default function DashboardPage() {
   }, [filter]);
 
   return (
-    <div className="dashboard">
+    <div className="dashboard mediator-dashboard">
       <header>
         <div className="dashboard-brand">
           <img src="/logo.png" alt="Mediation Intelligence Platform" className="dashboard-logo" />
