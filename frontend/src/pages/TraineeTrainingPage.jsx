@@ -312,8 +312,21 @@ export default function TraineeTrainingPage() {
     );
   };
 
+  const renderArticleContent = (text) => {
+    if (!text) return null;
+    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} className="font-semibold text-orange-900">{part.slice(2, -2)}</strong>;
+      }
+      return <span key={i}>{part}</span>;
+    });
+  };
+
   const LessonContent = ({ lesson, module }) => {
     const done = isLessonComplete(module.id, lesson.id);
+    const isArticle = lesson.type === 'article';
+    const isSummary = lesson.type === 'summary';
 
     return (
       <div className="space-y-6">
@@ -332,19 +345,23 @@ export default function TraineeTrainingPage() {
                   className="w-full h-full"
                 />
               </div>
-              <p className="text-sm text-slate-700 mt-2">{lesson.content}</p>
+              {lesson.content && <p className="text-sm text-slate-700 mt-2">{lesson.content}</p>}
             </div>
           )}
 
-          {lesson.type === 'article' && lesson.content && (
-            <div className="prose prose-orange max-w-none">
-              <div className="whitespace-pre-wrap text-slate-700">{lesson.content}</div>
-            </div>
+          {isArticle && lesson.content && (
+            <article className="mt-6 rounded-xl bg-slate-50 border border-slate-200 p-6 text-slate-800 leading-relaxed">
+              <div className="space-y-4 [&>p]:mb-3">
+                {lesson.content.split(/\n\n+/).map((para, i) => (
+                  <p key={i} className="whitespace-pre-wrap">{renderArticleContent(para)}</p>
+                ))}
+              </div>
+            </article>
           )}
 
-          {lesson.type === 'summary' && lesson.content && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <p className="text-slate-700">{lesson.content}</p>
+          {isSummary && lesson.content && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 mt-6">
+              <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">{lesson.content}</p>
             </div>
           )}
 
