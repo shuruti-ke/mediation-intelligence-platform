@@ -25,12 +25,17 @@ class Document(Base):
 
 
 class KnowledgeBaseDocument(Base):
-    """Document in the knowledge base library."""
+    """Document in the knowledge base library.
+    - owner_id is None: organization document (admin-uploaded)
+    - owner_id set: mediator document; visibility 'private' (owner only) or 'public' (included in org KB)
+    """
 
     __tablename__ = "knowledge_base_documents"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True)
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # None = org doc
+    visibility: Mapped[str] = mapped_column(String(20), default="private")  # private | public (for mediator docs)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     source_type: Mapped[str] = mapped_column(String(50), default="upload")  # upload, url, manual, curated
     file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)

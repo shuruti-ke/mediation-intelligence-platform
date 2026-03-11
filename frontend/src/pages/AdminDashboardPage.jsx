@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { tenantsApi, usersApi, analyticsApi } from '../api/client';
+import { tenantsApi, usersApi, analyticsApi, knowledge } from '../api/client';
 
 const STATUS_BADGES = {
   active: { label: 'Active', class: 'badge-active' },
@@ -16,9 +16,19 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [onboardOpen, setOnboardOpen] = useState(false);
   const [onboardForm, setOnboardForm] = useState({ email: '', password: '', display_name: '', role: 'mediator' });
+  const [orgDocs, setOrgDocs] = useState([]);
+  const [orgUploadFile, setOrgUploadFile] = useState(null);
+  const [orgUploadTitle, setOrgUploadTitle] = useState('');
+  const [orgUploading, setOrgUploading] = useState(false);
 
   useEffect(() => {
-    if (tab === 'tenants') {
+    if (tab === 'orgkb') {
+      setLoading(true);
+      knowledge.listOrgDocuments()
+        .then(({ data }) => setOrgDocs(data || []))
+        .catch(() => setOrgDocs([]))
+        .finally(() => setLoading(false));
+    } else if (tab === 'tenants') {
       tenantsApi.list()
         .then(({ data }) => setTenants(data || []))
         .catch(() => setTenants([]))
@@ -68,6 +78,7 @@ export default function AdminDashboardPage() {
           <button className={tab === 'dashboard' ? 'nav-active' : ''} onClick={() => setTab('dashboard')}>Dashboard</button>
           <button className={tab === 'users' ? 'nav-active' : ''} onClick={() => setTab('users')}>Users</button>
           <button className={tab === 'tenants' ? 'nav-active' : ''} onClick={() => setTab('tenants')}>Tenants</button>
+          <button className={tab === 'orgkb' ? 'nav-active' : ''} onClick={() => setTab('orgkb')}>Org Knowledge Base</button>
           <Link to="/calendar">Calendar</Link>
           <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}>Sign out</Link>
         </nav>
@@ -154,6 +165,71 @@ export default function AdminDashboardPage() {
               </table>
               {users.length === 0 && <p className="empty-msg">No users yet. Click Onboard User to add.</p>}
             </div>
+          )}
+        </section>
+      )}
+
+      {tab === 'orgkb' && (
+        <section className="admin-dashboard-section">
+          <div className="section-header">
+            <h2>Organization Knowledge Base</h2>
+          </div>
+          <p className="section-desc">Documents here are visible to all mediators. Mediators can also contribute by marking their uploads as &quot;Share with organization&quot;.</p>
+          <div className="orgkb-upload">
+            <input
+              type="text"
+              placeholder="Title (optional)"
+              value={orgUploadTitle}
+              onChange={e => setOrgUploadTitle(e.target.value)}
+            />
+            <input type="file" accept=".pdf,.docx,.doc,.txt" onChange={e => setOrgUploadFile(e.target.files?.[0])} />
+            <button
+              className="primary"
+              disabled={!orgUploadFile || orgUploading}
+              onClick={async () => {
+                if (!orgUploadFile) return;
+                setOrgUploading(true);
+                try {
+                  await knowledge.ingestOrg(orgUploadFile, orgUploadTitle || undefined);
+                  setOrgUploadFile(null);
+                  setOrgUploadTitle('');
+                  knowledge.listOrgDocuments().then(({ data }) => setOrgDocs(data || []));
+                } catch (err) {
+                  alert(err.response?.data?.detail || 'Upload failed');
+                } finally {
+                  setOrgUploading(false);
+                }
+              }}
+            >
+              {orgUploading ? 'Uploading…' : 'Upload to Org KB'}
+            </button>
+          </div>
+          {loading ? <p>Loading...</p> : (
+            <ul className="orgkb-list">
+              {orgDocs.map((d) => (
+                <li key={d.id} className="orgkb-item">
+                  <span className="orgkb-title">{d.title}</span>
+                  <span className="orgkb-badge">{d.is_org ? 'Org' : 'Shared'}</span>
+                  {d.is_org && (
+                    <button
+                      className="btn-sm btn-danger"
+                      onClick={async () => {
+                        if (!confirm('Delete this document from the organization knowledge base?')) return;
+                        try {
+                          await knowledge.deleteDocument(d.id);
+                          setOrgDocs(orgDocs.filter(x => x.id !== d.id));
+                        } catch (err) {
+                          alert(err.response?.data?.detail || 'Delete failed');
+                        }
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </li>
+              ))}
+              {orgDocs.length === 0 && <p className="empty-msg">No organization documents yet.</p>}
+            </ul>
           )}
         </section>
       )}

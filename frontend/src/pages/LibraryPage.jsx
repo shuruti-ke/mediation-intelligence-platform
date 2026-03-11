@@ -8,14 +8,20 @@ export default function LibraryPage() {
   const [aiQuery, setAiQuery] = useState('');
   const [aiAnswer, setAiAnswer] = useState(null);
   const [documents, setDocuments] = useState([]);
+  const [docScope, setDocScope] = useState('all'); // all | org | personal
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadVisibility, setUploadVisibility] = useState('private'); // private | public
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('documents'); // documents | search | ai
+  const [activeTab, setActiveTab] = useState('documents');
+
+  const refreshDocs = () => {
+    knowledge.listDocuments(docScope).then(({ data }) => setDocuments(data)).catch(() => setDocuments([]));
+  };
 
   useEffect(() => {
-    knowledge.listDocuments().then(({ data }) => setDocuments(data)).catch(() => setDocuments([]));
-  }, []);
+    knowledge.listDocuments(docScope).then(({ data }) => setDocuments(data)).catch(() => setDocuments([]));
+  }, [docScope]);
 
   const handleSearch = async (e) => {
     e?.preventDefault();
@@ -23,7 +29,7 @@ export default function LibraryPage() {
     setLoading(true);
     setActiveTab('search');
     try {
-      const { data } = await knowledge.search(query);
+      const { data } = await knowledge.search(query, docScope);
       setSearchResults(data.results || []);
     } catch (err) {
       setSearchResults([]);
@@ -39,7 +45,7 @@ export default function LibraryPage() {
     setAiAnswer(null);
     setActiveTab('ai');
     try {
-      const { data } = await knowledge.query(aiQuery);
+      const { data } = await knowledge.query(aiQuery, docScope);
       setAiAnswer({ answer: data.answer, citations: data.citations || [] });
     } catch (err) {
       setAiAnswer({ answer: 'Error querying knowledge base.', citations: [] });
@@ -53,14 +59,25 @@ export default function LibraryPage() {
     if (!uploadFile) return;
     setLoading(true);
     try {
-      await knowledge.ingest(uploadFile, uploadTitle || undefined);
+      await knowledge.ingest(uploadFile, uploadTitle || undefined, uploadVisibility);
       setUploadFile(null);
       setUploadTitle('');
-      knowledge.listDocuments().then(({ data }) => setDocuments(data));
+      refreshDocs();
     } catch (err) {
       alert(err.response?.data?.detail || 'Upload failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (d) => {
+    if (d.is_org) return;
+    if (!confirm(`Delete "${d.title}"?`)) return;
+    try {
+      await knowledge.deleteDocument(d.id);
+      refreshDocs();
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Delete failed');
     }
   };
 
@@ -71,14 +88,14 @@ export default function LibraryPage() {
         <div className="library-hero">
           <span className="library-badge">📚 Knowledge Base</span>
           <h1>Your Mediation Library</h1>
-          <p>Upload documents, search, and ask AI-powered questions.</p>
+          <p>Organization knowledge base + your personal documents. Upload with private or share to org.</p>
         </div>
       </header>
 
       <div className="library-upload-card">
         <div className="upload-icon">📤</div>
-        <h3>Add Document</h3>
-        <p>PDF, DOCX, or TXT. Files are automatically indexed for search.</p>
+        <h3>Add to My Knowledge Base</h3>
+        <p>Upload to your personal library. Choose whether to share with the organization.</p>
         <form onSubmit={handleUpload} className="upload-form">
           <input
             type="text"
@@ -87,6 +104,16 @@ export default function LibraryPage() {
             onChange={(e) => setUploadTitle(e.target.value)}
             className="upload-title-input"
           />
+          <div className="visibility-toggle">
+            <label className={uploadVisibility === 'private' ? 'active' : ''}>
+              <input type="radio" name="visibility" value="private" checked={uploadVisibility === 'private'} onChange={() => setUploadVisibility('private')} />
+              Private (only me)
+            </label>
+            <label className={uploadVisibility === 'public' ? 'active' : ''}>
+              <input type="radio" name="visibility" value="public" checked={uploadVisibility === 'public'} onChange={() => setUploadVisibility('public')} />
+              Share with organization
+            </label>
+          </div>
           <div className="upload-row">
             <input
               type="file"
@@ -115,10 +142,15 @@ export default function LibraryPage() {
 
       {activeTab === 'documents' && (
         <section className="library-section">
+          <div className="doc-scope-tabs">
+            <button className={docScope === 'all' ? 'active' : ''} onClick={() => setDocScope('all')}>All</button>
+            <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}>Organization</button>
+            <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}>My Documents</button>
+          </div>
           {documents.length === 0 ? (
             <div className="library-empty">
               <span className="empty-icon">📄</span>
-              <p>No documents yet. Upload your first document above.</p>
+              <p>{docScope === 'org' ? 'No organization documents.' : docScope === 'personal' ? 'No personal documents yet. Upload above.' : 'No documents yet.'}</p>
             </div>
           ) : (
             <ul className="doc-grid">
@@ -126,6 +158,12 @@ export default function LibraryPage() {
                 <li key={d.id} className="doc-card">
                   <span className="doc-icon">📑</span>
                   <span className="doc-title">{d.title}</span>
+                  <span className={`doc-visibility-badge ${d.is_org ? 'org' : d.visibility}`}>
+                    {d.is_org ? 'Org' : d.visibility === 'public' ? 'Shared' : 'Private'}
+                  </span>
+                  {!d.is_org && (
+                    <button className="doc-delete-btn" onClick={() => handleDelete(d)} title="Delete">×</button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -135,6 +173,11 @@ export default function LibraryPage() {
 
       {activeTab === 'search' && (
         <section className="library-section">
+          <div className="doc-scope-tabs">
+            <button className={docScope === 'all' ? 'active' : ''} onClick={() => setDocScope('all')}>All</button>
+            <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}>Organization</button>
+            <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}>My Documents</button>
+          </div>
           <form onSubmit={handleSearch} className="search-form">
             <input
               type="text"
@@ -152,6 +195,7 @@ export default function LibraryPage() {
               {searchResults.map((r, i) => (
                 <li key={i} className="search-result-card">
                   <strong>{r.document_title}</strong>
+                  {r.is_org && <span className="result-badge">Org</span>}
                   <p>{r.content}</p>
                 </li>
               ))}
@@ -165,6 +209,11 @@ export default function LibraryPage() {
 
       {activeTab === 'ai' && (
         <section className="library-section">
+          <div className="doc-scope-tabs">
+            <button className={docScope === 'all' ? 'active' : ''} onClick={() => setDocScope('all')}>All</button>
+            <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}>Organization</button>
+            <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}>My Documents</button>
+          </div>
           <form onSubmit={handleAiQuery} className="ai-form">
             <input
               type="text"

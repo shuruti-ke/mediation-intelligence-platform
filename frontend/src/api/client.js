@@ -68,15 +68,24 @@ export const documents = {
 };
 
 export const knowledge = {
-  ingest: (file, title) => {
+  ingest: (file, title, visibility = 'private') => {
     const fd = new FormData();
     fd.append('file', file);
     if (title) fd.append('title', title);
+    fd.append('visibility', visibility);
     return api.post('/knowledge/ingest', fd);
   },
-  search: (q) => api.get('/knowledge/search', { params: { q } }),
-  query: (query) => api.post('/knowledge/query', { query }),
-  listDocuments: () => api.get('/knowledge/documents'),
+  ingestOrg: (file, title) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (title) fd.append('title', title);
+    return api.post('/knowledge/org/ingest', fd);
+  },
+  search: (q, scope = 'all') => api.get('/knowledge/search', { params: { q, scope } }),
+  query: (query, scope = 'all') => api.post('/knowledge/query', { query, scope }),
+  listDocuments: (scope = 'all') => api.get('/knowledge/documents', { params: { scope } }),
+  listOrgDocuments: () => api.get('/knowledge/org/documents'),
+  deleteDocument: (id) => api.delete(`/knowledge/documents/${id}`),
 };
 
 export const judiciary = {
