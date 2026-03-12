@@ -130,6 +130,23 @@ export const paymentsApi = {
   listInvoices: (params) => api.get('/payments/invoices', { params }),
 };
 
+export const trainingAcademyApi = {
+  aiGenerate: (data) => api.post('/training/academy-admin/ai-generate', data),
+  listModules: (includeArchived) => api.get('/training/academy-admin/modules', { params: { include_archived: includeArchived } }),
+  createModule: (data) => api.post('/training/academy-admin/modules', data),
+  getModule: (id) => api.get(`/training/academy-admin/modules/${id}`),
+  updateModule: (id, data) => api.patch(`/training/academy-admin/modules/${id}`, data),
+  archiveModule: (id) => api.delete(`/training/academy-admin/modules/${id}`),
+  createLesson: (moduleId, data) => api.post(`/training/academy-admin/modules/${moduleId}/lessons`, data),
+  updateLesson: (lessonId, data) => api.patch(`/training/academy-admin/lessons/${lessonId}`, data),
+  deleteLesson: (lessonId) => api.delete(`/training/academy-admin/lessons/${lessonId}`),
+  createQuiz: (data) => api.post('/training/academy-admin/quizzes', data),
+  getAnalytics: (params) => api.get('/training/academy-admin/analytics/overview', { params }),
+  getRiskAlert: () => api.get('/training/academy-admin/analytics/risk-alert'),
+  listStudents: () => api.get('/training/academy-admin/analytics/students'),
+  getStudentDetail: (userId) => api.get(`/training/academy-admin/analytics/student/${userId}`),
+};
+
 export const trainingApi = {
   listModules: () => api.get('/training/modules'),
   getModule: (id) => api.get(`/training/modules/${id}`),

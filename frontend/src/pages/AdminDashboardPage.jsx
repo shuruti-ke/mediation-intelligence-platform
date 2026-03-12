@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles } from 'lucide-react';
 import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi } from '../api/client';
 
 const STATUS_BADGES = {
@@ -207,6 +207,7 @@ export default function AdminDashboardPage() {
           <button className={tab === 'tenants' ? 'nav-active' : ''} onClick={() => setTab('tenants')}><Building2 size={16} /> Tenants</button>
           <button className={tab === 'orgkb' ? 'nav-active' : ''} onClick={() => setTab('orgkb')}><BookOpen size={16} /> Org KB</button>
           <button className={tab === 'trainees' ? 'nav-active' : ''} onClick={() => setTab('trainees')}><GraduationCap size={16} /> Trainees</button>
+          <Link to="/admin/training-academy" className="nav-training-academy"><Sparkles size={16} /> Training Academy</Link>
           <Link to="/calendar"><Calendar size={16} /> Calendar</Link>
           <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><LogOut size={16} /> Sign out</Link>
         </nav>

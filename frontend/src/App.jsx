@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminTrainingAcademyPage from './pages/AdminTrainingAcademyPage';
 import ClientDashboardPage from './pages/ClientDashboardPage';
 import CaseDetailPage from './pages/CaseDetailPage';
 import NewCasePage from './pages/NewCasePage';
@@ -92,6 +93,16 @@ export default function App() {
             <ProtectedRoute>
               <RoleBasedRoute allowedRoles={['super_admin']}>
                 <AdminDashboardPage />
+              </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/training-academy"
+          element={
+            <ProtectedRoute>
+              <RoleBasedRoute allowedRoles={['super_admin']}>
+                <AdminTrainingAcademyPage />
               </RoleBasedRoute>
             </ProtectedRoute>
           }
