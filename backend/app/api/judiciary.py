@@ -37,9 +37,10 @@ async def scrape_kenya_law(query: str, max_results: int = 10) -> tuple[list[dict
     r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
     results = []
+    # DDG HTML: .result + .result__a (link), .result__snippet or .result__body
     for div in soup.find_all("div", class_="result")[:max_results]:
-        link = div.find("a", class_="result__a")
-        snippet_el = div.find("a", class_="result__snippet")
+        link = div.find("a", class_="result__a") or div.find("a", class_="result-link")
+        snippet_el = div.find("a", class_="result__snippet") or div.find("div", class_="result__snippet") or div.find("div", class_="result__body")
         if not link:
             continue
         href = link.get("href", "")
@@ -99,7 +100,7 @@ async def search_judiciary(
     results = []
     sources = []
 
-    # Laws.Africa API (legislation, not cases - but useful for legal context)
+    # Laws.Africa API (legislation) - v3/search may return 404 if endpoint changed/deprecated
     if settings.laws_africa_api_key:
         try:
             async with httpx.AsyncClient() as client:
@@ -121,6 +122,8 @@ async def search_judiciary(
                         })
                     if items:
                         sources.append("Laws.Africa")
+                elif r.status_code == 404:
+                    logger.debug("Laws.Africa /v3/search not found (endpoint may have changed)")
                 else:
                     logger.warning("Laws.Africa API returned %s: %s", r.status_code, r.text[:200])
         except Exception as e:
@@ -158,7 +161,7 @@ async def search_judiciary(
         try:
             results, sources = await scrape_kenya_law(data.query)
         except Exception as e:
-            logger.warning("Kenya Law scrape error: %s", e)
+            logger.warning("Kenya Law scrape error: %s", str(e) or type(e).__name__)
             results = []
             sources = []
 
