@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import ClientProfilePage from './pages/ClientProfilePage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminTrainingAcademyPage from './pages/AdminTrainingAcademyPage';
 import ClientDashboardPage from './pages/ClientDashboardPage';
@@ -123,6 +124,16 @@ export default function App() {
             <ProtectedRoute>
               <RoleBasedRoute allowedRoles={['mediator', 'trainee']}>
                 <DashboardPage />
+              </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/users/:id"
+          element={
+            <ProtectedRoute>
+              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+                <ClientProfilePage />
               </RoleBasedRoute>
             </ProtectedRoute>
           }

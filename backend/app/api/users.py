@@ -12,6 +12,7 @@ from app.api.deps import get_current_user, require_role
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.models.tenant import User, Tenant
+from app.models.case import Case, CaseParty
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -141,6 +142,40 @@ async def list_my_clients(
     result = await db.execute(q)
     users = result.scalars().all()
     return [_user_to_response(u) for u in users]
+
+
+@router.get("/{user_id}/cases")
+async def get_user_cases(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get cases where the user is a party. Mediators can only see cases for their assigned clients."""
+    # Mediators: only their assigned clients
+    if user.role in ("mediator", "trainee"):
+        client = await db.get(User, user_id)
+        if not client or client.assigned_mediator_id != user.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+    result = await db.execute(
+        select(Case)
+        .join(CaseParty, CaseParty.case_id == Case.id)
+        .where(CaseParty.user_id == user_id)
+        .order_by(Case.updated_at.desc().nullslast(), Case.created_at.desc())
+    )
+    cases = result.scalars().unique().all()
+    return [
+        {
+            "id": str(c.id),
+            "case_number": c.case_number,
+            "title": c.title,
+            "status": c.status,
+            "case_type": c.case_type or c.dispute_category,
+            "priority_level": c.priority_level,
+            "created_at": c.created_at.isoformat(),
+            "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+        }
+        for c in cases
+    ]
 
 
 @router.get("/search", response_model=list[UserResponse])
@@ -477,6 +512,58 @@ async def onboard_user(
         country=getattr(new_user, "country", None),
         assigned_mediator_id=str(new_user.assigned_mediator_id) if getattr(new_user, "assigned_mediator_id", None) else None,
     )
+
+
+class MediatorClientProfileUpdate(BaseModel):
+    display_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    country: str | None = None
+
+
+@router.get("/{user_id}/profile", response_model=UserResponse)
+async def get_client_profile_for_mediator(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("mediator", "trainee", "super_admin")),
+):
+    """Mediator gets their assigned client's profile. Super_admin can view any client."""
+    u = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.role in ("mediator", "trainee") and u.assigned_mediator_id != user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if u.role not in ("client_individual", "client_corporate"):
+        raise HTTPException(status_code=403, detail="Not a client")
+    return _user_to_response(u)
+
+
+@router.patch("/{user_id}/profile", response_model=UserResponse)
+async def update_client_profile_by_mediator(
+    user_id: uuid.UUID,
+    data: MediatorClientProfileUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("mediator", "trainee", "super_admin")),
+):
+    """Mediator updates their assigned client's profile (display_name, phone, email, country)."""
+    u = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.role in ("mediator", "trainee") and u.assigned_mediator_id != user.id:
+        raise HTTPException(status_code=403, detail="You can only edit clients assigned to you")
+    if u.role not in ("client_individual", "client_corporate"):
+        raise HTTPException(status_code=403, detail="Can only edit client profiles")
+    if data.display_name is not None:
+        u.display_name = data.display_name
+    if data.phone is not None:
+        u.phone = data.phone
+    if data.email is not None:
+        u.email = data.email
+    if data.country is not None:
+        u.country = data.country.upper()[:2]
+    await db.flush()
+    await db.refresh(u)
+    return _user_to_response(u)
 
 
 @router.patch("/{user_id}", response_model=UserResponse)

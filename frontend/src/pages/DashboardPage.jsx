@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const [caseSearch, setCaseSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [selectedCase, setSelectedCase] = useState(null);
+  const [clientCases, setClientCases] = useState([]);
   const [onboardOpen, setOnboardOpen] = useState(false);
   const [onboardForm, setOnboardForm] = useState({
     full_name: '', email: '', phone: '', user_type: 'individual', country: 'KE', password: '',
@@ -74,7 +75,7 @@ export default function DashboardPage() {
         </div>
         <nav>
           <Link to="/cases/new"><Plus size={16} /> New Case</Link>
-          <button type="button" onClick={() => setOnboardOpen(true)}><UserPlus size={16} /> Onboard Client</button>
+          <button type="button" className="primary" onClick={() => setOnboardOpen(true)}><UserPlus size={16} /> Onboard Client</button>
           <Link to="/library"><BookOpen size={16} /> Library</Link>
           <Link to="/judiciary"><Scale size={16} /> Judiciary</Link>
           <Link to="/training"><GraduationCap size={16} /> Training</Link>
@@ -106,8 +107,18 @@ export default function DashboardPage() {
                       role="button"
                       tabIndex={0}
                       className={`mediator-panel-item ${selectedClient?.id === c.id ? 'selected' : ''}`}
-                      onClick={() => { setSelectedClient(c); setSelectedCase(null); }}
-                      onKeyDown={(e) => e.key === 'Enter' && (setSelectedClient(c), setSelectedCase(null))}
+                      onClick={() => {
+                        setSelectedClient(c);
+                        setSelectedCase(null);
+                        usersApi.getClientCases(c.id).then(({ data }) => setClientCases(data || [])).catch(() => setClientCases([]));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setSelectedClient(c);
+                          setSelectedCase(null);
+                          usersApi.getClientCases(c.id).then(({ data }) => setClientCases(data || [])).catch(() => setClientCases([]));
+                        }
+                      }}
                     >
                       <span className="mediator-panel-item-name">{c.display_name || c.email || '—'}</span>
                       <span className="mediator-panel-item-meta">{c.user_id || c.email}</span>
@@ -145,8 +156,8 @@ export default function DashboardPage() {
                       role="button"
                       tabIndex={0}
                       className={`mediator-panel-item ${selectedCase?.id === c.id ? 'selected' : ''}`}
-                      onClick={() => { setSelectedCase(c); setSelectedClient(null); }}
-                      onKeyDown={(e) => e.key === 'Enter' && (setSelectedCase(c), setSelectedClient(null))}
+                      onClick={() => { setSelectedCase(c); setSelectedClient(null); setClientCases([]); }}
+                      onKeyDown={(e) => e.key === 'Enter' && (setSelectedCase(c), setSelectedClient(null), setClientCases([]))}
                     >
                       <span className="mediator-panel-item-name">{c.case_number}</span>
                       <span className="mediator-panel-item-meta">{c.dispute_category || c.status || '—'}</span>
@@ -176,7 +187,24 @@ export default function DashboardPage() {
                   <p><strong>Created:</strong> {selectedClient.created_at?.slice(0, 10)}</p>
                   <p><strong>Last Login:</strong> {selectedClient.last_login_at ? new Date(selectedClient.last_login_at).toLocaleString() : '—'}</p>
                 </div>
-                <Link to={`/cases/new`} className="btn-sm primary">Assign to Case</Link>
+                {clientCases.length > 0 && (
+                  <div className="mediator-detail-section">
+                    <h4>Cases assigned</h4>
+                    <ul className="mediator-case-list">
+                      {clientCases.map((c) => (
+                        <li key={c.id}>
+                          <Link to={`/cases/${c.id}`} className="mediator-case-link">{c.case_number}</Link>
+                          <span className="mediator-case-meta">{c.case_type || c.status || '—'}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {clientCases.length > 0 ? (
+                  <Link to={`/users/${selectedClient.id}`} className="btn-sm primary">Edit Client Details</Link>
+                ) : (
+                  <Link to="/cases/new" className="btn-sm primary">Assign to Case</Link>
+                )}
               </div>
             ) : selectedCase ? (
               <div className="mediator-detail">

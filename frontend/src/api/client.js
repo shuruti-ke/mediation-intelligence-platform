@@ -183,7 +183,9 @@ export const tenantsApi = {
 export const usersApi = {
   list: (params) => api.get('/users', { params }),
   myClients: (params) => api.get('/users/my-clients', { params }),
+  getClientCases: (userId) => api.get(`/users/${userId}/cases`),
   get: (id) => api.get(`/users/${id}`),
+  getClientProfile: (id) => api.get(`/users/${id}/profile`),
   search: (q, limit = 20) => api.get('/users/search', { params: { q, limit } }),
   pendingApprovals: () => api.get('/users/pending-approvals'),
   approve: (id) => api.post(`/users/${id}/approve`),
@@ -192,6 +194,7 @@ export const usersApi = {
   onboardClient: (data) => api.post('/users/onboard-client', data),
   intake: (data) => api.post('/users/intake', data),
   update: (id, data) => api.patch(`/users/${id}`, data),
+  updateClientProfile: (id, data) => api.patch(`/users/${id}/profile`, data),
   updateStatus: (id, data) => api.patch(`/users/${id}`, data),
   reassignMediator: (userId, data) => api.post(`/users/${userId}/reassign-mediator`, data),
 };
