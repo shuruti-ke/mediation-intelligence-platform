@@ -89,6 +89,7 @@ export const knowledge = {
   },
   search: (q, scope = 'all') => api.get('/knowledge/search', { params: { q, scope } }),
   query: (query, scope = 'all') => api.post('/knowledge/query', { query, scope }),
+  feedback: (payload) => api.post('/knowledge/feedback', payload),
   listDocuments: (scope = 'all') => api.get('/knowledge/documents', { params: { scope } }),
   listOrgDocuments: () => api.get('/knowledge/org/documents'),
   getDocumentContent: (id) => api.get(`/knowledge/documents/${id}/content`),

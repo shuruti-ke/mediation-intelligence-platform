@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Upload, FileText, Sparkles, Building2, User, Lock, Share2, Trash2, Download, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Upload, FileText, Sparkles, Building2, User, Lock, Share2, Trash2, Download, X, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { knowledge } from '../api/client';
 
 export default function LibraryPage() {
@@ -15,6 +15,7 @@ export default function LibraryPage() {
   const [activeTab, setActiveTab] = useState('documents');
   const [viewDoc, setViewDoc] = useState(null);
   const [viewDocContent, setViewDocContent] = useState(null);
+  const [feedbackSent, setFeedbackSent] = useState(false);
 
   const refreshDocs = () => {
     knowledge.listDocuments(docScope).then(({ data }) => setDocuments(data)).catch(() => setDocuments([]));
@@ -29,6 +30,7 @@ export default function LibraryPage() {
     if (!aiQuery.trim()) return;
     setLoading(true);
     setAiAnswer(null);
+    setFeedbackSent(false);
     setActiveTab('ai');
     try {
       const { data } = await knowledge.query(aiQuery, docScope);
@@ -36,6 +38,9 @@ export default function LibraryPage() {
         answer: data.answer,
         citations: data.citations || [],
         suggested_resources: data.suggested_resources || [],
+        context_relevance: data.context_relevance,
+        answer_relevance: data.answer_relevance,
+        source: data.source,
       });
     } catch (err) {
       setAiAnswer({ answer: 'Error querying knowledge base.', citations: [], suggested_resources: [] });
@@ -79,6 +84,23 @@ export default function LibraryPage() {
       setViewDocContent(data);
     } catch (err) {
       setViewDocContent({ error: err.response?.data?.detail || 'Failed to load' });
+    }
+  };
+
+  const handleFeedback = async (rating) => {
+    if (!aiAnswer || feedbackSent) return;
+    try {
+      await knowledge.feedback({
+        query: aiQuery,
+        answer: aiAnswer.answer,
+        source: aiAnswer.source,
+        context_relevance: aiAnswer.context_relevance,
+        answer_relevance: aiAnswer.answer_relevance,
+        rating,
+      });
+      setFeedbackSent(true);
+    } catch (err) {
+      // silent fail
     }
   };
 
@@ -223,8 +245,42 @@ export default function LibraryPage() {
           </form>
           {aiAnswer && (
             <div className="ai-answer-card">
-              <span className="ai-badge">✨ AI Answer</span>
+              <div className="ai-answer-header">
+                <span className="ai-badge">✨ AI Answer</span>
+                {(aiAnswer.context_relevance != null || aiAnswer.answer_relevance != null) && (
+                  <span className="ai-relevance-badge" title="Context relevance / Answer relevance">
+                    {aiAnswer.context_relevance != null && `Context: ${aiAnswer.context_relevance}%`}
+                    {aiAnswer.context_relevance != null && aiAnswer.answer_relevance != null && ' · '}
+                    {aiAnswer.answer_relevance != null && `Answer: ${aiAnswer.answer_relevance}%`}
+                  </span>
+                )}
+                {aiAnswer.source && (
+                  <span className={`ai-source-badge ${aiAnswer.source}`}>{aiAnswer.source === 'web_search' ? 'Web search' : 'Knowledge base'}</span>
+                )}
+              </div>
               <div className="ai-answer-text" style={{ whiteSpace: 'pre-wrap' }}>{aiAnswer.answer}</div>
+              <div className="ai-feedback-row">
+                <span className="feedback-label">Was this helpful?</span>
+                <button
+                  type="button"
+                  className={`feedback-btn ${feedbackSent ? 'disabled' : ''}`}
+                  onClick={() => handleFeedback(1)}
+                  disabled={feedbackSent}
+                  title="Yes, helpful"
+                >
+                  <ThumbsUp size={16} />
+                </button>
+                <button
+                  type="button"
+                  className={`feedback-btn ${feedbackSent ? 'disabled' : ''}`}
+                  onClick={() => handleFeedback(-1)}
+                  disabled={feedbackSent}
+                  title="No, not helpful"
+                >
+                  <ThumbsDown size={16} />
+                </button>
+                {feedbackSent && <span className="feedback-thanks">Thanks for your feedback</span>}
+              </div>
               {aiAnswer.citations?.length > 0 && (
                 <div className="citations-modern">
                   <strong>From your knowledge base</strong>

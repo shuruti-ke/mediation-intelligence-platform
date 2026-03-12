@@ -17,7 +17,7 @@ from app.api.deps import get_current_user, require_role
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.tenant import User
-from app.models.document import KnowledgeBaseDocument, KnowledgeBaseChunk
+from app.models.document import KnowledgeBaseDocument, KnowledgeBaseChunk, KnowledgeBaseFeedback
 from app.services.document_parser import extract_text
 from app.services.chunker import chunk_text
 
@@ -28,6 +28,15 @@ settings = get_settings()
 class QueryRequest(BaseModel):
     query: str
     scope: str | None = None  # org | personal | all (default: all)
+
+
+class FeedbackRequest(BaseModel):
+    query: str
+    answer: str | None = None
+    source: str | None = None
+    context_relevance: int | None = None
+    answer_relevance: int | None = None
+    rating: int  # 1 = thumbs up, -1 = thumbs down
 
 
 def _org_or_public_filter():
@@ -119,6 +128,33 @@ async def _web_search_resources(query: str, max_results: int = 10) -> list[dict]
 async def _web_search_general(query: str, max_results: int = 6) -> list[dict]:
     """Search for general mediation info on the topic."""
     return await _web_search_duckduckgo(f"{query} mediation Kenya Africa", max_results)
+
+
+async def _score_relevance(question: str, text: str, api_key: str) -> int:
+    """Score how well the text addresses the question. Returns 0-100."""
+    if not api_key or not text or len(text) < 50:
+        return 50
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {"role": "system", "content": "You are a relevance scorer. Given a question and a text, rate 0-100 how well the text directly addresses the question. Reply with ONLY a number."},
+                        {"role": "user", "content": f"Question: {question}\n\nText (excerpt): {text[:1500]}\n\nRelevance score (0-100):"},
+                    ],
+                    "max_tokens": 5,
+                },
+                timeout=10,
+            )
+            if r.status_code == 200:
+                content = r.json().get("choices", [{}])[0].get("message", {}).get("content", "50")
+                return max(0, min(100, int(re.sub(r"\D", "", content) or 50)))
+    except Exception:
+        pass
+    return 50
 
 
 # --- Mediator ingest (personal KB, optional share to org) ---
@@ -503,7 +539,13 @@ async def query_knowledge(
         if len(suggested_resources) >= 10:
             break
 
-    if context_parts:
+    # Relevance check: does KB context actually address the question?
+    context_relevance = 50
+    if context_parts and settings.openai_api_key:
+        context_relevance = await _score_relevance(data.query, "\n".join(context_parts[:3]), settings.openai_api_key)
+    use_web_search = not context_parts or context_relevance < 60
+
+    if context_parts and not use_web_search:
         context = "\n\n---\n\n".join(context_parts)
         answer = ""
         if settings.openai_api_key:
@@ -542,7 +584,8 @@ Be detailed and practical. For topics like employment disputes, explain process,
                 if res.get("snippet"):
                     answer += f"   {res['snippet'][:100]}...\n"
                 answer += "\n"
-        return {"answer": answer, "citations": citations, "suggested_resources": suggested_resources[:8]}
+        answer_relevance = await _score_relevance(data.query, answer, settings.openai_api_key) if settings.openai_api_key else 50
+        return {"answer": answer, "citations": citations, "suggested_resources": suggested_resources[:8], "context_relevance": context_relevance, "answer_relevance": answer_relevance, "source": "knowledge_base"}
 
     # No docs found: web search for detailed answer + suggested resources
     web_results = await _web_search_general(data.query, max_results=8)
@@ -590,4 +633,29 @@ Be thorough and helpful. Format with clear sections if appropriate."""
         for i, res in enumerate(suggested_resources[:6], 1):
             answer += f"{i}. **{res['title']}** ({res.get('type','link')})\n   {res['url']}\n"
 
-    return {"answer": answer, "citations": citations, "suggested_resources": suggested_resources[:8], "source": "web_search" if not context_parts else "knowledge_base"}
+    answer_relevance = await _score_relevance(data.query, answer, settings.openai_api_key) if settings.openai_api_key else 50
+    return {"answer": answer, "citations": citations, "suggested_resources": suggested_resources[:8], "context_relevance": context_relevance, "answer_relevance": answer_relevance, "source": "web_search"}
+
+
+@router.post("/feedback")
+async def submit_feedback(
+    data: FeedbackRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Store user feedback on a knowledge base answer for learning."""
+    if data.rating not in (1, -1):
+        raise HTTPException(status_code=400, detail="rating must be 1 (helpful) or -1 (not helpful)")
+    fb = KnowledgeBaseFeedback(
+        user_id=user.id,
+        tenant_id=user.tenant_id,
+        query=data.query[:1000],
+        answer=data.answer[:10000] if data.answer else None,
+        source=data.source,
+        context_relevance=data.context_relevance,
+        answer_relevance=data.answer_relevance,
+        rating=data.rating,
+    )
+    db.add(fb)
+    await db.flush()
+    return {"ok": True, "id": str(fb.id)}

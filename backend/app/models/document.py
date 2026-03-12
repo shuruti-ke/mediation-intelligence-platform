@@ -72,3 +72,20 @@ class JudiciarySearchCache(Base):
     region: Mapped[str] = mapped_column(String(10), nullable=False)
     results_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class KnowledgeBaseFeedback(Base):
+    """User feedback on knowledge base Q&A answers for learning."""
+
+    __tablename__ = "knowledge_base_feedback"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True)
+    query: Mapped[str] = mapped_column(String(1000), nullable=False)
+    answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str | None] = mapped_column(String(50), nullable=True)  # knowledge_base | web_search
+    context_relevance: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    answer_relevance: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1 = thumbs up, -1 = thumbs down
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
