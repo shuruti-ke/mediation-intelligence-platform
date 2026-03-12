@@ -3710,11 +3710,182 @@ a:hover {
 
 /* Knowledge Base - unified theme */
 .library-page-modern {
+  display: flex;
+  min-height: 100vh;
+  background: linear-gradient(180deg, var(--color-bg) 0%, #fff 25%);
+}
+
+.library-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  background: var(--color-bg-card);
+  border-right: 1px solid var(--color-border);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.library-sidebar-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.library-sidebar-search input {
+  flex: 1;
+  border: none;
+  background: none;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.doc-scope-tabs-sidebar {
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+
+.library-sidebar-docs {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.library-sidebar-empty {
+  padding: 1rem;
+  font-size: 0.9rem;
+  color: #78716c;
+}
+
+.library-sidebar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.library-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.library-sidebar-item:hover {
+  background: #f5f5f4;
+}
+
+.library-sidebar-item-icon {
+  flex-shrink: 0;
+  color: #78716c;
+}
+
+.library-sidebar-item-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-sidebar-item-actions {
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0.7;
+}
+
+.library-sidebar-item:hover .library-sidebar-item-actions {
+  opacity: 1;
+}
+
+.library-sidebar-action-btn {
+  padding: 0.2rem;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #78716c;
+}
+
+.library-sidebar-action-btn:hover {
+  background: #e7e5e4;
+  color: #1c1917;
+}
+
+.library-sidebar-delete:hover {
+  background: #fed7d7;
+  color: #dc2626;
+}
+
+.doc-visibility-badge-sm {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.35rem;
+}
+
+.library-main {
+  flex: 1;
+  min-width: 0;
   max-width: 900px;
   margin: 0 auto;
   padding: 1.5rem;
-  background: linear-gradient(180deg, var(--color-bg) 0%, #fff 25%);
-  min-height: 100vh;
+}
+
+.library-docs-hint {
+  font-size: 0.95rem;
+  color: #78716c;
+  margin: 0;
+}
+
+.upload-file-hidden {
+  position: absolute;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+
+.upload-file-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1.25rem;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.upload-file-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-hover);
+}
+
+.upload-success-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #dcfce7;
+  color: #166534;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 1rem;
+}
+
+.upload-success-icon {
+  font-size: 1.2rem;
 }
 
 .library-header .back-link {
@@ -3827,6 +3998,7 @@ a:hover {
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .doc-scope-tabs {
@@ -3913,9 +4085,8 @@ a:hover {
   border-radius: 4px;
 }
 
-.upload-file {
-  flex: 1;
-  font-size: 0.9rem;
+.upload-row .upload-file-btn {
+  flex-shrink: 0;
 }
 
 .upload-btn {

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Upload, FileText, Sparkles, Building2, User, Lock, Share2, Trash2, Download, X, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ArrowLeft, BookOpen, Upload, FileText, Sparkles, Building2, User, Lock, Share2, Trash2, Download, X, ThumbsUp, ThumbsDown, Search } from 'lucide-react';
 import { knowledge } from '../api/client';
 
 export default function LibraryPage() {
@@ -16,6 +16,9 @@ export default function LibraryPage() {
   const [viewDoc, setViewDoc] = useState(null);
   const [viewDocContent, setViewDocContent] = useState(null);
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [docSearch, setDocSearch] = useState('');
+  const fileInputRef = useRef(null);
 
   const refreshDocs = () => {
     knowledge.listDocuments(docScope).then(({ data }) => setDocuments(data)).catch(() => setDocuments([]));
@@ -53,11 +56,15 @@ export default function LibraryPage() {
     e?.preventDefault();
     if (!uploadFile) return;
     setLoading(true);
+    setUploadSuccess(false);
     try {
       await knowledge.ingest(uploadFile, uploadTitle || undefined, uploadVisibility);
       setUploadFile(null);
       setUploadTitle('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setUploadSuccess(true);
       refreshDocs();
+      setTimeout(() => setUploadSuccess(false), 3000);
     } catch (err) {
       alert(err.response?.data?.detail || 'Upload failed');
     } finally {
@@ -120,54 +127,112 @@ export default function LibraryPage() {
     }
   };
 
+  const filteredDocs = docSearch.trim()
+    ? documents.filter((d) => (d.title || '').toLowerCase().includes(docSearch.toLowerCase()))
+    : documents;
+
   return (
     <div className="library-page-modern">
-      <header className="library-header">
-        <Link to="/dashboard" className="back-link"><ArrowLeft size={16} /> Dashboard</Link>
-        <div className="library-hero">
-          <span className="library-badge"><BookOpen size={14} /> Knowledge Base</span>
-          <h1>Your Mediation Library</h1>
-          <p>Organization knowledge base + your personal documents. Upload with private or share to org.</p>
-        </div>
-      </header>
-
-      <div className="library-upload-card">
-        <div className="upload-icon"><Upload size={32} /></div>
-        <h3>Add to My Knowledge Base</h3>
-        <p>Upload to your personal library. Choose whether to share with the organization.</p>
-        <form onSubmit={handleUpload} className="upload-form">
+      <aside className="library-sidebar">
+        <div className="library-sidebar-search">
+          <Search size={18} />
           <input
             type="text"
-            placeholder="Title (optional)"
-            value={uploadTitle}
-            onChange={(e) => setUploadTitle(e.target.value)}
-            className="upload-title-input"
+            placeholder="Search documents..."
+            value={docSearch}
+            onChange={(e) => setDocSearch(e.target.value)}
+            className="library-sidebar-search-input"
           />
-          <div className="visibility-toggle">
-            <label className={uploadVisibility === 'private' ? 'active' : ''}>
-              <input type="radio" name="visibility" value="private" checked={uploadVisibility === 'private'} onChange={() => setUploadVisibility('private')} />
-              <Lock size={14} /> Private (only me)
-            </label>
-            <label className={uploadVisibility === 'public' ? 'active' : ''}>
-              <input type="radio" name="visibility" value="public" checked={uploadVisibility === 'public'} onChange={() => setUploadVisibility('public')} />
-              <Share2 size={14} /> Share with organization
-            </label>
-          </div>
-          <div className="upload-row">
-            <input
-              type="file"
-              accept=".pdf,.docx,.doc,.txt"
-              onChange={(e) => setUploadFile(e.target.files?.[0])}
-              className="upload-file"
-            />
-            <button type="submit" disabled={!uploadFile || loading} className="upload-btn">
-              {loading ? 'Ingesting…' : 'Ingest'}
-            </button>
-          </div>
-        </form>
-      </div>
+        </div>
+        <div className="doc-scope-tabs doc-scope-tabs-sidebar">
+          <button className={docScope === 'all' ? 'active' : ''} onClick={() => setDocScope('all')}><FileText size={14} /> All</button>
+          <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}><Building2 size={14} /> Org</button>
+          <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}><User size={14} /> Mine</button>
+        </div>
+        <div className="library-sidebar-docs">
+          {filteredDocs.length === 0 ? (
+            <div className="library-sidebar-empty">
+              {docScope === 'org' ? 'No org documents.' : docScope === 'personal' ? 'No personal docs. Upload to add.' : 'No documents yet.'}
+            </div>
+          ) : (
+            <ul className="library-sidebar-list">
+              {filteredDocs.map((d) => (
+                <li key={d.id} className="library-sidebar-item" onClick={() => handleViewDoc(d)}>
+                  <FileText size={16} className="library-sidebar-item-icon" />
+                  <span className="library-sidebar-item-title">{d.title}</span>
+                  <span className={`doc-visibility-badge doc-visibility-badge-sm ${d.is_org ? 'org' : d.visibility}`}>
+                    {d.is_org ? 'Org' : d.visibility === 'public' ? 'Shared' : 'Private'}
+                  </span>
+                  <div className="library-sidebar-item-actions" onClick={(e) => e.stopPropagation()}>
+                    <button type="button" className="library-sidebar-action-btn" onClick={(e) => handleDownloadDoc(d, e)} title="Download"><Download size={14} /></button>
+                    {!d.is_org && (
+                      <button type="button" className="library-sidebar-action-btn library-sidebar-delete" onClick={() => handleDelete(d)} title="Delete"><Trash2 size={14} /></button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </aside>
 
-      <div className="library-quick-search">
+      <div className="library-main">
+        <header className="library-header">
+          <Link to="/dashboard" className="back-link"><ArrowLeft size={16} /> Dashboard</Link>
+          <div className="library-hero">
+            <span className="library-badge"><BookOpen size={14} /> Knowledge Base</span>
+            <h1>Your Mediation Library</h1>
+            <p>Organization knowledge base + your personal documents. Upload with private or share to org.</p>
+          </div>
+        </header>
+
+        <div className="library-upload-card">
+          <div className="upload-icon"><Upload size={32} /></div>
+          <h3>Add to My Knowledge Base</h3>
+          <p>Upload to your personal library. Choose whether to share with the organization.</p>
+          {uploadSuccess && (
+            <div className="upload-success-toast">
+              <span className="upload-success-icon">✓</span> Document uploaded successfully
+            </div>
+          )}
+          <form onSubmit={handleUpload} className="upload-form">
+            <input
+              type="text"
+              placeholder="Title (optional)"
+              value={uploadTitle}
+              onChange={(e) => setUploadTitle(e.target.value)}
+              className="upload-title-input"
+            />
+            <div className="visibility-toggle">
+              <label className={uploadVisibility === 'private' ? 'active' : ''}>
+                <input type="radio" name="visibility" value="private" checked={uploadVisibility === 'private'} onChange={() => setUploadVisibility('private')} />
+                <Lock size={14} /> Private (only me)
+              </label>
+              <label className={uploadVisibility === 'public' ? 'active' : ''}>
+                <input type="radio" name="visibility" value="public" checked={uploadVisibility === 'public'} onChange={() => setUploadVisibility('public')} />
+                <Share2 size={14} /> Share with organization
+              </label>
+            </div>
+            <div className="upload-row">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.docx,.doc,.txt"
+                onChange={(e) => setUploadFile(e.target.files?.[0])}
+                className="upload-file-hidden"
+                id="library-file-input"
+              />
+              <label htmlFor="library-file-input" className="upload-file-btn">
+                <Upload size={18} /> {uploadFile ? uploadFile.name : 'Choose File'}
+              </label>
+              <button type="submit" disabled={!uploadFile || loading} className="upload-btn">
+                {loading ? 'Ingesting…' : 'Ingest'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div className="library-quick-search">
         <form onSubmit={handleAiQuery} className="library-ai-inline library-ai-single">
           <Sparkles size={20} />
           <input
@@ -192,35 +257,7 @@ export default function LibraryPage() {
 
       {activeTab === 'documents' && (
         <section className="library-section">
-          <div className="doc-scope-tabs">
-            <button className={docScope === 'all' ? 'active' : ''} onClick={() => setDocScope('all')}><FileText size={14} /> All</button>
-            <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}><Building2 size={14} /> Organization</button>
-            <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}><User size={14} /> My Documents</button>
-          </div>
-          {documents.length === 0 ? (
-            <div className="library-empty">
-              <span className="empty-icon">📄</span>
-              <p>{docScope === 'org' ? 'No organization documents.' : docScope === 'personal' ? 'No personal documents yet. Upload above.' : 'No documents yet.'}</p>
-            </div>
-          ) : (
-            <ul className="doc-grid">
-              {documents.map((d) => (
-                <li key={d.id} className="doc-card doc-card-clickable" onClick={() => handleViewDoc(d)}>
-                  <span className="doc-icon"><FileText size={20} /></span>
-                  <span className="doc-title">{d.title}</span>
-                  <span className={`doc-visibility-badge ${d.is_org ? 'org' : d.visibility}`}>
-                    {d.is_org ? 'Org' : d.visibility === 'public' ? 'Shared' : 'Private'}
-                  </span>
-                  <div className="doc-card-actions">
-                    <button className="doc-action-btn" onClick={(e) => handleDownloadDoc(d, e)} title="Download"><Download size={16} /></button>
-                    {!d.is_org && (
-                      <button className="doc-action-btn doc-delete-btn" onClick={(e) => { e.stopPropagation(); handleDelete(d); }} title="Delete"><Trash2 size={16} /></button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+          <p className="library-docs-hint">Your documents are listed in the sidebar. Click one to view, or add more above.</p>
         </section>
       )}
 
@@ -308,6 +345,7 @@ export default function LibraryPage() {
           )}
         </section>
       )}
+      </div>
 
       {viewDoc && (
         <div className="modal-overlay" onClick={() => { setViewDoc(null); setViewDocContent(null); }}>
