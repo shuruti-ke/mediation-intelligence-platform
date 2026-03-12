@@ -3999,9 +3999,90 @@ a:hover {
   transition: all 0.2s;
 }
 
+.doc-card-clickable {
+  cursor: pointer;
+}
+
+.doc-card-clickable:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-hover);
+}
+
 .doc-card:hover {
   border-color: var(--color-primary);
   box-shadow: var(--shadow-hover);
+}
+
+.doc-card-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.doc-action-btn {
+  padding: 0.4rem;
+  border: none;
+  background: transparent;
+  color: #78716c;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.doc-action-btn:hover {
+  background: #f5f5f4;
+  color: var(--color-primary);
+}
+
+.doc-delete-btn:hover { color: #dc2626; }
+
+.library-quick-search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #f5f3ff 0%, #f0fdfa 100%);
+  border-radius: 12px;
+  border: 1px solid #e7e5e4;
+}
+
+.library-search-inline,
+.library-ai-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.library-search-inline input,
+.library-ai-inline input {
+  flex: 1;
+  padding: 0.6rem 1rem;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.library-search-inline button,
+.library-ai-inline button {
+  padding: 0.6rem 1rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.library-search-inline button:hover:not(:disabled),
+.library-ai-inline button:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+}
+
+.library-search-inline button:disabled,
+.library-ai-inline button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .doc-icon { font-size: 1.5rem; }

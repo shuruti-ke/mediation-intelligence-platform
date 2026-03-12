@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Upload, FileText, Search, Sparkles, Building2, User, Lock, Share2, Trash2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Upload, FileText, Search, Sparkles, Building2, User, Lock, Share2, Trash2, Download, X } from 'lucide-react';
 import { knowledge } from '../api/client';
 
 export default function LibraryPage() {
@@ -15,6 +15,8 @@ export default function LibraryPage() {
   const [uploadVisibility, setUploadVisibility] = useState('private'); // private | public
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('documents');
+  const [viewDoc, setViewDoc] = useState(null);
+  const [viewDocContent, setViewDocContent] = useState(null);
 
   const refreshDocs = () => {
     knowledge.listDocuments(docScope).then(({ data }) => setDocuments(data)).catch(() => setDocuments([]));
@@ -82,6 +84,33 @@ export default function LibraryPage() {
     }
   };
 
+  const handleViewDoc = async (d) => {
+    setViewDoc(d);
+    setViewDocContent(null);
+    try {
+      const { data } = await knowledge.getDocumentContent(d.id);
+      setViewDocContent(data);
+    } catch (err) {
+      setViewDocContent({ error: err.response?.data?.detail || 'Failed to load' });
+    }
+  };
+
+  const handleDownloadDoc = async (d, e) => {
+    e?.stopPropagation();
+    try {
+      const { data } = await knowledge.downloadDocument(d.id);
+      const blob = data instanceof Blob ? data : new Blob([data], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = d.original_filename || `${(d.title || 'document').replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Download failed');
+    }
+  };
+
   return (
     <div className="library-page-modern">
       <header className="library-header">
@@ -129,6 +158,31 @@ export default function LibraryPage() {
         </form>
       </div>
 
+      <div className="library-quick-search">
+        <form onSubmit={handleSearch} className="library-search-inline">
+          <Search size={18} />
+          <input
+            type="text"
+            placeholder="Search knowledge base..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="search-inline-input"
+          />
+          <button type="submit" disabled={loading}>Search</button>
+        </form>
+        <form onSubmit={handleAiQuery} className="library-ai-inline">
+          <Sparkles size={18} />
+          <input
+            type="text"
+            placeholder="Ask AI: e.g. What are best practices for employment mediation?"
+            value={aiQuery}
+            onChange={(e) => setAiQuery(e.target.value)}
+            className="ai-inline-input"
+          />
+          <button type="submit" disabled={loading}>{loading ? '…' : 'Ask'}</button>
+        </form>
+      </div>
+
       <div className="library-tabs">
         <button className={activeTab === 'documents' ? 'active' : ''} onClick={() => setActiveTab('documents')}>
           <FileText size={16} /> Documents ({documents.length})
@@ -156,15 +210,18 @@ export default function LibraryPage() {
           ) : (
             <ul className="doc-grid">
               {documents.map((d) => (
-                <li key={d.id} className="doc-card">
+                <li key={d.id} className="doc-card doc-card-clickable" onClick={() => handleViewDoc(d)}>
                   <span className="doc-icon"><FileText size={20} /></span>
                   <span className="doc-title">{d.title}</span>
                   <span className={`doc-visibility-badge ${d.is_org ? 'org' : d.visibility}`}>
                     {d.is_org ? 'Org' : d.visibility === 'public' ? 'Shared' : 'Private'}
                   </span>
-                  {!d.is_org && (
-                    <button className="doc-delete-btn" onClick={() => handleDelete(d)} title="Delete"><Trash2 size={16} /></button>
-                  )}
+                  <div className="doc-card-actions">
+                    <button className="doc-action-btn" onClick={(e) => handleDownloadDoc(d, e)} title="Download"><Download size={16} /></button>
+                    {!d.is_org && (
+                      <button className="doc-action-btn doc-delete-btn" onClick={(e) => { e.stopPropagation(); handleDelete(d); }} title="Delete"><Trash2 size={16} /></button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -244,6 +301,35 @@ export default function LibraryPage() {
             </div>
           )}
         </section>
+      )}
+
+      {viewDoc && (
+        <div className="modal-overlay" onClick={() => { setViewDoc(null); setViewDocContent(null); }}>
+          <div className="modal-card modal-doc-view" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-doc-header">
+              <h3>{viewDoc.title}</h3>
+              <button type="button" className="btn-close" onClick={() => { setViewDoc(null); setViewDocContent(null); }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-doc-body">
+              {viewDocContent === null ? (
+                <p>Loading...</p>
+              ) : viewDocContent.error ? (
+                <p className="doc-error">{viewDocContent.error}</p>
+              ) : (
+                <pre className="doc-content">{viewDocContent.content_text || '(No content)'}</pre>
+              )}
+            </div>
+            <div className="modal-doc-actions">
+              {viewDocContent && !viewDocContent.error && (
+                <button className="primary" onClick={() => handleDownloadDoc(viewDoc)}>
+                  <Download size={16} /> Download
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
