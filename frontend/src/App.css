@@ -4408,6 +4408,7 @@ a:hover {
 /* Knowledge Base - unified theme */
 .library-page-modern {
   display: flex;
+  justify-content: center;
   min-height: 100vh;
   background: linear-gradient(180deg, var(--color-bg) 0%, #fff 25%);
 }
@@ -4530,7 +4531,6 @@ a:hover {
   flex: 1;
   min-width: 0;
   max-width: 900px;
-  margin: 0 auto;
   padding: 1.5rem;
 }
 
