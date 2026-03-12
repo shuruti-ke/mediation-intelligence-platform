@@ -32,54 +32,64 @@ export default function JudiciaryPage() {
   };
 
   return (
-    <div className="judiciary-page">
-      <Link to="/dashboard" className="back-link"><ArrowLeft size={16} /> Dashboard</Link>
-      <h1 className="icon-text"><Scale size={28} /> Judiciary Case Search</h1>
-      <p className="subtitle">Search publicly available judiciary and case law databases</p>
+    <div className="judiciary-page-modern">
+      <div className="judiciary-main">
+        <header className="judiciary-header">
+          <Link to="/dashboard" className="back-link"><ArrowLeft size={16} /> Dashboard</Link>
+          <div className="judiciary-hero">
+            <span className="judiciary-badge"><Scale size={14} /> Judiciary</span>
+            <h1>Judiciary Case Search</h1>
+            <p>Search publicly available judiciary and case law databases</p>
+          </div>
+        </header>
 
-      <section>
-        <form onSubmit={handleSearch}>
-          <input
-            type="text"
-            placeholder="e.g. employment dispute Nairobi"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <select value={region} onChange={(e) => setRegion(e.target.value)}>
-            <option value="KE">Kenya</option>
-            <option value="ZA">South Africa</option>
-            <option value="NG">Nigeria</option>
-          </select>
-          <button type="submit" disabled={loading}>
-            <Search size={16} /> {loading ? 'Searching...' : 'Search'}
-          </button>
-        </form>
-      </section>
+        <div className="judiciary-search-card">
+          <form onSubmit={handleSearch} className="judiciary-search-form">
+            <input
+              type="text"
+              placeholder="e.g. employment dispute Nairobi"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="judiciary-search-input"
+            />
+            <div className="judiciary-search-row">
+              <select value={region} onChange={(e) => setRegion(e.target.value)} className="judiciary-region-select">
+                <option value="KE">Kenya</option>
+                <option value="ZA">South Africa</option>
+                <option value="NG">Nigeria</option>
+              </select>
+              <button type="submit" disabled={loading} className="judiciary-search-btn">
+                <Search size={16} /> {loading ? 'Searching...' : 'Search'}
+              </button>
+            </div>
+          </form>
+        </div>
 
-      {sources.length > 0 && (
-        <p className="sources-note">Sources: {sources.join(', ')}</p>
-      )}
+        {sources.length > 0 && (
+          <p className="judiciary-sources-note">Sources: {sources.join(', ')}</p>
+        )}
 
-      {availableSources.length > 0 && (
-        <p className="config-note">Configured: {availableSources.join(', ')}</p>
-      )}
+        {availableSources.length > 0 && (
+          <p className="judiciary-config-note">Configured: {availableSources.join(', ')}</p>
+        )}
 
-      {results.length > 0 && (
-        <ul className="judiciary-results">
-          {results.map((r, i) => (
-            <li key={i}>
-              <strong>{r.title}</strong>
-              {r.source && <span className="source-badge">{r.source}</span>}
-              {r.court && <span>Court: {r.court}</span>}
-              {r.date && <span>{r.date}</span>}
-              <p>{r.snippet}</p>
-              {r.url && (
-                <a href={r.url} target="_blank" rel="noreferrer">View</a>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+        {results.length > 0 && (
+          <ul className="judiciary-results">
+            {results.map((r, i) => (
+              <li key={i}>
+                <strong>{r.title}</strong>
+                {r.source && <span className="source-badge">{r.source}</span>}
+                {r.court && <span>Court: {r.court}</span>}
+                {r.date && <span>{r.date}</span>}
+                <p>{r.snippet}</p>
+                {r.url && (
+                  <a href={r.url} target="_blank" rel="noreferrer">View</a>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
