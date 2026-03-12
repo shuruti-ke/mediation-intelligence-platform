@@ -273,10 +273,22 @@ export default function AdminDashboardPage() {
   const handleToggleActive = async (u) => {
     try {
       await usersApi.updateStatus(u.id, { is_active: !u.is_active, status: u.is_active ? 'inactive' : 'active' });
-      setUsers(users.map(x => x.id === u.id ? { ...x, is_active: !x.is_active, status: x.is_active ? 'inactive' : 'active' } : x));
+      const updated = { ...u, is_active: !u.is_active, status: u.is_active ? 'inactive' : 'active' };
+      setUsers(users.map(x => x.id === u.id ? updated : x));
+      setSelectedUser((prev) => (prev?.id === u.id ? updated : prev));
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const handleExportUserData = (u) => {
+    const blob = new Blob([JSON.stringify(u, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `user-${u.email || u.id}-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleOnboard = async (e) => {
@@ -841,10 +853,9 @@ export default function AdminDashboardPage() {
                           <div className="dropdown-menu">
                             <button type="button" onClick={() => { openEditUser(selectedUser); setUserActionsOpen(null); }}>Edit User</button>
                             <button type="button" onClick={() => { setReassignUser(selectedUser); setReassignForm({ mediator_id: selectedUser.assigned_mediator_id || '', reason: '', note: '', notify: true }); setReassignOpen(true); setUserActionsOpen(null); }}>Reassign Mediator</button>
-                            <button type="button" onClick={() => setUserActionsOpen(null)}>Send Message</button>
-                            <button type="button" onClick={() => setUserActionsOpen(null)}>Reset Password</button>
-                            <button type="button" onClick={() => setUserActionsOpen(null)}>Deactivate Account</button>
-                            <button type="button" onClick={() => setUserActionsOpen(null)}>Export Data</button>
+                            <button type="button" onClick={() => { window.location.href = `mailto:${selectedUser.email || ''}`; setUserActionsOpen(null); }}>Send Message</button>
+                            <button type="button" onClick={() => { handleToggleActive(selectedUser); setUserActionsOpen(null); }}>{selectedUser.is_active ? 'Deactivate Account' : 'Activate Account'}</button>
+                            <button type="button" onClick={() => { handleExportUserData(selectedUser); setUserActionsOpen(null); }}>Export Data</button>
                           </div>
                         )}
                       </div>
