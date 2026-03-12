@@ -7,3 +7,10 @@ html {
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #f8fafc;
+  color: #1f2937;
+}
