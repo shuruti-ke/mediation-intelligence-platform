@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom';
 import { trainingApi } from '../api/client';
 
 const REFLECTION_QUESTIONS = {
@@ -23,10 +23,12 @@ const REFLECTION_QUESTIONS = {
 export default function RolePlayPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const categoryFromState = location.state?.category;
   const [scenarios, setScenarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [disputeCategory, setDisputeCategory] = useState('employment');
+  const [disputeCategory, setDisputeCategory] = useState(categoryFromState || 'employment');
   const [currentScenario, setCurrentScenario] = useState(null);
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -36,6 +38,10 @@ export default function RolePlayPage() {
   const [loadingScenario, setLoadingScenario] = useState(false);
   const [scenarioError, setScenarioError] = useState(null);
   const scenarioDisplayRef = useRef(null);
+
+  useEffect(() => {
+    if (categoryFromState) setDisputeCategory(categoryFromState);
+  }, [categoryFromState]);
 
   useEffect(() => {
     trainingApi.listRolePlays()

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, GraduationCap, BarChart3, Theater, BookOpen, Sparkles } from 'lucide-react';
+import { ArrowLeft, GraduationCap, BarChart3, Theater, BookOpen, Sparkles, CheckCircle } from 'lucide-react';
 import { trainingApi } from '../api/client';
+import { PRACTICE_SCENARIOS, getCompletedIds } from '../data/practiceScenarios';
 
 export default function TrainingPage() {
   const [modules, setModules] = useState([]);
@@ -132,20 +133,21 @@ export default function TrainingPage() {
 
       <section className="scenarios-section-modern">
         <h2>Practice scenarios</h2>
-        <p className="section-subtitle">Challenge yourself with real-world dilemmas.</p>
+        <p className="section-subtitle">Challenge yourself with real-world dilemmas. Click any scenario for rich content and interactive practice.</p>
         <div className="scenario-grid-modern">
-          <div className="scenario-card-modern">
-            <h4>Power imbalance</h4>
-            <p>An employee feels intimidated by their manager in a joint session. How do you create space for genuine dialogue?</p>
-          </div>
-          <div className="scenario-card-modern">
-            <h4>Cultural sensitivity</h4>
-            <p>One party prefers indirect communication; the other expects direct answers. How do you bridge the gap?</p>
-          </div>
-          <div className="scenario-card-modern">
-            <h4>Hidden interests</h4>
-            <p>Both parties agree on a surface solution—but you suspect deeper needs aren't being addressed. What do you do?</p>
-          </div>
+          {PRACTICE_SCENARIOS.map((s) => {
+            const completed = getCompletedIds().includes(s.id);
+            return (
+              <Link key={s.id} to={`/training/scenarios/${s.id}`} className="scenario-card-modern scenario-card-clickable">
+                <div className="scenario-card-inner">
+                  {completed && <span className="scenario-completed-badge"><CheckCircle size={14} /> Done</span>}
+                  <h4>{s.title}</h4>
+                  <p>{s.summary}</p>
+                  <span className="scenario-card-hint">Click to explore →</span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
         <Link to="/training/role-play" className="scenario-cta-modern">Generate a role-play scenario →</Link>
       </section>

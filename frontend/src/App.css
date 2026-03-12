@@ -4281,6 +4281,189 @@ a:hover {
 
 .scenario-cta-modern:hover { text-decoration: underline; }
 
+.scenario-card-clickable {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.scenario-card-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.scenario-card-modern.scenario-card-clickable .scenario-card-inner {
+  position: relative;
+}
+
+.scenario-completed-badge {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #059669;
+  background: #d1fae5;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+}
+
+.scenario-card-hint {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #b45309;
+  font-weight: 500;
+}
+
+/* Practice scenario detail page */
+.practice-scenario-detail .scenario-summary-hero {
+  font-size: 1rem;
+  color: #64748b;
+  max-width: 560px;
+}
+
+.scenario-rich-content {
+  max-width: 640px;
+  margin: 0 auto 2rem;
+}
+
+.scenario-section-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.scenario-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(180deg, #fffbeb 0%, #fff 100%);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.scenario-section-toggle:hover {
+  background: #fef3c7;
+}
+
+.scenario-section-body {
+  padding: 1rem 1.25rem 1.25rem;
+  border-top: 1px solid #fde68a;
+}
+
+.scenario-section-body p,
+.scenario-section-body ul {
+  margin: 0 0 0.5rem;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.scenario-section-body li {
+  margin-bottom: 0.5rem;
+}
+
+.scenario-resource-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  color: #b45309;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.scenario-resource-link:hover {
+  text-decoration: underline;
+}
+
+.scenario-resource-link + .scenario-resource-link {
+  margin-left: 1rem;
+}
+
+.reflection-hint {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin-bottom: 0.75rem !important;
+}
+
+.scenario-actions {
+  max-width: 640px;
+  margin: 0 auto 2rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: 16px;
+  border: 1px solid #fcd34d;
+}
+
+.btn-practice-now {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(90deg, #b45309, #d97706);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-bottom: 0.5rem;
+}
+
+.btn-practice-now:hover {
+  background: linear-gradient(90deg, #92400e, #b45309);
+}
+
+.scenario-cta-hint {
+  display: block;
+  font-size: 0.9rem;
+  color: #78350f;
+  margin-bottom: 1rem;
+}
+
+.btn-mark-complete {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: white;
+  color: #059669;
+  border: 2px solid #10b981;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-mark-complete:hover {
+  background: #d1fae5;
+}
+
+.completed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #059669;
+  font-weight: 600;
+}
+
+.scenario-back {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
 /* Training module page - modern polish */
 .training-module-page .module-loading {
   display: flex;
