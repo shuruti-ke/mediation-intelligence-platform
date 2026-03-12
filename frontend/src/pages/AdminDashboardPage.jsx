@@ -204,6 +204,9 @@ export default function AdminDashboardPage() {
       } else if (mode === 'new_users') {
         const { data } = await analyticsApi.getNewUsers({ days: dateRange });
         setDrillData(data || []);
+      } else if (mode === 'trainees') {
+        const { data } = await analyticsApi.getActiveTrainees();
+        setDrillData(data || []);
       } else {
         setDrillData([]);
       }
@@ -222,6 +225,7 @@ export default function AdminDashboardPage() {
       ['Total Users', analytics.total_users ?? 0],
       ['New Users', analytics.new_users_30d ?? 0],
       ['Active Mediators', analytics.active_mediators ?? 0],
+      ['Active Trainees', analytics.active_trainees ?? 0],
       ['Training Completed', analytics.training_completed ?? 0],
       ['Revenue (units)', (analytics.revenue_minor_units ?? 0) / 100],
     ];
@@ -454,8 +458,14 @@ export default function AdminDashboardPage() {
                 <KPI_CARD
                   value={analytics.active_mediators ?? 0}
                   label="Active Mediators"
-                  tooltip="Mediators and trainees"
+                  tooltip="Mediators only (excludes trainees)"
                   onClick={() => setDrillMode('mediators')}
+                />
+                <KPI_CARD
+                  value={analytics.active_trainees ?? 0}
+                  label="Active Trainees"
+                  tooltip="Trainees in training (not yet mediators)"
+                  onClick={() => openDrill('trainees')}
                 />
                 <KPI_CARD
                   value={analytics.training_completed ?? 0}
@@ -564,6 +574,7 @@ export default function AdminDashboardPage() {
                         {drillMode === 'active_cases' && 'Active Cases'}
                         {drillMode === 'new_users' && 'New Users'}
                         {drillMode === 'mediators' && 'Mediator Performance'}
+                        {drillMode === 'trainees' && 'Active Trainees'}
                       </h3>
                       <button className="btn-close" onClick={() => setDrillMode(null)}><X size={20} /></button>
                     </div>
@@ -626,6 +637,27 @@ export default function AdminDashboardPage() {
                               ))}
                             </tbody>
                           </table>
+                        </div>
+                      )}
+                      {drillMode === 'trainees' && (
+                        <div className="drill-table-wrap">
+                          <table className="drill-table">
+                            <thead>
+                              <tr><th>Name</th><th>Email</th><th>Country</th><th>Joined</th><th>Last Login</th></tr>
+                            </thead>
+                            <tbody>
+                              {drillData.map((t) => (
+                                <tr key={t.id}>
+                                  <td>{t.display_name || '-'}</td>
+                                  <td>{t.email}</td>
+                                  <td>{t.country || '-'}</td>
+                                  <td>{t.created_at?.slice(0, 10)}</td>
+                                  <td>{t.last_login_at ? t.last_login_at.slice(0, 10) : '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {drillData.length === 0 && <p className="empty-msg">No active trainees.</p>}
                         </div>
                       )}
                     </div>

@@ -82,11 +82,17 @@ async def get_dashboard_metrics(
     resolution_rate = round((resolved_count / total_cases * 100), 1) if total_cases else 0
     active_cases = sum(v for k, v in case_status_counts.items() if str(k).lower() not in ("closed", "settled"))
 
-    # Active mediators count
-    mediators_q = select(func.count(User.id)).where(User.role.in_(["mediator", "trainee"]), User.is_active == True)
+    # Active mediators count (excludes trainees - they are not practicing mediators)
+    mediators_q = select(func.count(User.id)).where(User.role == "mediator", User.is_active == True)
     if tenant_filter:
         mediators_q = mediators_q.where(User.tenant_id == tenant_filter)
     active_mediators = (await db.execute(mediators_q)).scalar() or 0
+
+    # Active trainees count
+    trainees_q = select(func.count(User.id)).where(User.role == "trainee", User.is_active == True)
+    if tenant_filter:
+        trainees_q = trainees_q.where(User.tenant_id == tenant_filter)
+    active_trainees = (await db.execute(trainees_q)).scalar() or 0
 
     # Trend: new users vs previous period
     new_users_trend = (new_users - prev_new_users) if prev_new_users else (new_users if new_users else 0)
@@ -100,6 +106,7 @@ async def get_dashboard_metrics(
         "new_users_trend": new_users_trend,
         "total_users": total_users,
         "active_mediators": active_mediators,
+        "active_trainees": active_trainees,
         "training_completed": training_completed,
         "revenue_minor_units": revenue_minor,
         "period_days": days,
@@ -207,10 +214,10 @@ async def get_mediator_performance(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin", "mediator")),
 ):
-    """Mediator performance: cases handled, resolution rate."""
+    """Mediator performance: cases handled, resolution rate. Excludes trainees."""
     tenant_filter = user.tenant_id
 
-    mediators_q = select(User).where(User.role.in_(["mediator", "trainee"]), User.is_active == True)
+    mediators_q = select(User).where(User.role == "mediator", User.is_active == True)
     if tenant_filter:
         mediators_q = mediators_q.where(User.tenant_id == tenant_filter)
     mediators_result = await db.execute(mediators_q)
@@ -344,6 +351,33 @@ async def get_new_users_list(
             "created_at": u.created_at.isoformat() if u.created_at else None,
         }
         for u in users
+    ]
+
+
+@router.get("/drill-down/active-trainees")
+async def get_active_trainees_list(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin", "mediator")),
+):
+    """List active trainees for drill-down."""
+    tenant_filter = user.tenant_id
+    q = select(User).where(User.role == "trainee", User.is_active == True)
+    if tenant_filter:
+        q = q.where(User.tenant_id == tenant_filter)
+    q = q.order_by(User.display_name, User.email)
+    result = await db.execute(q)
+    trainees = result.scalars().all()
+    return [
+        {
+            "id": str(u.id),
+            "email": u.email,
+            "display_name": u.display_name,
+            "country": u.country,
+            "status": u.status,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+            "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+        }
+        for u in trainees
     ]
 
 

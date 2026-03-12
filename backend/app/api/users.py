@@ -323,9 +323,9 @@ async def reject_user(
 
 
 async def _assign_mediator(db: AsyncSession, tenant_id: uuid.UUID | None) -> uuid.UUID | None:
-    """Auto-assign mediator by workload. Returns mediator_id or None."""
+    """Auto-assign mediator by workload. Returns mediator_id or None. Excludes trainees."""
     q = select(User).where(
-        User.role.in_(["mediator", "trainee"]),
+        User.role == "mediator",
         User.is_active == True,
     )
     if tenant_id:
@@ -620,9 +620,9 @@ async def reassign_mediator(
     if admin.tenant_id and u.tenant_id != admin.tenant_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    mres = await db.execute(select(User).where(and_(User.id == data.mediator_id, User.role.in_(["mediator", "trainee"]))))
+    mres = await db.execute(select(User).where(and_(User.id == data.mediator_id, User.role == "mediator")))
     if not mres.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Invalid mediator")
+        raise HTTPException(status_code=400, detail="Invalid mediator (must be an active mediator, not a trainee)")
 
     u.assigned_mediator_id = data.mediator_id
     try:

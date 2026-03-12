@@ -251,12 +251,12 @@ async def list_mediators_for_booking(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list:
-    """List mediators. For client booking flow."""
+    """List mediators for case assignment and booking. Excludes trainees (trainees cannot be assigned cases)."""
     from app.models.tenant import User as UserModel
     result = await db.execute(
         select(UserModel).where(
             and_(
-                UserModel.role.in_(("mediator", "trainee")),
+                UserModel.role == "mediator",
                 UserModel.is_active == True,
             )
         )

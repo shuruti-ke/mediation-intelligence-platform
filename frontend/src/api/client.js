@@ -208,6 +208,7 @@ export const analyticsApi = {
   getAfricaMetrics: () => api.get('/analytics/africa'),
   getActiveCases: (params) => api.get('/analytics/drill-down/active-cases', { params }),
   getNewUsers: (params) => api.get('/analytics/drill-down/new-users', { params }),
+  getActiveTrainees: () => api.get('/analytics/drill-down/active-trainees'),
   getCaseDistribution: (params) => api.get('/analytics/drill-down/case-distribution', { params }),
 };
 
