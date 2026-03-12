@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, BookOpen, Scale, GraduationCap, Calendar, FolderOpen, LogOut, UserPlus } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, BookOpen, Scale, GraduationCap, Calendar, FolderOpen, LogOut, UserPlus, Search, Users } from 'lucide-react';
 import { cases, usersApi } from '../api/client';
 
 const COUNTRIES = [
@@ -14,16 +14,33 @@ const COUNTRIES = [
 
 export default function DashboardPage() {
   const [caseList, setCaseList] = useState([]);
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [clientsLoading, setClientsLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [clientSearch, setClientSearch] = useState('');
+  const [caseSearch, setCaseSearch] = useState('');
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [selectedCase, setSelectedCase] = useState(null);
   const [onboardOpen, setOnboardOpen] = useState(false);
   const [onboardForm, setOnboardForm] = useState({
     full_name: '', email: '', phone: '', user_type: 'individual', country: 'KE', password: '',
   });
+  const navigate = useNavigate();
+
   useEffect(() => {
     const params = filter === 'draft' ? { status: 'draft' } : {};
+    setLoading(true);
     cases.list(params).then(({ data }) => setCaseList(data)).catch(() => setCaseList([])).finally(() => setLoading(false));
   }, [filter]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setClientsLoading(true);
+      usersApi.myClients({ search: clientSearch?.trim() || undefined }).then(({ data }) => setClients(data || [])).catch(() => setClients([])).finally(() => setClientsLoading(false));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [clientSearch]);
 
   const handleOnboardClient = async (e) => {
     e.preventDefault();
@@ -65,31 +82,132 @@ export default function DashboardPage() {
           <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><LogOut size={16} /> Sign out</Link>
         </nav>
       </header>
-      <section>
-        <div className="cases-header">
-          <h2 className="icon-text"><FolderOpen size={22} /> Cases</h2>
-          <div className="case-filters">
-            <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>All</button>
-            <button className={filter === 'draft' ? 'active' : ''} onClick={() => setFilter('draft')}>My Drafts</button>
+      <section className="mediator-split-section">
+        <div className="mediator-split">
+          <aside className="mediator-split-left">
+            <div className="mediator-panel">
+              <h3 className="mediator-panel-title"><Users size={16} /> My Clients</h3>
+              <div className="mediator-panel-search">
+                <Search size={16} />
+                <input
+                  type="text"
+                  placeholder="Search clients..."
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                />
+              </div>
+              <div className="mediator-panel-list">
+                {clientsLoading ? <p>Loading...</p> : clients.length === 0 ? (
+                  <p className="empty-msg">No clients assigned.</p>
+                ) : (
+                  clients.map((c) => (
+                    <div
+                      key={c.id}
+                      role="button"
+                      tabIndex={0}
+                      className={`mediator-panel-item ${selectedClient?.id === c.id ? 'selected' : ''}`}
+                      onClick={() => { setSelectedClient(c); setSelectedCase(null); }}
+                      onKeyDown={(e) => e.key === 'Enter' && (setSelectedClient(c), setSelectedCase(null))}
+                    >
+                      <span className="mediator-panel-item-name">{c.display_name || c.email || '—'}</span>
+                      <span className="mediator-panel-item-meta">{c.user_id || c.email}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="mediator-panel">
+              <div className="mediator-panel-header">
+                <h3 className="mediator-panel-title"><FolderOpen size={16} /> My Cases</h3>
+                <div className="case-filters case-filters-inline">
+                  <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>All</button>
+                  <button className={filter === 'draft' ? 'active' : ''} onClick={() => setFilter('draft')}>Drafts</button>
+                </div>
+              </div>
+              <div className="mediator-panel-search">
+                <Search size={16} />
+                <input
+                  type="text"
+                  placeholder="Search cases..."
+                  value={caseSearch}
+                  onChange={(e) => setCaseSearch(e.target.value)}
+                />
+              </div>
+              <div className="mediator-panel-list">
+                {loading ? <p>Loading...</p> : (
+                  (caseSearch ? caseList.filter((c) =>
+                    (c.case_number || '').toLowerCase().includes(caseSearch.toLowerCase()) ||
+                    (c.title || '').toLowerCase().includes(caseSearch.toLowerCase()) ||
+                    (c.dispute_category || '').toLowerCase().includes(caseSearch.toLowerCase())
+                  ) : caseList).map((c) => (
+                    <div
+                      key={c.id}
+                      role="button"
+                      tabIndex={0}
+                      className={`mediator-panel-item ${selectedCase?.id === c.id ? 'selected' : ''}`}
+                      onClick={() => { setSelectedCase(c); setSelectedClient(null); }}
+                      onKeyDown={(e) => e.key === 'Enter' && (setSelectedCase(c), setSelectedClient(null))}
+                    >
+                      <span className="mediator-panel-item-name">{c.case_number}</span>
+                      <span className="mediator-panel-item-meta">{c.dispute_category || c.status || '—'}</span>
+                    </div>
+                  ))
+                )}
+                {!loading && caseList.length === 0 && <p className="empty-msg">No cases yet.</p>}
+              </div>
+            </div>
+          </aside>
+          <div className="mediator-split-right">
+            {selectedClient ? (
+              <div className="mediator-detail">
+                <h3>{selectedClient.display_name || selectedClient.email || '—'}</h3>
+                <p className="mediator-detail-id">{selectedClient.user_id || '—'}</p>
+                <div className="mediator-detail-section">
+                  <h4>Contact</h4>
+                  <p><strong>Email:</strong> {selectedClient.email}</p>
+                  <p><strong>Phone:</strong> {selectedClient.phone || '—'}</p>
+                  <p><strong>Country:</strong> {selectedClient.country || '—'}</p>
+                </div>
+                <div className="mediator-detail-section">
+                  <h4>Account</h4>
+                  <p><strong>Status:</strong> {selectedClient.status}</p>
+                  <p><strong>Active:</strong> {selectedClient.is_active ? 'Yes' : 'No'}</p>
+                  <p><strong>Approval:</strong> {selectedClient.approval_status || '—'}</p>
+                  <p><strong>Created:</strong> {selectedClient.created_at?.slice(0, 10)}</p>
+                  <p><strong>Last Login:</strong> {selectedClient.last_login_at ? new Date(selectedClient.last_login_at).toLocaleString() : '—'}</p>
+                </div>
+                <Link to={`/cases/new`} className="btn-sm primary">Assign to Case</Link>
+              </div>
+            ) : selectedCase ? (
+              <div className="mediator-detail">
+                <h3>{selectedCase.case_number}</h3>
+                <p className="mediator-detail-id">{selectedCase.title || selectedCase.dispute_category || '—'}</p>
+                <div className="mediator-detail-section">
+                  <h4>Case Details</h4>
+                  <p><strong>Status:</strong> {selectedCase.status}</p>
+                  <p><strong>Type:</strong> {selectedCase.case_type || selectedCase.dispute_category || '—'}</p>
+                  <p><strong>Priority:</strong> {selectedCase.priority_level || '—'}</p>
+                  <p><strong>Jurisdiction:</strong> {[selectedCase.jurisdiction_country, selectedCase.jurisdiction_region, selectedCase.jurisdiction_county_state].filter(Boolean).join(', ') || '—'}</p>
+                </div>
+                <div className="mediator-detail-section">
+                  <h4>Description</h4>
+                  <p>{selectedCase.short_description || selectedCase.detailed_narrative || '—'}</p>
+                </div>
+                <div className="mediator-detail-section">
+                  <h4>Timeline</h4>
+                  <p><strong>Created:</strong> {selectedCase.created_at?.slice(0, 10)}</p>
+                  <p><strong>Updated:</strong> {selectedCase.updated_at?.slice(0, 10) || '—'}</p>
+                </div>
+                <Link to={`/cases/${selectedCase.id}`} className="btn-sm primary">View Case</Link>
+              </div>
+            ) : (
+              <div className="mediator-detail-empty">
+                <p>Select a client or case from the list to view details.</p>
+                <Link to="/cases/new" className="primary"><Plus size={16} /> New Case</Link>
+              </div>
+            )}
           </div>
         </div>
-        {loading ? (
-          <p>Loading...</p>
-        ) : caseList.length === 0 ? (
-          <p>{filter === 'draft' ? 'No drafts yet.' : 'No cases yet.'} <Link to="/cases/new"><Plus size={14} /> Create your first case</Link></p>
-        ) : (
-          <ul className="case-list">
-            {caseList.map((c) => (
-              <li key={c.id}>
-                <Link to={`/cases/${c.id}`}>
-                  <span className="case-number">{c.case_number}</span>
-                  <span className="case-status">{c.status}</span>
-                  <span className="case-category">{c.dispute_category || '-'}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
 
       {onboardOpen && (

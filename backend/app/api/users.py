@@ -118,6 +118,31 @@ class ReassignMediator(BaseModel):
     notify_user_and_mediator: bool = True
 
 
+@router.get("/my-clients", response_model=list[UserResponse])
+async def list_my_clients(
+    search: str | None = Query(None, description="Search by name, email, user_id"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("mediator", "trainee")),
+):
+    """List clients assigned to the current mediator."""
+    q = select(User).where(User.assigned_mediator_id == user.id)
+    q = q.where(User.role.in_(["client_individual", "client_corporate"]))
+    if search and len(search.strip()) >= 2:
+        term = f"%{search.strip()}%"
+        conds = [User.email.ilike(term), User.display_name.ilike(term)]
+        if hasattr(User, "user_id"):
+            conds.append(User.user_id.ilike(term))
+        if hasattr(User, "phone"):
+            conds.append(User.phone.ilike(term))
+        q = q.where(or_(*conds))
+    q = q.order_by(User.display_name.asc()).offset(skip).limit(limit)
+    result = await db.execute(q)
+    users = result.scalars().all()
+    return [_user_to_response(u) for u in users]
+
+
 @router.get("/search", response_model=list[UserResponse])
 async def search_users(
     q: str = Query(..., min_length=2),
@@ -181,14 +206,12 @@ async def list_users(
         q = q.where(User.status == status)
     if search and len(search.strip()) >= 2:
         term = f"%{search.strip()}%"
-        q = q.where(
-            or_(
-                User.email.ilike(term),
-                User.display_name.ilike(term),
-                User.user_id.ilike(term) if hasattr(User, "user_id") else False,
-                User.phone.ilike(term) if hasattr(User, "phone") else False,
-            )
-        )
+        conds = [User.email.ilike(term), User.display_name.ilike(term)]
+        if hasattr(User, "user_id"):
+            conds.append(User.user_id.ilike(term))
+        if hasattr(User, "phone"):
+            conds.append(User.phone.ilike(term))
+        q = q.where(or_(*conds))
     q = q.order_by(User.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(q)
     users = result.scalars().all()

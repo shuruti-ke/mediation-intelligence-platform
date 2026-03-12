@@ -189,15 +189,20 @@ async def list_cases(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
     status: str | None = Query(None),
+    mediator_id: uuid.UUID | None = Query(None, description="Filter by mediator (mediators see own by default)"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> list[CaseResponse]:
-    """List cases. Filtered by tenant."""
+    """List cases. Filtered by tenant. Mediators see own cases when mediator_id not specified."""
     q = select(Case)
     if user.tenant_id:
         q = q.where(Case.tenant_id == user.tenant_id)
     if status:
         q = q.where(Case.status == status)
+    if user.role in ("mediator", "trainee"):
+        q = q.where(Case.mediator_id == user.id)
+    elif mediator_id:
+        q = q.where(Case.mediator_id == mediator_id)
     q = q.order_by(Case.updated_at.desc().nullslast(), Case.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(q)
     cases = result.scalars().unique().all()

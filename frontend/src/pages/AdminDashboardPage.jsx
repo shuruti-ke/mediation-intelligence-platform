@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ComposedChart,
@@ -16,7 +16,7 @@ import {
   Cell,
   BarChart,
 } from 'recharts';
-import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus, FolderOpen, Search, Plus } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus, FolderOpen, Search, Plus, MoreVertical, ArrowLeft } from 'lucide-react';
 import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi, cases } from '../api/client';
 
 const STATUS_BADGES = {
@@ -88,7 +88,13 @@ export default function AdminDashboardPage() {
   const [caseList, setCaseList] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [userSearchDebounce, setUserSearchDebounce] = useState(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [userDetailTab, setUserDetailTab] = useState('overview');
+  const [userRoleFilter, setUserRoleFilter] = useState('');
+  const [userStatusFilter, setUserStatusFilter] = useState('');
+  const [usersSkip, setUsersSkip] = useState(0);
+  const [userActionsOpen, setUserActionsOpen] = useState(null);
   const navigate = useNavigate();
 
   const DATE_RANGES = [
@@ -142,8 +148,15 @@ export default function AdminDashboardPage() {
         .catch(() => setTenants([]))
         .finally(() => setLoading(false));
     } else if (tab === 'users') {
-      usersApi.list({ search: searchQuery.trim() || undefined })
-        .then(({ data }) => setUsers(data || []))
+      const params = {
+        search: searchQuery?.trim() || undefined,
+        role: userRoleFilter || undefined,
+        status: userStatusFilter || undefined,
+        skip: 0,
+        limit: 50,
+      };
+      usersApi.list(params)
+        .then(({ data }) => { setUsers(data || []); setUsersSkip(0); })
         .catch(() => setUsers([]))
         .finally(() => setLoading(false));
     } else if (tab === 'cases') {
@@ -166,7 +179,13 @@ export default function AdminDashboardPage() {
     } else {
       refreshDashboard();
     }
-  }, [tab, dateRange]);
+  }, [tab, dateRange, userRoleFilter, userStatusFilter, searchQuery]);
+
+  useEffect(() => {
+    if (tab !== 'users') return;
+    const t = setTimeout(() => setSearchQuery(searchInput), 300);
+    return () => clearTimeout(t);
+  }, [tab, searchInput]);
 
   useEffect(() => {
     if (!autoRefresh || tab !== 'dashboard') return;
@@ -662,87 +681,146 @@ export default function AdminDashboardPage() {
       )}
 
       {tab === 'users' && (
-        <section className="admin-dashboard-section">
+        <section className="admin-dashboard-section split-view-section">
           <div className="section-header">
             <h2 className="icon-text"><Users size={22} /> User Management</h2>
             <button className="primary" onClick={() => setOnboardOpen(true)}><UserPlus size={16} /> New User</button>
           </div>
-          <div className="search-bar">
-            <Search size={18} />
-            <input
-              type="text"
-              placeholder="Search by User ID, Name, Email, Phone..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                if (userSearchDebounce) clearTimeout(userSearchDebounce);
-                setUserSearchDebounce(setTimeout(() => {
-                  usersApi.list({ search: e.target.value.trim() || undefined }).then(({ data }) => setUsers(data || [])).catch(() => setUsers([]));
-                }, 300));
-              }}
-            />
-          </div>
-          {loading ? <p>Loading...</p> : (
-            <div className="user-table-wrapper">
-              <table className="user-table">
-                <thead>
-                  <tr>
-                    <th>User ID</th>
-                    <th>Email</th>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Phone</th>
-                    <th>Mediator</th>
-                    <th>Status</th>
-                    <th>Active</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id}>
-                      <td><code className="user-id">{u.user_id || '-'}</code></td>
-                      <td>{u.email}</td>
-                      <td>{u.display_name || '-'}</td>
-                      <td>
-                        <span className={`badge ${USER_TYPE_BADGES[u.role]?.class || ''}`}>
-                          {USER_TYPE_BADGES[u.role]?.label || u.role}
-                        </span>
-                      </td>
-                      <td>{u.phone || '-'}</td>
-                      <td>{u.assigned_mediator_id ? 'Assigned' : 'Unassigned'}</td>
-                      <td>
+          <div className="split-view">
+            <aside className="split-view-left">
+              <div className="split-view-search">
+                <Search size={18} />
+                <input
+                  type="text"
+                  placeholder="Search users..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                />
+              </div>
+              <div className="split-view-filters">
+                <select value={userRoleFilter} onChange={(e) => setUserRoleFilter(e.target.value)}>
+                  <option value="">Role</option>
+                  <option value="client_individual">Individual</option>
+                  <option value="client_corporate">Corporate</option>
+                  <option value="mediator">Mediator</option>
+                  <option value="trainee">Trainee</option>
+                </select>
+                <select value={userStatusFilter} onChange={(e) => setUserStatusFilter(e.target.value)}>
+                  <option value="">Status</option>
+                  <option value="active">Active</option>
+                  <option value="pending">Pending</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div className="split-view-list">
+                {loading ? <p>Loading...</p> : users.length === 0 ? (
+                  <p className="empty-msg">No users yet.</p>
+                ) : (
+                  users.map((u) => (
+                    <div
+                      key={u.id}
+                      role="button"
+                      tabIndex={0}
+                      className={`split-view-item ${selectedUser?.id === u.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedUser(u)}
+                      onKeyDown={(e) => e.key === 'Enter' && setSelectedUser(u)}
+                    >
+                      <div className="split-view-item-header">
+                        <span className="split-view-item-name">{u.display_name || u.email || '—'}</span>
                         <span className={`badge ${STATUS_BADGES[u.status]?.class || 'badge-pending'}`}>
                           {STATUS_BADGES[u.status]?.label || u.status}
                         </span>
-                      </td>
-                      <td>
-                        <label className="toggle-switch">
-                          <input
-                            type="checkbox"
-                            checked={u.is_active}
-                            onChange={() => handleToggleActive(u)}
-                          />
-                          <span className="toggle-slider" />
-                        </label>
-                      </td>
-                      <td>
-                        {(u.role === 'client_individual' || u.role === 'client_corporate') && (
-                          <button className="btn-sm" onClick={() => { setReassignUser(u); setReassignForm({ mediator_id: u.assigned_mediator_id || '', reason: '', note: '', notify: true }); setReassignOpen(true); }} title="Reassign mediator">
-                            <UserCog size={14} /> Reassign
-                          </button>
-                        )}
-                        <button className="btn-sm" onClick={() => handleToggleActive(u)}>
-                          {u.is_active ? 'Deactivate' : 'Activate'}
+                      </div>
+                      <div className="split-view-item-meta">
+                        {USER_TYPE_BADGES[u.role]?.label || u.role} • {u.user_id || '—'}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </aside>
+            <div className="split-view-right">
+              {selectedUser ? (
+                <>
+                  <button type="button" className="split-view-back" onClick={() => setSelectedUser(null)}>
+                    <ArrowLeft size={16} /> Back to list
+                  </button>
+                  <div className="split-view-detail-header">
+                    <h3 className="split-view-detail-name">{(selectedUser.display_name || selectedUser.email || '—').toUpperCase()}</h3>
+                    <p className="split-view-detail-id">{selectedUser.user_id || '—'}</p>
+                    <div className="split-view-detail-actions">
+                      <span className={`badge ${STATUS_BADGES[selectedUser.status]?.class || ''}`}>{STATUS_BADGES[selectedUser.status]?.label || selectedUser.status}</span>
+                      <button className="btn-sm" onClick={() => { setReassignUser(selectedUser); setReassignForm({ mediator_id: selectedUser.assigned_mediator_id || '', reason: '', note: '', notify: true }); setReassignOpen(true); }}>Edit</button>
+                      <div className="dropdown-wrap">
+                        <button type="button" className="btn-sm btn-icon" onClick={() => setUserActionsOpen(userActionsOpen === selectedUser.id ? null : selectedUser.id)}>
+                          <MoreVertical size={18} />
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {users.length === 0 && <p className="empty-msg">No users yet. Click Onboard User to add.</p>}
+                        {userActionsOpen === selectedUser.id && (
+                          <div className="dropdown-menu">
+                            <button type="button" onClick={() => { setReassignUser(selectedUser); setReassignForm({ mediator_id: selectedUser.assigned_mediator_id || '', reason: '', note: '', notify: true }); setReassignOpen(true); setUserActionsOpen(null); }}>Assign to Case</button>
+                            <button type="button" onClick={() => setUserActionsOpen(null)}>Send Message</button>
+                            <button type="button" onClick={() => setUserActionsOpen(null)}>Reset Password</button>
+                            <button type="button" onClick={() => setUserActionsOpen(null)}>Deactivate Account</button>
+                            <button type="button" onClick={() => setUserActionsOpen(null)}>Export Data</button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="split-view-tabs">
+                    <button className={userDetailTab === 'overview' ? 'active' : ''} onClick={() => setUserDetailTab('overview')}>Overview</button>
+                    <button className={userDetailTab === 'cases' ? 'active' : ''} onClick={() => setUserDetailTab('cases')}>Cases</button>
+                    <button className={userDetailTab === 'activity' ? 'active' : ''} onClick={() => setUserDetailTab('activity')}>Activity</button>
+                  </div>
+                  <div className="split-view-detail-body">
+                    {userDetailTab === 'overview' && (
+                      <div className="split-view-form">
+                        <div className="split-view-form-section">
+                          <h4>Personal Information</h4>
+                          <div className="form-row"><label>Full Name</label><span>{selectedUser.display_name || '—'}</span></div>
+                          <div className="form-row"><label>Email</label><span>{selectedUser.email || '—'}</span></div>
+                          <div className="form-row"><label>Phone</label><span>{selectedUser.phone || '—'}</span></div>
+                          <div className="form-row"><label>Country</label><span>{selectedUser.country || '—'}</span></div>
+                        </div>
+                        <div className="split-view-form-section">
+                          <h4>Professional Details</h4>
+                          <div className="form-row"><label>User ID</label><span>{selectedUser.user_id || '—'}</span></div>
+                          <div className="form-row"><label>Role</label><span>{USER_TYPE_BADGES[selectedUser.role]?.label || selectedUser.role}</span></div>
+                          <div className="form-row"><label>Assigned Mediator</label><span>{selectedUser.assigned_mediator_id ? 'Assigned' : 'Unassigned'}</span></div>
+                        </div>
+                        <div className="split-view-form-section">
+                          <h4>Account Status</h4>
+                          <div className="form-row"><label>Status</label><span className={`badge ${STATUS_BADGES[selectedUser.status]?.class || ''}`}>{STATUS_BADGES[selectedUser.status]?.label || selectedUser.status}</span></div>
+                          <div className="form-row"><label>Approval</label><span>{selectedUser.approval_status || '—'}</span></div>
+                          <div className="form-row"><label>Active</label>
+                            <label className="toggle-switch">
+                              <input type="checkbox" checked={selectedUser.is_active} onChange={() => handleToggleActive(selectedUser)} />
+                              <span className="toggle-slider" />
+                            </label>
+                          </div>
+                          <div className="form-row"><label>Created</label><span>{selectedUser.created_at?.slice(0, 10)}</span></div>
+                          <div className="form-row"><label>Last Login</label><span>{selectedUser.last_login_at ? new Date(selectedUser.last_login_at).toLocaleString() : '—'}</span></div>
+                          <div className="form-row"><label>Onboarded</label><span>{selectedUser.onboarded_at ? new Date(selectedUser.onboarded_at).toLocaleString().slice(0, 10) : '—'}</span></div>
+                        </div>
+                        <div className="split-view-form-actions">
+                          {(selectedUser.role === 'client_individual' || selectedUser.role === 'client_corporate') && (
+                            <button className="btn-sm primary" onClick={() => { setReassignUser(selectedUser); setReassignForm({ mediator_id: selectedUser.assigned_mediator_id || '', reason: '', note: '', notify: true }); setReassignOpen(true); }}><UserCog size={14} /> Reassign Mediator</button>
+                          )}
+                          <button className="btn-sm" onClick={() => handleToggleActive(selectedUser)}>{selectedUser.is_active ? 'Deactivate' : 'Activate'}</button>
+                        </div>
+                      </div>
+                    )}
+                    {userDetailTab === 'cases' && <p className="empty-msg">Cases for this user.</p>}
+                    {userDetailTab === 'activity' && <p className="empty-msg">Activity log.</p>}
+                  </div>
+                </>
+              ) : (
+                <div className="split-view-empty">
+                  <p>Select a user from the list to view details.</p>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </section>
       )}
 

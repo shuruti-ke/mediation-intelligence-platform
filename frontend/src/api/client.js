@@ -180,6 +180,7 @@ export const tenantsApi = {
 
 export const usersApi = {
   list: (params) => api.get('/users', { params }),
+  myClients: (params) => api.get('/users/my-clients', { params }),
   get: (id) => api.get(`/users/${id}`),
   search: (q, limit = 20) => api.get('/users/search', { params: { q, limit } }),
   pendingApprovals: () => api.get('/users/pending-approvals'),
