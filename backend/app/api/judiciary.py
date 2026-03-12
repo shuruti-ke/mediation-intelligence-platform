@@ -77,13 +77,15 @@ async def search_judiciary(
     """Search judiciary/case databases. Caches results."""
     query_hash = hashlib.sha256(f"{data.query}:{data.region}".encode()).hexdigest()
 
-    # Check cache
+    # Check cache (may have multiple entries for same query - use most recent)
     result = await db.execute(
         select(JudiciarySearchCache)
         .where(
             JudiciarySearchCache.query_hash == query_hash,
             JudiciarySearchCache.region == data.region,
         )
+        .order_by(JudiciarySearchCache.created_at.desc())
+        .limit(1)
     )
     cached = result.scalar_one_or_none()
     # Don't use cache for placeholder results - run fresh search (including Kenya Law scrape)
