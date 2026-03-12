@@ -150,18 +150,21 @@ async def get_user_cases(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Get cases where the user is a party. Mediators can only see cases for their assigned clients."""
-    # Mediators: only their assigned clients
+    """Get cases linked to the client: by CaseParty.user_id or Case.internal_reference = client.user_id."""
     if user.role in ("mediator", "trainee"):
         client = await db.get(User, user_id)
         if not client or client.assigned_mediator_id != user.id:
             raise HTTPException(status_code=403, detail="Access denied")
-    result = await db.execute(
-        select(Case)
-        .join(CaseParty, CaseParty.case_id == Case.id)
-        .where(CaseParty.user_id == user_id)
-        .order_by(Case.updated_at.desc().nullslast(), Case.created_at.desc())
+    client_obj = await db.get(User, user_id)
+    client_user_id_str = getattr(client_obj, "user_id", None) if client_obj else None
+    # Cases linked via CaseParty.user_id OR Case.internal_reference = client's user_id (e.g. USR-KE-2026-0001)
+    conditions = [Case.id.in_(select(CaseParty.case_id).where(CaseParty.user_id == user_id))]
+    if client_user_id_str:
+        conditions.append(Case.internal_reference == client_user_id_str)
+    q = select(Case).where(or_(*conditions)).order_by(
+        Case.updated_at.desc().nullslast(), Case.created_at.desc()
     )
+    result = await db.execute(q)
     cases = result.scalars().unique().all()
     return [
         {

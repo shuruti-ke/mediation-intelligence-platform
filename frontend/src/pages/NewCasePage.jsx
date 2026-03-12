@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Plus, Trash2, Upload, FileText, Download } from 'lucide-react';
 import { cases, calendarApi, documents } from '../api/client';
 
@@ -132,8 +132,9 @@ function parseList(obj, key) {
 export default function NewCasePage({ edit }) {
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
   const [form, setForm] = useState({
-    internal_reference: '',
+    internal_reference: location.state?.internalReference || '',
     title: '',
     short_description: '',
     case_type: '',

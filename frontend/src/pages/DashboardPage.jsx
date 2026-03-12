@@ -187,9 +187,9 @@ export default function DashboardPage() {
                   <p><strong>Created:</strong> {selectedClient.created_at?.slice(0, 10)}</p>
                   <p><strong>Last Login:</strong> {selectedClient.last_login_at ? new Date(selectedClient.last_login_at).toLocaleString() : '—'}</p>
                 </div>
-                {clientCases.length > 0 && (
-                  <div className="mediator-detail-section">
-                    <h4>Cases assigned</h4>
+                <div className="mediator-detail-section">
+                  <h4>Cases assigned</h4>
+                  {clientCases.length > 0 ? (
                     <ul className="mediator-case-list">
                       {clientCases.map((c) => (
                         <li key={c.id}>
@@ -198,17 +198,12 @@ export default function DashboardPage() {
                         </li>
                       ))}
                     </ul>
-                  </div>
-                )}
+                  ) : (
+                    <p className="empty-msg">No cases assigned. Use client&apos;s User ID ({selectedClient.user_id || '—'}) as Internal reference when creating a new case.</p>
+                  )}
+                </div>
                 <div className="mediator-detail-actions">
-                  <Link
-                    to="/cases/new"
-                    className={`btn-sm primary ${clientCases.length > 0 ? 'disabled' : ''}`}
-                    onClick={(e) => clientCases.length > 0 && e.preventDefault()}
-                    aria-disabled={clientCases.length > 0}
-                  >
-                    Assign to Case
-                  </Link>
+                  <Link to="/cases/new" state={{ internalReference: selectedClient.user_id }} className="btn-sm">New Case</Link>
                   <Link to={`/users/${selectedClient.id}`} className="btn-sm primary">Edit Client</Link>
                 </div>
               </div>
@@ -251,12 +246,19 @@ export default function DashboardPage() {
             <p className="section-desc" style={{ marginBottom: '1rem' }}>Submit client details for admin approval. They will receive a User ID once approved.</p>
             <form onSubmit={handleOnboardClient} className="intake-form">
               <label>
-                Full name <span className="required">*</span>
+                Contact name <span className="required">*</span>
                 <input type="text" placeholder="Full name or organization" value={onboardForm.full_name} onChange={(e) => setOnboardForm({ ...onboardForm, full_name: e.target.value })} required minLength={2} />
               </label>
               <label>
-                Email <span className="required">*</span>
+                Contact email <span className="required">*</span>
                 <input type="email" placeholder="Email" value={onboardForm.email} onChange={(e) => setOnboardForm({ ...onboardForm, email: e.target.value })} required />
+              </label>
+              <label>
+                Contact number <span className="required">*</span>
+                <div className="phone-input">
+                  <span className="phone-prefix">+{COUNTRIES.find((c) => c.value === onboardForm.country)?.prefix || ''}</span>
+                  <input type="tel" placeholder="Phone" value={onboardForm.phone} onChange={(e) => setOnboardForm({ ...onboardForm, phone: e.target.value })} required />
+                </div>
               </label>
               <label>
                 User type <span className="required">*</span>
@@ -270,13 +272,6 @@ export default function DashboardPage() {
                 <select value={onboardForm.country} onChange={(e) => setOnboardForm({ ...onboardForm, country: e.target.value })}>
                   {COUNTRIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
-              </label>
-              <label>
-                Phone <span className="required">*</span>
-                <div className="phone-input">
-                  <span className="phone-prefix">+{COUNTRIES.find((c) => c.value === onboardForm.country)?.prefix || ''}</span>
-                  <input type="tel" placeholder="Phone" value={onboardForm.phone} onChange={(e) => setOnboardForm({ ...onboardForm, phone: e.target.value })} required />
-                </div>
               </label>
               <label>
                 Password <span className="required">*</span>
