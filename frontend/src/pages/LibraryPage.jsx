@@ -231,19 +231,18 @@ export default function LibraryPage() {
             <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}><Building2 size={14} /> Organization</button>
             <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}><User size={14} /> My Documents</button>
           </div>
-          <form onSubmit={handleAiQuery} className="ai-form">
-            <input
-              type="text"
-              placeholder="e.g. What are best practices for employment mediation?"
-              value={aiQuery}
-              onChange={(e) => setAiQuery(e.target.value)}
-              className="ai-input"
-            />
-            <button type="submit" disabled={loading} className="ai-btn">
-              <Sparkles size={16} /> {loading ? 'Thinking…' : 'Ask'}
-            </button>
-          </form>
-          {aiAnswer && (
+          {loading && (
+            <div className="ai-loading-state">
+              <Sparkles size={24} className="ai-loading-icon" />
+              <p>Searching your knowledge base and the web…</p>
+            </div>
+          )}
+          {!loading && !aiAnswer && (
+            <div className="ai-empty-state">
+              <p>Enter your question in the search bar above and click <strong>Ask</strong>.</p>
+            </div>
+          )}
+          {aiAnswer && !loading && (
             <div className="ai-answer-card">
               <div className="ai-answer-header">
                 <span className="ai-badge">✨ AI Answer</span>

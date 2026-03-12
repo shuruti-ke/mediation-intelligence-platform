@@ -69,34 +69,55 @@ def _search_words(query: str) -> list[str]:
     return [w for w in words if w not in _STOPWORDS][:8]
 
 
+def _extract_ddg_url(href: str) -> str:
+    """Extract real URL from DuckDuckGo redirect link."""
+    if not href:
+        return ""
+    if "uddg=" in href:
+        parsed = urlparse(href)
+        qs = parse_qs(parsed.query)
+        return unquote(qs.get("uddg", [""])[0]) if qs.get("uddg") else href
+    return href
+
+
 async def _web_search_duckduckgo(search_q: str, max_results: int = 8) -> list[dict]:
     """Search via DuckDuckGo HTML. Returns title, url, snippet."""
-    SCRAPE_UA = "Mozilla/5.0 (compatible; MediationPlatform/1.0; +https://mediation-intelligence-platform.vercel.app)"
+    SCRAPE_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     try:
-        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
             r = await client.get(
                 "https://html.duckduckgo.com/html/",
                 params={"q": quote_plus(search_q)},
-                headers={"User-Agent": SCRAPE_UA},
+                headers={"User-Agent": SCRAPE_UA, "Accept": "text/html,application/xhtml+xml"},
             )
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "html.parser")
         results = []
         for div in soup.find_all("div", class_="result")[:max_results]:
-            link = div.find("a", class_="result__a") or div.find("a", class_="result-link")
-            snippet_el = div.find("a", class_="result__snippet") or div.find("div", class_="result__snippet") or div.find("div", class_="result__body")
+            link = div.find("a", class_="result__a") or div.find("a", class_="result-link") or div.find("a", class_="result__url")
             if not link:
                 continue
             href = link.get("href", "")
-            if "uddg=" in href:
-                parsed = urlparse(href)
-                qs = parse_qs(parsed.query)
-                real_url = unquote(qs.get("uddg", [""])[0]) if qs.get("uddg") else href
-            else:
-                real_url = href
+            real_url = _extract_ddg_url(href)
+            if not real_url or real_url.startswith("https://duckduckgo.com"):
+                continue
             title = link.get_text(strip=True)
+            snippet_el = (
+                div.find("a", class_="result__snippet")
+                or div.find("div", class_="result__snippet")
+                or div.find("div", class_="js-result-snippet")
+                or div.find("div", class_="result__body")
+            )
             snippet = snippet_el.get_text(strip=True) if snippet_el else ""
-            results.append({"title": title, "url": real_url, "snippet": snippet})
+            if not snippet:
+                all_links = div.find_all("a", href=True)
+                for a in all_links:
+                    t = a.get_text(strip=True)
+                    if len(t) > len(snippet) and len(t) > 20 and t != title:
+                        snippet = t
+            if not snippet:
+                snippet = div.get_text(separator=" ", strip=True)[:300] or title
+            results.append({"title": title or "Source", "url": real_url, "snippet": snippet})
         return results
     except Exception:
         return []
@@ -125,9 +146,20 @@ async def _web_search_resources(query: str, max_results: int = 10) -> list[dict]
     return results
 
 
-async def _web_search_general(query: str, max_results: int = 6) -> list[dict]:
-    """Search for general mediation info on the topic."""
-    return await _web_search_duckduckgo(f"{query} mediation Kenya Africa", max_results)
+async def _web_search_general(query: str, max_results: int = 10) -> list[dict]:
+    """Search for general mediation info on the topic. Tries multiple queries for reliability."""
+    seen_urls = set()
+    results = []
+    for search_q in [f"{query} mediation", f"{query} mediation Kenya", f"{query} dispute resolution"]:
+        hits = await _web_search_duckduckgo(search_q, max_results=6)
+        for r in hits:
+            url = r.get("url", "")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                results.append(r)
+                if len(results) >= max_results:
+                    return results
+    return results
 
 
 async def _score_relevance(question: str, text: str, api_key: str) -> int:
@@ -587,18 +619,27 @@ Be detailed and practical. For topics like employment disputes, explain process,
         answer_relevance = await _score_relevance(data.query, answer, settings.openai_api_key) if settings.openai_api_key else 50
         return {"answer": answer, "citations": citations, "suggested_resources": suggested_resources[:8], "context_relevance": context_relevance, "answer_relevance": answer_relevance, "source": "knowledge_base"}
 
-    # No docs found: web search for detailed answer + suggested resources
-    web_results = await _web_search_general(data.query, max_results=8)
-    web_context = "\n\n".join([f"Source: {r.get('title','')}\n{r.get('snippet','')}" for r in web_results if r.get("snippet")])
+    # No docs found or low relevance: web search for detailed answer + suggested resources
+    web_results = await _web_search_general(data.query, max_results=10)
+    web_context = "\n\n".join(
+        [f"Source: {r.get('title','')} ({r.get('url','')})\n{r.get('snippet') or r.get('title','')}" for r in web_results if (r.get("snippet") or r.get("title"))]
+    )
 
     answer = ""
-    if settings.openai_api_key and web_context:
+    if settings.openai_api_key:
         try:
             import httpx
-            sys_prompt = """You are a mediation expert. The user asked a question but no relevant documents were found in their knowledge base.
+            if web_context:
+                sys_prompt = """You are a mediation expert. The user asked a question but no relevant documents were found in their knowledge base.
 Use the web search results below to provide a detailed, practical answer. Cover key concepts, process, best practices, and considerations.
 For legal topics (employment, family, etc.), explain general principles and direct to Kenya Law (new.kenyalaw.org) or qualified professionals for specifics.
 Be thorough and helpful. Format with clear sections if appropriate."""
+                user_content = f"Web search results:\n{web_context}\n\nQuestion: {data.query}"
+            else:
+                sys_prompt = """You are a mediation expert. The user asked a question. Provide a detailed, practical answer based on mediation best practices.
+Cover key concepts, process, best practices, and considerations. For legal topics (employment, family, etc.), explain general principles and direct to Kenya Law (new.kenyalaw.org) or qualified professionals for specifics.
+Be thorough and helpful. Format with clear sections if appropriate."""
+                user_content = f"Question: {data.query}"
             async with httpx.AsyncClient() as client:
                 r = await client.post(
                     "https://api.openai.com/v1/chat/completions",
@@ -607,7 +648,7 @@ Be thorough and helpful. Format with clear sections if appropriate."""
                         "model": "gpt-4o-mini",
                         "messages": [
                             {"role": "system", "content": sys_prompt},
-                            {"role": "user", "content": f"Web search results:\n{web_context}\n\nQuestion: {data.query}"},
+                            {"role": "user", "content": user_content},
                         ],
                         "max_tokens": 1000,
                     },
