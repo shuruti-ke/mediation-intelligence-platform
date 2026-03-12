@@ -200,11 +200,17 @@ export default function DashboardPage() {
                     </ul>
                   </div>
                 )}
-                {clientCases.length > 0 ? (
-                  <Link to={`/users/${selectedClient.id}`} className="btn-sm primary">Edit Client Details</Link>
-                ) : (
-                  <Link to="/cases/new" className="btn-sm primary">Assign to Case</Link>
-                )}
+                <div className="mediator-detail-actions">
+                  <Link
+                    to="/cases/new"
+                    className={`btn-sm primary ${clientCases.length > 0 ? 'disabled' : ''}`}
+                    onClick={(e) => clientCases.length > 0 && e.preventDefault()}
+                    aria-disabled={clientCases.length > 0}
+                  >
+                    Assign to Case
+                  </Link>
+                  <Link to={`/users/${selectedClient.id}`} className="btn-sm primary">Edit Client</Link>
+                </div>
               </div>
             ) : selectedCase ? (
               <div className="mediator-detail">
