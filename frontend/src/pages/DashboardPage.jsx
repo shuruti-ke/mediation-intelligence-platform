@@ -203,7 +203,6 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div className="mediator-detail-actions">
-                  <Link to="/cases/new" state={{ internalReference: selectedClient.user_id }} className="btn-sm">New Case</Link>
                   <Link to={`/users/${selectedClient.id}`} className="btn-sm primary">Edit Client</Link>
                 </div>
               </div>
