@@ -1585,9 +1585,232 @@ a:hover {
 
 /* Case detail */
 .case-detail {
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
+}
+
+.case-detail-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .case-detail-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.case-documents-sidebar {
+  position: sticky;
+  top: 1rem;
+}
+
+.case-documents-sidebar .documents-box {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.case-documents-sidebar .documents-box h3 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.case-documents-sidebar .doc-upload-label {
+  display: block;
+  cursor: pointer;
+  margin-bottom: 1rem;
+}
+
+.case-documents-sidebar .doc-upload-input {
+  position: absolute;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+
+.case-documents-sidebar .doc-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.case-documents-sidebar .doc-upload-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+.case-documents-sidebar .doc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.case-documents-sidebar .doc-list li {
+  margin: 0.25rem 0;
+}
+
+.case-documents-sidebar .doc-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--color-primary);
+  text-align: left;
+  width: 100%;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.case-documents-sidebar .doc-link:hover {
+  background: #f5f3ff;
+  border-color: var(--color-primary-light);
+}
+
+.case-documents-sidebar .doc-link span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.case-documents-sidebar .doc-download-icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.case-documents-sidebar .doc-empty {
+  padding: 1rem;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.case-detail-main {
+  min-width: 0;
+}
+
+.case-info-section {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.case-info-section h3 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.case-info-grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+}
+
+.case-info-grid dt {
+  font-weight: 600;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.case-info-grid dd {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.case-narrative {
+  white-space: pre-wrap;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.case-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.case-tags .tag {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  background: #ede9fe;
+  color: var(--color-primary-dark);
+  border-radius: 20px;
+  font-size: 0.85rem;
+}
+
+.outcome-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+
+.outcome-list li {
+  padding: 0.25rem 0;
+}
+
+.party-item {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.party-item:last-child {
+  border-bottom: none;
+}
+
+.party-role {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.party-contact {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.party-contact span {
+  display: block;
+}
+
+.case-actions {
+  margin-top: 1.5rem;
+}
+
+.btn-start-session {
+  padding: 0.9rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
 }
 
 .case-detail header {

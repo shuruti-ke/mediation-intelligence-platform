@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, Upload } from 'lucide-react';
 import { cases, sessions, recordings, caucus, documents } from '../api/client';
 import JitsiEmbed from '../components/JitsiEmbed';
+
+const PREFERRED_FORMAT_LABELS = { in_person: 'In-person', video: 'Video', phone: 'Phone', hybrid: 'Hybrid' };
+const DESIRED_OUTCOME_LABELS = { settlement: 'Settlement', apology: 'Apology', restitution: 'Restitution', relationship_repair: 'Relationship repair', other: 'Other' };
+const DURATION_LABELS = { '1_session': '1 session', '2_3_sessions': '2–3 sessions', '4_plus_sessions': '4+ sessions', ongoing: 'Ongoing' };
+const CONFIDENTIALITY_LABELS = { public: 'Public', parties_only: 'Parties Only', mediator_only: 'Mediator Only' };
 
 function formatDuration(seconds) {
   const m = Math.floor(seconds / 60);
@@ -178,107 +183,199 @@ export default function CaseDetailPage() {
           />
         </div>
       ) : (
-        <>
-          <section>
-            <h3>Case Details</h3>
-            <p><strong>Title:</strong> {caseData.title || caseData.case_number}</p>
-            <p><strong>Dispute category:</strong> {caseData.dispute_category || caseData.case_type || '-'}</p>
-            {caseData.short_description && <p><strong>Description:</strong> {caseData.short_description}</p>}
-            {caseData.priority_level && <p><strong>Priority:</strong> {caseData.priority_level}</p>}
-            {caseData.jurisdiction_country && <p><strong>Jurisdiction:</strong> {caseData.jurisdiction_country}{caseData.jurisdiction_region ? ` / ${caseData.jurisdiction_region}` : ''}{caseData.jurisdiction_county_state ? ` / ${caseData.jurisdiction_county_state}` : ''}</p>}
-          </section>
-          {caseData.parties?.length > 0 && (
-            <section>
-              <h3>Parties Involved</h3>
-              <ul className="party-list">
-                {caseData.parties.map((p, i) => (
-                  <li key={i}>
-                    <strong>{p.name}</strong> ({p.role})
-                    {p.email && <span> — {p.email}</span>}
-                    {p.phone && <span> — {p.phone}</span>}
-                  </li>
-                ))}
+        <div className="case-detail-layout">
+          {/* Documents sidebar - left */}
+          <aside className="case-documents-sidebar">
+            <div className="documents-box">
+              <h3>Documents</h3>
+              <div className="doc-upload-area">
+                <label className="doc-upload-label">
+                  <input
+                    type="file"
+                    accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.pptx,.ppt,.png,.jpg,.jpeg,.gif,.csv"
+                    className="doc-upload-input"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploadingDoc(true);
+                      try {
+                        const fd = new FormData();
+                        fd.append('file', file);
+                        fd.append('case_id', id);
+                        const { data } = await documents.upload(fd);
+                        setCaseDocuments((prev) => [...prev, { id: data.id, file_name: data.filename, mime_type: file.type || 'application/octet-stream', created_at: new Date().toISOString() }]);
+                      } catch (err) {
+                        alert(err.response?.data?.detail || 'Upload failed');
+                      } finally {
+                        setUploadingDoc(false);
+                        e.target.value = '';
+                      }
+                    }}
+                    disabled={uploadingDoc}
+                  />
+                  <span className="doc-upload-btn"><Upload size={16} /> {uploadingDoc ? 'Uploading...' : 'Add document'}</span>
+                </label>
+              </div>
+              <ul className="doc-list">
+                {caseDocuments.length > 0 ? (
+                  caseDocuments.map((d) => (
+                    <li key={d.id}>
+                      <button type="button" className="doc-link" onClick={() => handleDocumentClick(d)} title="Click to view or download">
+                        <FileText size={16} />
+                        <span>{d.file_name}</span>
+                        <Download size={14} className="doc-download-icon" />
+                      </button>
+                    </li>
+                  ))
+                ) : (
+                  <li className="doc-empty">No documents yet</li>
+                )}
               </ul>
+            </div>
+          </aside>
+
+          {/* Case information - right */}
+          <main className="case-detail-main">
+            <section className="case-info-section">
+              <h3>Case Details</h3>
+              <dl className="case-info-grid">
+                <dt>Internal reference</dt>
+                <dd>{caseData.internal_reference || '—'}</dd>
+                <dt>Title</dt>
+                <dd>{caseData.title || caseData.case_number}</dd>
+                <dt>Case type</dt>
+                <dd>{caseData.case_type || caseData.dispute_category || '—'}{caseData.case_type_other ? ` (${caseData.case_type_other})` : ''}</dd>
+                <dt>Description</dt>
+                <dd>{caseData.short_description || '—'}</dd>
+                <dt>Priority</dt>
+                <dd>{caseData.priority_level ? caseData.priority_level.charAt(0).toUpperCase() + caseData.priority_level.slice(1) : '—'}</dd>
+                <dt>Jurisdiction</dt>
+                <dd>{[caseData.jurisdiction_country, caseData.jurisdiction_region, caseData.jurisdiction_county_state].filter(Boolean).join(' / ') || '—'}</dd>
+                <dt>Confidentiality</dt>
+                <dd>{caseData.confidentiality_level ? (CONFIDENTIALITY_LABELS[caseData.confidentiality_level] || caseData.confidentiality_level) : '—'}</dd>
+                <dt>Estimated duration</dt>
+                <dd>{caseData.estimated_duration ? (DURATION_LABELS[caseData.estimated_duration] || caseData.estimated_duration) : '—'}</dd>
+                <dt>Preferred format</dt>
+                <dd>{caseData.preferred_format?.length ? caseData.preferred_format.map((f) => PREFERRED_FORMAT_LABELS[f] || f).join(', ') : '—'}</dd>
+                {caseData.tags?.length > 0 && (
+                  <>
+                    <dt>Tags</dt>
+                    <dd><span className="case-tags">{caseData.tags.map((t) => <span key={t} className="tag">{t}</span>)}</span></dd>
+                  </>
+                )}
+              </dl>
             </section>
-          )}
-          {caseData.timeline?.length > 0 && (
-            <section>
-              <h3>Timeline</h3>
-              <ul className="timeline-list">
-                {caseData.timeline.map((e, i) => (
-                  <li key={i}>
-                    <strong>{e.event_date}</strong>: {e.description}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {caseData.external_links?.length > 0 && (
-            <section>
-              <h3>External Links</h3>
-              <ul className="link-list">
-                {caseData.external_links.map((l, i) => (
-                  <li key={i}>
-                    <a href={l.url} target="_blank" rel="noopener noreferrer">{l.label || l.url}</a>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          <section>
-            <h3>Documents</h3>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const input = e.target.querySelector('input[type="file"]');
-              if (!input?.files?.[0]) return;
-              setUploadingDoc(true);
-              try {
-                const fd = new FormData();
-                fd.append('file', input.files[0]);
-                fd.append('case_id', id);
-                const { data } = await documents.upload(fd);
-                setCaseDocuments((prev) => [...prev, { id: data.id, file_name: data.filename, mime_type: input.files[0].type || 'application/octet-stream', created_at: new Date().toISOString() }]);
-                input.value = '';
-              } catch (err) {
-                alert(err.response?.data?.detail || 'Upload failed');
-              } finally {
-                setUploadingDoc(false);
-              }
-            }}>
-              <input type="file" accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.pptx,.ppt,.png,.jpg,.jpeg,.gif,.csv" />
-              <button type="submit" disabled={uploadingDoc}>{uploadingDoc ? 'Uploading...' : 'Upload'}</button>
-            </form>
-            {caseDocuments.length > 0 && (
-              <ul className="doc-list case-detail-docs">
-                {caseDocuments.map((d) => (
-                  <li key={d.id}>
-                    <button type="button" className="doc-link" onClick={() => handleDocumentClick(d)} title="Click to view or download">
-                      <FileText size={14} />
-                      <span>{d.file_name}</span>
-                      <Download size={12} className="doc-download-icon" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+
+            {caseData.detailed_narrative && (
+              <section className="case-info-section">
+                <h3>Detailed narrative</h3>
+                <p className="case-narrative">{caseData.detailed_narrative}</p>
+              </section>
             )}
-          </section>
-          {sessionList.length > 0 && (
-            <section>
-              <h3>Session History</h3>
-              <ul className="session-list">
-                {sessionList.map((s) => (
-                  <li key={s.id}>
-                    <span>{new Date(s.created_at).toLocaleString()}</span>
-                    <span className={`status-badge ${s.status?.toLowerCase()}`}>{s.status}</span>
-                  </li>
-                ))}
-              </ul>
+
+            {((caseData.desired_outcome && caseData.desired_outcome.trim()) || (caseData.desired_outcome_structured?.length > 0)) && (
+              <section className="case-info-section">
+                <h3>Desired outcome</h3>
+                {caseData.desired_outcome && <p>{caseData.desired_outcome}</p>}
+                {caseData.desired_outcome_structured?.length > 0 && (
+                  <ul className="outcome-list">
+                    {caseData.desired_outcome_structured.map((o) => (
+                      <li key={o}>{DESIRED_OUTCOME_LABELS[o] || o}</li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )}
+
+            {caseData.applicable_laws && (
+              <section className="case-info-section">
+                <h3>Applicable laws</h3>
+                <p>{caseData.applicable_laws}</p>
+              </section>
+            )}
+
+            {caseData.cultural_considerations && (
+              <section className="case-info-section">
+                <h3>Cultural considerations</h3>
+                <p>{caseData.cultural_considerations}</p>
+              </section>
+            )}
+
+            {caseData.parties?.length > 0 && (
+              <section className="case-info-section">
+                <h3>Parties involved</h3>
+                <ul className="party-list">
+                  {caseData.parties.map((p, i) => (
+                    <li key={i} className="party-item">
+                      <strong>{p.name}</strong> <span className="party-role">({p.role})</span>
+                      {(p.email || p.phone || p.whatsapp || p.country_location) && (
+                        <div className="party-contact">
+                          {p.email && <span>{p.email}</span>}
+                          {p.phone && <span>{p.phone}</span>}
+                          {p.whatsapp && <span>WhatsApp: {p.whatsapp}</span>}
+                          {p.country_location && <span>{p.country_location}</span>}
+                          {p.language_preference && <span>Lang: {p.language_preference}</span>}
+                          {p.relationship_to_case && <span>Relationship: {p.relationship_to_case}</span>}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {caseData.timeline?.length > 0 && (
+              <section className="case-info-section">
+                <h3>Timeline</h3>
+                <ul className="timeline-list">
+                  {caseData.timeline.map((e, i) => (
+                    <li key={i}>
+                      <strong>{e.event_date}</strong>: {e.description}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {caseData.external_links?.length > 0 && (
+              <section className="case-info-section">
+                <h3>External links</h3>
+                <ul className="link-list">
+                  {caseData.external_links.map((l, i) => (
+                    <li key={i}>
+                      <a href={l.url} target="_blank" rel="noopener noreferrer">{l.label || l.url}</a>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {caseData.additional_notes && (
+              <section className="case-info-section">
+                <h3>Additional notes</h3>
+                <p>{caseData.additional_notes}</p>
+              </section>
+            )}
+
+            {sessionList.length > 0 && (
+              <section className="case-info-section">
+                <h3>Session history</h3>
+                <ul className="session-list">
+                  {sessionList.map((s) => (
+                    <li key={s.id}>
+                      <span>{new Date(s.created_at).toLocaleString()}</span>
+                      <span className={`status-badge ${s.status?.toLowerCase()}`}>{s.status}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <section className="case-actions">
+              <button onClick={startSession} className="primary btn-start-session">Start Mediation Session</button>
             </section>
-          )}
-          <section>
-            <button onClick={startSession} className="primary">Start Mediation Session</button>
-          </section>
-        </>
+          </main>
+        </div>
       )}
 
       {showConsentModal && (
