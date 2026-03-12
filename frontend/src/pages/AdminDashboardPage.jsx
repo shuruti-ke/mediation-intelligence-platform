@@ -95,6 +95,8 @@ export default function AdminDashboardPage() {
   const [userStatusFilter, setUserStatusFilter] = useState('');
   const [usersSkip, setUsersSkip] = useState(0);
   const [userActionsOpen, setUserActionsOpen] = useState(null);
+  const [editUserOpen, setEditUserOpen] = useState(false);
+  const [editUserForm, setEditUserForm] = useState({ display_name: '', email: '', phone: '', country: '', assigned_mediator_id: '', status: '', is_active: true });
   const navigate = useNavigate();
 
   const DATE_RANGES = [
@@ -308,6 +310,43 @@ export default function AdminDashboardPage() {
       if (tab === 'trainees') usersApi.list({ role: 'trainee' }).then(({ data }) => setUsers(data || []));
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to create trainee');
+    }
+  };
+
+  const openEditUser = (u) => {
+    setEditUserForm({
+      display_name: u.display_name || '',
+      email: u.email || '',
+      phone: u.phone || '',
+      country: u.country || 'KE',
+      assigned_mediator_id: u.assigned_mediator_id || '',
+      status: u.status || 'active',
+      is_active: u.is_active ?? true,
+    });
+    setEditUserOpen(true);
+  };
+
+  const handleEditUser = async (e) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+    try {
+      const payload = {
+        display_name: editUserForm.display_name || undefined,
+        email: editUserForm.email || undefined,
+        phone: editUserForm.phone || undefined,
+        country: editUserForm.country || undefined,
+        status: editUserForm.status || undefined,
+        is_active: editUserForm.is_active,
+      };
+      if (selectedUser.role === 'client_individual' || selectedUser.role === 'client_corporate') {
+        payload.assigned_mediator_id = editUserForm.assigned_mediator_id || null;
+      }
+      const { data } = await usersApi.update(selectedUser.id, payload);
+      setSelectedUser(data);
+      setUsers(users.map((u) => (u.id === selectedUser.id ? data : u)));
+      setEditUserOpen(false);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to update user');
     }
   };
 
@@ -750,14 +789,15 @@ export default function AdminDashboardPage() {
                     <p className="split-view-detail-id">{selectedUser.user_id || '—'}</p>
                     <div className="split-view-detail-actions">
                       <span className={`badge ${STATUS_BADGES[selectedUser.status]?.class || ''}`}>{STATUS_BADGES[selectedUser.status]?.label || selectedUser.status}</span>
-                      <button className="btn-sm" onClick={() => { setReassignUser(selectedUser); setReassignForm({ mediator_id: selectedUser.assigned_mediator_id || '', reason: '', note: '', notify: true }); setReassignOpen(true); }}>Edit</button>
+                      <button className="btn-sm" onClick={() => openEditUser(selectedUser)}>Edit</button>
                       <div className="dropdown-wrap">
                         <button type="button" className="btn-sm btn-icon" onClick={() => setUserActionsOpen(userActionsOpen === selectedUser.id ? null : selectedUser.id)}>
                           <MoreVertical size={18} />
                         </button>
                         {userActionsOpen === selectedUser.id && (
                           <div className="dropdown-menu">
-                            <button type="button" onClick={() => { setReassignUser(selectedUser); setReassignForm({ mediator_id: selectedUser.assigned_mediator_id || '', reason: '', note: '', notify: true }); setReassignOpen(true); setUserActionsOpen(null); }}>Assign to Case</button>
+                            <button type="button" onClick={() => { openEditUser(selectedUser); setUserActionsOpen(null); }}>Edit User</button>
+                            <button type="button" onClick={() => { setReassignUser(selectedUser); setReassignForm({ mediator_id: selectedUser.assigned_mediator_id || '', reason: '', note: '', notify: true }); setReassignOpen(true); setUserActionsOpen(null); }}>Reassign Mediator</button>
                             <button type="button" onClick={() => setUserActionsOpen(null)}>Send Message</button>
                             <button type="button" onClick={() => setUserActionsOpen(null)}>Reset Password</button>
                             <button type="button" onClick={() => setUserActionsOpen(null)}>Deactivate Account</button>
@@ -1182,6 +1222,92 @@ export default function AdminDashboardPage() {
               <div className="modal-actions">
                 <button type="button" onClick={() => setAddTraineeOpen(false)}>Cancel</button>
                 <button type="submit" className="primary">Create Trainee</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editUserOpen && selectedUser && (
+        <div className="modal-overlay" onClick={() => setEditUserOpen(false)}>
+          <div className="modal-card modal-intake" onClick={e => e.stopPropagation()}>
+            <h3>Edit User – {selectedUser.display_name || selectedUser.email}</h3>
+            <form onSubmit={handleEditUser} className="intake-form">
+              <label>
+                Full name
+                <input
+                  type="text"
+                  placeholder="Full name"
+                  value={editUserForm.display_name}
+                  onChange={e => setEditUserForm({ ...editUserForm, display_name: e.target.value })}
+                />
+              </label>
+              <label>
+                Email
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={editUserForm.email}
+                  onChange={e => setEditUserForm({ ...editUserForm, email: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Phone
+                <input
+                  type="tel"
+                  placeholder="Phone"
+                  value={editUserForm.phone}
+                  onChange={e => setEditUserForm({ ...editUserForm, phone: e.target.value })}
+                />
+              </label>
+              <label>
+                Country
+                <select
+                  value={editUserForm.country}
+                  onChange={e => setEditUserForm({ ...editUserForm, country: e.target.value })}
+                >
+                  {COUNTRIES.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </label>
+              {(selectedUser.role === 'client_individual' || selectedUser.role === 'client_corporate') && (
+                <label>
+                  Assigned Mediator
+                  <select
+                    value={editUserForm.assigned_mediator_id}
+                    onChange={e => setEditUserForm({ ...editUserForm, assigned_mediator_id: e.target.value })}
+                  >
+                    <option value="">Unassigned</option>
+                    {mediators.map((m) => (
+                      <option key={m.id} value={m.id}>{m.display_name || m.email}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <label>
+                Status
+                <select
+                  value={editUserForm.status}
+                  onChange={e => setEditUserForm({ ...editUserForm, status: e.target.value })}
+                >
+                  <option value="active">Active</option>
+                  <option value="pending">Pending</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={editUserForm.is_active}
+                  onChange={e => setEditUserForm({ ...editUserForm, is_active: e.target.checked })}
+                />
+                Account active
+              </label>
+              <div className="modal-actions">
+                <button type="button" onClick={() => setEditUserOpen(false)}>Cancel</button>
+                <button type="submit" className="primary">Save Changes</button>
               </div>
             </form>
           </div>
