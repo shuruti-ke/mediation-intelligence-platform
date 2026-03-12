@@ -382,27 +382,29 @@ export default function AdminDashboardPage() {
   };
 
   return (
-    <div className="dashboard admin-dashboard">
-      <header>
-        <div className="dashboard-brand">
-          <img src="/logo.png" alt="Mediation Intelligence Platform" className="dashboard-logo" />
-          <h1>Admin Dashboard</h1>
+    <div className="dashboard admin-dashboard admin-dashboard-split">
+      <aside className="admin-sidebar">
+        <div className="admin-sidebar-card">
+          <div className="admin-sidebar-brand">
+            <img src="/logo.png" alt="Mediation Intelligence Platform" className="dashboard-logo" />
+            <h1>Admin Dashboard</h1>
+          </div>
+          <nav className="admin-sidebar-nav">
+            <button className={tab === 'dashboard' ? 'nav-active' : ''} onClick={() => setTab('dashboard')}><LayoutDashboard size={16} /> Dashboard</button>
+            <button className={tab === 'cases' ? 'nav-active' : ''} onClick={() => setTab('cases')}><FolderOpen size={16} /> Cases</button>
+            <button className={tab === 'users' ? 'nav-active' : ''} onClick={() => setTab('users')}><Users size={16} /> Users{pendingApprovals.length > 0 && <span className="nav-badge">{pendingApprovals.length}</span>}</button>
+            <button className={tab === 'approvals' ? 'nav-active' : ''} onClick={() => setTab('approvals')}><UserPlus size={16} /> Approvals{pendingApprovals.length > 0 && <span className="nav-badge">{pendingApprovals.length}</span>}</button>
+            <button className={tab === 'tenants' ? 'nav-active' : ''} onClick={() => setTab('tenants')}><Building2 size={16} /> Tenants</button>
+            <button className={tab === 'orgkb' ? 'nav-active' : ''} onClick={() => setTab('orgkb')}><BookOpen size={16} /> Org KB</button>
+            <button className={tab === 'trainees' ? 'nav-active' : ''} onClick={() => setTab('trainees')}><GraduationCap size={16} /> Trainees</button>
+            <button className={tab === 'audit' ? 'nav-active' : ''} onClick={() => setTab('audit')}><FileText size={16} /> Audit Log</button>
+            <Link to="/admin/training-academy" className="nav-training-academy"><Sparkles size={16} /> Training Academy</Link>
+            <Link to="/calendar"><Calendar size={16} /> Calendar</Link>
+            <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><LogOut size={16} /> Sign out</Link>
+          </nav>
         </div>
-        <nav>
-          <button className={tab === 'dashboard' ? 'nav-active' : ''} onClick={() => setTab('dashboard')}><LayoutDashboard size={16} /> Dashboard</button>
-          <button className={tab === 'cases' ? 'nav-active' : ''} onClick={() => setTab('cases')}><FolderOpen size={16} /> Cases</button>
-          <button className={tab === 'users' ? 'nav-active' : ''} onClick={() => setTab('users')}><Users size={16} /> Users{pendingApprovals.length > 0 && <span className="nav-badge">{pendingApprovals.length}</span>}</button>
-          <button className={tab === 'approvals' ? 'nav-active' : ''} onClick={() => setTab('approvals')}><UserPlus size={16} /> Approvals{pendingApprovals.length > 0 && <span className="nav-badge">{pendingApprovals.length}</span>}</button>
-          <button className={tab === 'tenants' ? 'nav-active' : ''} onClick={() => setTab('tenants')}><Building2 size={16} /> Tenants</button>
-          <button className={tab === 'orgkb' ? 'nav-active' : ''} onClick={() => setTab('orgkb')}><BookOpen size={16} /> Org KB</button>
-          <button className={tab === 'trainees' ? 'nav-active' : ''} onClick={() => setTab('trainees')}><GraduationCap size={16} /> Trainees</button>
-          <button className={tab === 'audit' ? 'nav-active' : ''} onClick={() => setTab('audit')}><FileText size={16} /> Audit Log</button>
-          <Link to="/admin/training-academy" className="nav-training-academy"><Sparkles size={16} /> Training Academy</Link>
-          <Link to="/calendar"><Calendar size={16} /> Calendar</Link>
-          <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><LogOut size={16} /> Sign out</Link>
-        </nav>
-      </header>
-
+      </aside>
+      <main className="admin-main">
       {tab === 'dashboard' && (
         <section className="admin-dashboard-section">
           <div className="dashboard-controls">
@@ -1171,6 +1173,8 @@ export default function AdminDashboardPage() {
           )}
         </section>
       )}
+
+      </main>
 
       {onboardOpen && (
         <div className="modal-overlay" onClick={() => setOnboardOpen(false)}>
