@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { FileText, Download } from 'lucide-react';
 import { cases, sessions, recordings, caucus, documents } from '../api/client';
 import JitsiEmbed from '../components/JitsiEmbed';
 
@@ -27,7 +28,10 @@ export default function CaseDetailPage() {
   const [caseDocuments, setCaseDocuments] = useState([]);
   const [uploadingDoc, setUploadingDoc] = useState(false);
 
-  const loadCase = () => cases.get(id).then(({ data }) => setCaseData(data)).catch(() => setCaseData(null));
+  const loadCase = () => cases.get(id).then(({ data }) => {
+    setCaseData(data);
+    setCaseDocuments(data.documents || []);
+  }).catch(() => setCaseData(null));
   const loadSessions = () => sessions.listForCase(id).then(({ data }) => setSessionList(data)).catch(() => setSessionList([]));
 
   useEffect(() => {
@@ -101,6 +105,25 @@ export default function CaseDetailPage() {
       setIsRecording(false);
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to stop recording');
+    }
+  };
+
+  const handleDocumentClick = async (doc) => {
+    try {
+      const { data } = await documents.download(doc.id);
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.file_name || 'document';
+      const isPdf = (doc.mime_type || '').includes('pdf');
+      if (isPdf) {
+        window.open(url, '_blank');
+      } else {
+        a.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to download');
     }
   };
 
@@ -213,7 +236,8 @@ export default function CaseDetailPage() {
                 const fd = new FormData();
                 fd.append('file', input.files[0]);
                 fd.append('case_id', id);
-                await documents.upload(fd);
+                const { data } = await documents.upload(fd);
+                setCaseDocuments((prev) => [...prev, { id: data.id, file_name: data.filename, mime_type: input.files[0].type || 'application/octet-stream', created_at: new Date().toISOString() }]);
                 input.value = '';
               } catch (err) {
                 alert(err.response?.data?.detail || 'Upload failed');
@@ -221,9 +245,22 @@ export default function CaseDetailPage() {
                 setUploadingDoc(false);
               }
             }}>
-              <input type="file" accept=".pdf,.docx,.doc,.txt" />
-              <button type="submit" disabled={uploadingDoc}>Upload</button>
+              <input type="file" accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.pptx,.ppt,.png,.jpg,.jpeg,.gif,.csv" />
+              <button type="submit" disabled={uploadingDoc}>{uploadingDoc ? 'Uploading...' : 'Upload'}</button>
             </form>
+            {caseDocuments.length > 0 && (
+              <ul className="doc-list case-detail-docs">
+                {caseDocuments.map((d) => (
+                  <li key={d.id}>
+                    <button type="button" className="doc-link" onClick={() => handleDocumentClick(d)} title="Click to view or download">
+                      <FileText size={14} />
+                      <span>{d.file_name}</span>
+                      <Download size={12} className="doc-download-icon" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
           {sessionList.length > 0 && (
             <section>

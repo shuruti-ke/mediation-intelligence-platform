@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
-import { cases, calendarApi } from '../api/client';
+import { ChevronDown, ChevronRight, Plus, Trash2, Upload, FileText, Download } from 'lucide-react';
+import { cases, calendarApi, documents } from '../api/client';
 
 const CASE_TYPES = [
   { value: 'family', label: 'Family' },
@@ -168,6 +168,8 @@ export default function NewCasePage({ edit }) {
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(!!edit);
+  const [caseDocuments, setCaseDocuments] = useState([]);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
 
   const country = form.jurisdiction_country || 'KE';
 
@@ -176,6 +178,7 @@ export default function NewCasePage({ edit }) {
       cases.get(id)
         .then(({ data }) => {
           setCaseId(data.id);
+          setCaseDocuments(data.documents || []);
           setForm({
             internal_reference: data.internal_reference || '',
             title: data.title || '',
@@ -246,6 +249,7 @@ export default function NewCasePage({ edit }) {
       const payload = buildPayload({ ...form, status: 'draft' });
       const { data } = await cases.create(payload);
       setCaseId(data.id);
+      setCaseDocuments([]);
       setLastSaved(new Date());
       setDirty(false);
     } catch (err) {
@@ -325,6 +329,44 @@ export default function NewCasePage({ edit }) {
     const arr = form[field] || [];
     const next = arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value];
     update({ [field]: next });
+  };
+
+  const handleUploadDocument = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !caseId) return;
+    setUploadingDoc(true);
+    setError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('case_id', caseId);
+      const { data } = await documents.upload(fd);
+      setCaseDocuments((prev) => [...prev, { id: data.id, file_name: data.filename, mime_type: file.type || 'application/octet-stream', created_at: new Date().toISOString() }]);
+      if (e.target) e.target.value = '';
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to upload document');
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleDocumentClick = async (doc) => {
+    try {
+      const { data } = await documents.download(doc.id);
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.file_name || 'document';
+      const isPdf = (doc.mime_type || '').includes('pdf');
+      if (isPdf) {
+        window.open(url, '_blank');
+      } else {
+        a.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to download');
+    }
   };
 
   const regions = locations?.regions || [];
@@ -561,6 +603,34 @@ export default function NewCasePage({ edit }) {
                   </div>
                 ))}
                 <button type="button" className="add-row" onClick={addLink}><Plus size={14} /> Add link</button>
+              </div>
+              <div className="documents-block">
+                <h4>Documents</h4>
+                {caseId ? (
+                  <>
+                    <div className="doc-upload-row">
+                      <label className="upload-file-label">
+                        <input type="file" accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.pptx,.ppt,.png,.jpg,.jpeg,.gif,.csv" onChange={handleUploadDocument} disabled={uploadingDoc} className="upload-file-hidden" />
+                        <span className="upload-file-btn"><Upload size={16} /> {uploadingDoc ? 'Uploading...' : 'Choose file to upload'}</span>
+                      </label>
+                    </div>
+                    {caseDocuments.length > 0 && (
+                      <ul className="doc-list">
+                        {caseDocuments.map((d) => (
+                          <li key={d.id}>
+                            <button type="button" className="doc-link" onClick={() => handleDocumentClick(d)} title="Click to view or download">
+                              <FileText size={14} />
+                              <span>{d.file_name}</span>
+                              <Download size={12} className="doc-download-icon" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                ) : (
+                  <p className="doc-hint">Create a draft first to upload documents.</p>
+                )}
               </div>
               <label>
                 Additional notes

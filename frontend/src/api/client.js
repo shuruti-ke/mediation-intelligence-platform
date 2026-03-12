@@ -70,7 +70,9 @@ export const billing = {
 
 export const documents = {
   upload: (formData) => api.post('/documents/upload', formData),
+  listByCase: (caseId) => api.get('/documents', { params: { case_id: caseId } }),
   get: (id) => api.get(`/documents/${id}`),
+  download: (id) => api.get(`/documents/${id}/download`, { responseType: 'blob' }),
 };
 
 export const knowledge = {

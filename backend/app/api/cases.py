@@ -12,6 +12,7 @@ from app.api.deps import get_current_user, require_role
 from app.core.database import get_db
 from app.models.tenant import User
 from app.models.case import Case, CaseTimelineEvent, CaseParty, CaseExternalLink
+from app.models.document import Document
 from app.schemas.case import CaseCreateRich, CaseUpdate, CaseResponse
 from app.services.audit import log_audit
 
@@ -226,6 +227,9 @@ async def get_case(
             selectinload(Case.external_links),
         )
     )
+    # Load case documents
+    docs_result = await db.execute(select(Document).where(Document.case_id == case_id).order_by(Document.created_at.desc()))
+    case_docs = docs_result.scalars().all()
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -246,4 +250,8 @@ async def get_case(
         for p in case.parties
     ]
     resp["external_links"] = [{"url": l.url, "label": l.label} for l in case.external_links]
+    resp["documents"] = [
+        {"id": str(d.id), "file_name": d.file_name, "mime_type": d.mime_type, "created_at": d.created_at.isoformat()}
+        for d in case_docs
+    ]
     return resp

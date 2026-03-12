@@ -3,7 +3,7 @@ import uuid
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +20,38 @@ from app.services.document_parser import extract_text
 router = APIRouter(prefix="/documents", tags=["documents"])
 settings = get_settings()
 UPLOAD_DIR = Path(settings.storage_path)
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt"}
+ALLOWED_EXTENSIONS = {
+    ".pdf", ".docx", ".doc", ".txt",
+    ".xlsx", ".xls", ".pptx", ".ppt",
+    ".png", ".jpg", ".jpeg", ".gif", ".csv",
+}
+
+
+@router.get("")
+async def list_documents(
+    case_id: uuid.UUID | None = Query(None, description="Filter by case"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list:
+    """List documents, optionally filtered by case_id."""
+    q = select(Document)
+    if user.tenant_id:
+        q = q.where(Document.tenant_id == user.tenant_id)
+    if case_id:
+        q = q.where(Document.case_id == case_id)
+    q = q.order_by(Document.created_at.desc())
+    result = await db.execute(q)
+    docs = result.scalars().all()
+    return [
+        {
+            "id": str(d.id),
+            "file_name": d.file_name,
+            "mime_type": d.mime_type,
+            "case_id": str(d.case_id) if d.case_id else None,
+            "created_at": d.created_at.isoformat(),
+        }
+        for d in docs
+    ]
 
 
 @router.post("/upload")
@@ -107,4 +138,9 @@ async def download_document(
         raise HTTPException(status_code=403, detail="Access denied")
     if not os.path.exists(doc.storage_path):
         raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(doc.storage_path, filename=doc.file_name)
+    return FileResponse(
+        doc.storage_path,
+        filename=doc.file_name,
+        media_type=doc.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{doc.file_name}"'},
+    )

@@ -1631,6 +1631,38 @@ a:hover {
   color: var(--color-primary);
 }
 
+.case-detail .case-detail-docs {
+  margin-top: 0.75rem;
+}
+
+.case-detail .doc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--color-primary);
+  text-align: left;
+  width: 100%;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.case-detail .doc-link:hover {
+  background: #f5f3ff;
+  border-color: var(--color-primary-light);
+}
+
+.case-detail .doc-link span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .case-detail header button {
   padding: 0.5rem 1rem;
   background: #e2e8f0;
@@ -2075,6 +2107,71 @@ a:hover {
 .new-case-page .form-actions button:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+.new-case-page .documents-block {
+  margin-top: 1rem;
+}
+
+.new-case-page .documents-block h4 {
+  margin-bottom: 0.5rem;
+}
+
+.new-case-page .doc-upload-row {
+  margin-bottom: 0.75rem;
+}
+
+.new-case-page .upload-file-label {
+  cursor: pointer;
+  display: inline-block;
+}
+
+.new-case-page .doc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.new-case-page .doc-list li {
+  margin: 0.25rem 0;
+}
+
+.new-case-page .doc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--color-primary);
+  text-align: left;
+  width: 100%;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.new-case-page .doc-link:hover {
+  background: #f5f3ff;
+  border-color: var(--color-primary-light);
+}
+
+.new-case-page .doc-link span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.new-case-page .doc-download-icon {
+  opacity: 0.7;
+}
+
+.new-case-page .doc-hint {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin: 0;
 }
 
 /* Public pages - Vibrant Orange & Cream */

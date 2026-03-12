@@ -2,7 +2,7 @@
 from datetime import datetime, date
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class CaseTimelineEventCreate(BaseModel):
@@ -86,6 +86,17 @@ class CaseUpdate(BaseModel):
     external_links: list[CaseExternalLinkCreate] | None = None
 
 
+def _normalize_jsonb_list(v, key: str):
+    """Convert {'items': [...]} or {'formats': [...]} to list for response validation."""
+    if v is None:
+        return None
+    if isinstance(v, list):
+        return v
+    if isinstance(v, dict) and key in v and isinstance(v[key], list):
+        return v[key]
+    return None
+
+
 class CaseResponse(BaseModel):
     id: UUID
     tenant_id: UUID
@@ -117,6 +128,21 @@ class CaseResponse(BaseModel):
     estimated_duration: str | None = None
     preferred_format: list | None = None
     last_auto_save_at: datetime | None = None
+
+    @field_validator("desired_outcome_structured", mode="before")
+    @classmethod
+    def _normalize_items(cls, v):
+        return _normalize_jsonb_list(v, "items") if v is not None else v
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def _normalize_tags(cls, v):
+        return _normalize_jsonb_list(v, "tags") if v is not None else v
+
+    @field_validator("preferred_format", mode="before")
+    @classmethod
+    def _normalize_formats(cls, v):
+        return _normalize_jsonb_list(v, "formats") if v is not None else v
 
     class Config:
         from_attributes = True
