@@ -1,4 +1,5 @@
 """Knowledge base - org vs mediator, ingest with visibility."""
+import asyncio
 import os
 import re
 from pathlib import Path
@@ -11,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Q
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, and_
+from sqlalchemy import select, or_, and_, text
 
 from app.api.deps import get_current_user, require_role
 from app.core.config import get_settings
@@ -84,7 +85,7 @@ async def _web_search_duckduckgo(search_q: str, max_results: int = 8) -> list[di
     """Search via DuckDuckGo HTML. Returns title, url, snippet."""
     SCRAPE_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     try:
-        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=12, follow_redirects=True) as client:
             r = await client.get(
                 "https://html.duckduckgo.com/html/",
                 params={"q": quote_plus(search_q)},
@@ -129,16 +130,15 @@ async def _web_search_books(query: str, max_results: int = 8) -> list[dict]:
 
 
 async def _web_search_resources(query: str, max_results: int = 10) -> list[dict]:
-    """Search for PDFs, docs, guides that can be added to the knowledge base."""
-    results = []
-    seen_urls = set()
-    for search_q in [f"{query} mediation PDF", f"{query} mediation guide filetype:pdf", f"{query} mediation handbook"]:
-        hits = await _web_search_duckduckgo(search_q, max_results=4)
+    """Search for PDFs, docs, guides. Runs 3 queries in parallel."""
+    search_queries = [f"{query} mediation PDF", f"{query} mediation guide filetype:pdf", f"{query} mediation handbook"]
+    hits_list = await asyncio.gather(*[_web_search_duckduckgo(q, 4) for q in search_queries])
+    results, seen_urls = [], set()
+    for hits in hits_list:
         for r in hits:
             url = r.get("url", "")
             if url and url not in seen_urls:
                 seen_urls.add(url)
-                # Infer type from URL
                 rtype = "pdf" if ".pdf" in url.lower() else "doc" if any(x in url.lower() for x in [".doc", ".docx"]) else "article"
                 results.append({"title": r.get("title", ""), "url": url, "snippet": r.get("snippet", ""), "type": rtype})
                 if len(results) >= max_results:
@@ -147,11 +147,11 @@ async def _web_search_resources(query: str, max_results: int = 10) -> list[dict]
 
 
 async def _web_search_general(query: str, max_results: int = 10) -> list[dict]:
-    """Search for general mediation info on the topic. Tries multiple queries for reliability."""
-    seen_urls = set()
-    results = []
-    for search_q in [f"{query} mediation", f"{query} mediation Kenya", f"{query} dispute resolution"]:
-        hits = await _web_search_duckduckgo(search_q, max_results=6)
+    """Search for general mediation info. Runs queries in parallel; single query often enough."""
+    search_queries = [f"{query} mediation", f"{query} mediation Kenya"]
+    hits_list = await asyncio.gather(*[_web_search_duckduckgo(q, 6) for q in search_queries])
+    results, seen_urls = [], set()
+    for hits in hits_list:
         for r in hits:
             url = r.get("url", "")
             if url and url not in seen_urls:
@@ -534,7 +534,6 @@ async def query_knowledge(
             KnowledgeBaseDocument.owner_id == user.id,
         )
 
-    # Try full phrase first, then word-based search for better recall
     q_stripped = data.query.strip()
     words = _search_words(q_stripped)
     base = (
@@ -542,13 +541,22 @@ async def query_knowledge(
         .join(KnowledgeBaseDocument, KnowledgeBaseChunk.document_id == KnowledgeBaseDocument.id)
         .where(scope_filter)
     )
-    # Match full phrase OR any meaningful word
-    if words:
-        phrase_filter = KnowledgeBaseChunk.content.ilike(f"%{q_stripped}%")
-        word_filters = [KnowledgeBaseChunk.content.ilike(f"%{w}%") for w in words]
-        base = base.where(or_(phrase_filter, *word_filters))
-    else:
-        base = base.where(KnowledgeBaseChunk.content.ilike(f"%{q_stripped}%"))
+    fts_query = re.sub(r"[^\w\s]", " ", q_stripped).strip()[:200]
+    use_fts = len(fts_query) >= 2
+    if use_fts:
+        try:
+            base = base.where(
+                text("to_tsvector('english', knowledge_base_chunks.content) @@ plainto_tsquery('english', :q)").bindparams(q=fts_query)
+            )
+        except Exception:
+            use_fts = False
+    if not use_fts:
+        if words:
+            phrase_filter = KnowledgeBaseChunk.content.ilike(f"%{q_stripped}%")
+            word_filters = [KnowledgeBaseChunk.content.ilike(f"%{w}%") for w in words]
+            base = base.where(or_(phrase_filter, *word_filters))
+        else:
+            base = base.where(KnowledgeBaseChunk.content.ilike(f"%{q_stripped}%"))
 
     result = await db.execute(base.limit(10))
     rows = result.all()
@@ -562,19 +570,29 @@ async def query_knowledge(
             citations.append({"document_title": doc.title, "snippet": chunk.content[:200]})
         context_parts.append(chunk.content)
 
-    # Fetch suggested resources (PDFs, docs, books) for all queries
-    suggested_resources = await _web_search_resources(data.query, max_results=8)
-    book_results = await _web_search_books(data.query, max_results=4)
-    for r in book_results:
+    # Run in parallel: relevance check, web search (for low-KB path), suggested resources
+    async def _gather_aux():
+        tasks = []
+        if context_parts and settings.openai_api_key:
+            tasks.append(("relevance", _score_relevance(data.query, "\n".join(context_parts[:3]), settings.openai_api_key)))
+        tasks.append(("web", _web_search_general(data.query, max_results=10)))
+        tasks.append(("suggested", _web_search_resources(data.query, max_results=8)))
+        tasks.append(("books", _web_search_books(data.query, max_results=4)))
+        results = await asyncio.gather(*[t[1] for t in tasks], return_exceptions=True)
+        out = {}
+        for i, (name, _) in enumerate(tasks):
+            out[name] = results[i] if not isinstance(results[i], Exception) else (50 if name == "relevance" else [])
+        return out
+
+    aux = await _gather_aux()
+    context_relevance = aux.get("relevance", 50)
+    web_results = aux.get("web", [])
+    suggested_resources = aux.get("suggested", [])
+    for r in aux.get("books", []):
         if r.get("url") and not any(s["url"] == r["url"] for s in suggested_resources):
             suggested_resources.append({"title": r["title"], "url": r["url"], "snippet": r.get("snippet", ""), "type": "book"})
         if len(suggested_resources) >= 10:
             break
-
-    # Relevance check: does KB context actually address the question?
-    context_relevance = 50
-    if context_parts and settings.openai_api_key:
-        context_relevance = await _score_relevance(data.query, "\n".join(context_parts[:3]), settings.openai_api_key)
     use_web_search = not context_parts or context_relevance < 60
 
     if context_parts and not use_web_search:
@@ -584,9 +602,9 @@ async def query_knowledge(
             try:
                 import httpx
                 sys_prompt = """Answer the user's question using the provided context when relevant. Cite document titles from the context.
-If the context does NOT adequately address the question, say so clearly and provide a helpful general explanation based on mediation best practices.
-NEVER quote or cite laws unless they appear verbatim in the context. If legal specifics are needed, direct to Kenya Law (new.kenyalaw.org) or a qualified legal professional.
-Be detailed and practical. For topics like employment disputes, explain process, key considerations, and best practices."""
+Focus on topic-specific information. Skip generic "what is mediation" or step-by-step process unless asked.
+NEVER quote or cite laws unless they appear verbatim in the context. Direct to Kenya Law (new.kenyalaw.org) or a qualified legal professional for specifics.
+Be concise and practical."""
                 async with httpx.AsyncClient() as client:
                     r = await client.post(
                         "https://api.openai.com/v1/chat/completions",
@@ -619,8 +637,7 @@ Be detailed and practical. For topics like employment disputes, explain process,
         answer_relevance = await _score_relevance(data.query, answer, settings.openai_api_key) if settings.openai_api_key else 50
         return {"answer": answer, "citations": citations, "suggested_resources": suggested_resources[:8], "context_relevance": context_relevance, "answer_relevance": answer_relevance, "source": "knowledge_base"}
 
-    # No docs found or low relevance: web search for detailed answer + suggested resources
-    web_results = await _web_search_general(data.query, max_results=10)
+    # No docs found or low relevance: use web_results from parallel fetch above
     web_context = "\n\n".join(
         [f"Source: {r.get('title','')} ({r.get('url','')})\n{r.get('snippet') or r.get('title','')}" for r in web_results if (r.get("snippet") or r.get("title"))]
     )
@@ -630,15 +647,15 @@ Be detailed and practical. For topics like employment disputes, explain process,
         try:
             import httpx
             if web_context:
-                sys_prompt = """You are a mediation expert. The user asked a question but no relevant documents were found in their knowledge base.
-Use the web search results below to provide a detailed, practical answer. Cover key concepts, process, best practices, and considerations.
-For legal topics (employment, family, etc.), explain general principles and direct to Kenya Law (new.kenyalaw.org) or qualified professionals for specifics.
-Be thorough and helpful. Format with clear sections if appropriate."""
+                sys_prompt = """You are a mediation expert. Use the web search results below to answer the user's question.
+FOCUS on topic-specific information: types of disputes, key concepts, best practices, and considerations for the specific topic (e.g. employment, family).
+DO NOT include generic content the user did not ask for: skip "what is mediation", "the mediation process", or step-by-step mediation procedures (preparation, opening statements, caucusing, etc.) unless the user explicitly asks.
+Be concise and practical. Include a brief conclusion and direct to Kenya Law (new.kenyalaw.org) or qualified professionals for legal specifics."""
                 user_content = f"Web search results:\n{web_context}\n\nQuestion: {data.query}"
             else:
-                sys_prompt = """You are a mediation expert. The user asked a question. Provide a detailed, practical answer based on mediation best practices.
-Cover key concepts, process, best practices, and considerations. For legal topics (employment, family, etc.), explain general principles and direct to Kenya Law (new.kenyalaw.org) or qualified professionals for specifics.
-Be thorough and helpful. Format with clear sections if appropriate."""
+                sys_prompt = """You are a mediation expert. Answer the user's question concisely.
+Focus on topic-specific concepts, best practices, and considerations. Skip generic "what is mediation" or step-by-step process unless asked.
+Direct to Kenya Law (new.kenyalaw.org) or qualified professionals for legal specifics."""
                 user_content = f"Question: {data.query}"
             async with httpx.AsyncClient() as client:
                 r = await client.post(

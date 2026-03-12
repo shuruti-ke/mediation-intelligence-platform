@@ -43,6 +43,19 @@ async def get_db():
             await session.close()
 
 
+async def migrate_kb_fts_index(conn):
+    """Add GIN index for full-text search on knowledge_base_chunks.content."""
+    try:
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_kb_chunk_content_fts "
+            "ON knowledge_base_chunks USING GIN (to_tsvector('english', content))"
+        ))
+        logger.info("Migration: ensured GIN FTS index on knowledge_base_chunks")
+    except Exception as e:
+        if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+            logger.warning("Migration kb_fts: %s", e)
+
+
 async def migrate_user_id_columns(conn):
     """Add user_id, approval_status, approval_rejection_reason to users if missing."""
     for col, sql in [
@@ -63,3 +76,4 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await migrate_user_id_columns(conn)
+        await migrate_kb_fts_index(conn)
