@@ -1,17 +1,22 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ComposedChart,
   Bar,
   Line,
+  LineChart,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Legend,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
 } from 'recharts';
-import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi } from '../api/client';
 
 const STATUS_BADGES = {
@@ -73,6 +78,42 @@ export default function AdminDashboardPage() {
   const [viewDocContent, setViewDocContent] = useState(null);
   const [addTraineeOpen, setAddTraineeOpen] = useState(false);
   const [traineeForm, setTraineeForm] = useState({ email: '', password: '', display_name: '' });
+  // Dashboard controls
+  const [dateRange, setDateRange] = useState(30);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [drillMode, setDrillMode] = useState(null);
+  const [drillData, setDrillData] = useState([]);
+  const [caseDistribution, setCaseDistribution] = useState([]);
+  const navigate = useNavigate();
+
+  const DATE_RANGES = [
+    { value: 7, label: '7 days' },
+    { value: 30, label: '30 days' },
+    { value: 90, label: '90 days' },
+    { value: 365, label: 'This Year' },
+  ];
+
+  const refreshDashboard = useCallback(() => {
+    setLoading(true);
+    const params = { days: dateRange };
+    Promise.allSettled([
+      analyticsApi.getDashboard(params).then(({ data }) => data),
+      analyticsApi.getTimeseries(Math.ceil(dateRange / 30) || 12).then(({ data }) => data),
+      analyticsApi.getMediators().then(({ data }) => data),
+      analyticsApi.getGeographic().then(({ data }) => data),
+      analyticsApi.getUnresolvedCases(dateRange).then(({ data }) => data),
+      analyticsApi.getCaseDistribution({ days: dateRange }).then(({ data }) => data),
+    ]).then(([a, ts, m, g, u, cd]) => {
+      setAnalytics(a.status === 'fulfilled' ? a.value : null);
+      setTimeseries(ts.status === 'fulfilled' ? ts.value || [] : []);
+      setMediatorPerformance(m.status === 'fulfilled' ? m.value || [] : []);
+      setGeographic(g.status === 'fulfilled' ? g.value || [] : []);
+      setUnresolved(u.status === 'fulfilled' ? u.value || [] : []);
+      setCaseDistribution(cd.status === 'fulfilled' ? cd.value || [] : []);
+      setLastUpdated(new Date());
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [dateRange]);
 
   useEffect(() => {
     if (tab === 'users') {
@@ -103,22 +144,78 @@ export default function AdminDashboardPage() {
         .catch(() => setUsers([]))
         .finally(() => setLoading(false));
     } else {
-      setLoading(true);
-      Promise.allSettled([
-        analyticsApi.getDashboard().then(({ data }) => data),
-        analyticsApi.getTimeseries(12).then(({ data }) => data),
-        analyticsApi.getMediators().then(({ data }) => data),
-        analyticsApi.getGeographic().then(({ data }) => data),
-        analyticsApi.getUnresolvedCases(30).then(({ data }) => data),
-      ]).then(([a, ts, m, g, u]) => {
-        setAnalytics(a.status === 'fulfilled' ? a.value : null);
-        setTimeseries(ts.status === 'fulfilled' ? ts.value || [] : []);
-        setMediatorPerformance(m.status === 'fulfilled' ? m.value || [] : []);
-        setGeographic(g.status === 'fulfilled' ? g.value || [] : []);
-        setUnresolved(u.status === 'fulfilled' ? u.value || [] : []);
-      }).catch(() => {}).finally(() => setLoading(false));
+      refreshDashboard();
     }
-  }, [tab]);
+  }, [tab, dateRange]);
+
+  useEffect(() => {
+    if (!autoRefresh || tab !== 'dashboard') return;
+    const id = setInterval(refreshDashboard, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [autoRefresh, tab]);
+
+  const openDrill = async (mode) => {
+    setDrillMode(mode);
+    try {
+      if (mode === 'active_cases') {
+        const { data } = await analyticsApi.getActiveCases({ days: dateRange });
+        setDrillData(data || []);
+      } else if (mode === 'new_users') {
+        const { data } = await analyticsApi.getNewUsers({ days: dateRange });
+        setDrillData(data || []);
+      } else {
+        setDrillData([]);
+      }
+    } catch {
+      setDrillData([]);
+    }
+  };
+
+  const exportToCsv = () => {
+    if (!analytics) return;
+    const rows = [
+      ['Metric', 'Value'],
+      ['Active Cases', analytics.active_cases ?? 0],
+      ['Total Cases', analytics.total_cases ?? 0],
+      ['Resolution Rate %', analytics.resolution_rate ?? 0],
+      ['Total Users', analytics.total_users ?? 0],
+      ['New Users', analytics.new_users_30d ?? 0],
+      ['Active Mediators', analytics.active_mediators ?? 0],
+      ['Training Completed', analytics.training_completed ?? 0],
+      ['Revenue (units)', (analytics.revenue_minor_units ?? 0) / 100],
+    ];
+    const csv = rows.map((r) => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `dashboard-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const TrendPill = ({ value, label }) => {
+    if (value == null || value === 0) return <span className="trend-pill neutral"><Minus size={12} /> —</span>;
+    const isUp = value > 0;
+    return (
+      <span className={`trend-pill ${isUp ? 'up' : 'down'}`}>
+        {isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+        {Math.abs(value)} vs prev
+      </span>
+    );
+  };
+
+  const KPI_CARD = ({ value, label, tooltip, trend, onClick }) => (
+    <div
+      className="widget-card widget-card-clickable"
+      onClick={() => onClick?.()}
+      title={tooltip}
+    >
+      <span className="widget-value">{value}</span>
+      <span className="widget-label">{label}</span>
+      {trend != null && <TrendPill value={trend} label={label} />}
+    </div>
+  );
 
   const handleToggleActive = async (u) => {
     try {
@@ -215,73 +312,137 @@ export default function AdminDashboardPage() {
 
       {tab === 'dashboard' && (
         <section className="admin-dashboard-section">
-          <h2 className="icon-text"><BarChart3 size={22} /> Analytics</h2>
+          <div className="dashboard-controls">
+            <h2 className="icon-text"><BarChart3 size={22} /> Analytics</h2>
+            <div className="controls-row">
+              <div className="date-range-picker">
+                <span className="control-label">Period:</span>
+                <select value={dateRange} onChange={(e) => setDateRange(Number(e.target.value))}>
+                  {DATE_RANGES.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="refresh-controls">
+                <label className="auto-refresh-toggle">
+                  <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
+                  Auto-refresh (5 min)
+                </label>
+                <button className="btn-refresh" onClick={refreshDashboard} disabled={loading} title="Refresh">
+                  <RefreshCw size={16} className={loading ? 'spin' : ''} /> Refresh
+                </button>
+                {lastUpdated && (
+                  <span className="last-updated">Updated {lastUpdated.toLocaleTimeString()}</span>
+                )}
+              </div>
+              <button className="btn-export" onClick={exportToCsv} disabled={!analytics}>
+                <Download size={16} /> Export CSV
+              </button>
+            </div>
+          </div>
           {loading ? <p>Loading...</p> : analytics ? (
             <>
               <div className="analytics-widgets">
-                <div className="widget-card">
-                  <span className="widget-value">{analytics.active_cases ?? 0}</span>
-                  <span className="widget-label">Active Cases</span>
-                </div>
-                <div className="widget-card">
-                  <span className="widget-value">{analytics.total_cases ?? 0}</span>
-                  <span className="widget-label">Total Cases</span>
-                </div>
-                <div className="widget-card">
-                  <span className="widget-value">{analytics.resolution_rate ?? 0}%</span>
-                  <span className="widget-label">Resolution Rate</span>
-                </div>
-                <div className="widget-card">
-                  <span className="widget-value">{analytics.total_users ?? 0}</span>
-                  <span className="widget-label">Total Users</span>
-                </div>
-                <div className="widget-card">
-                  <span className="widget-value">{analytics.new_users_30d ?? 0}</span>
-                  <span className="widget-label">New Users (30d)</span>
-                </div>
-                <div className="widget-card">
-                  <span className="widget-value">{analytics.active_mediators ?? 0}</span>
-                  <span className="widget-label">Active Mediators</span>
-                </div>
-                <div className="widget-card">
-                  <span className="widget-value">{analytics.training_completed ?? 0}</span>
-                  <span className="widget-label">Training Completed</span>
-                </div>
-                <div className="widget-card">
-                  <span className="widget-value">{(analytics.revenue_minor_units ?? 0) / 100}</span>
-                  <span className="widget-label">Revenue (units)</span>
-                </div>
+                <KPI_CARD
+                  value={analytics.active_cases ?? 0}
+                  label="Active Cases"
+                  tooltip="Cases currently in mediation"
+                  onClick={() => openDrill('active_cases')}
+                />
+                <KPI_CARD
+                  value={analytics.total_cases ?? 0}
+                  label="Total Cases"
+                  tooltip="All cases in the system"
+                />
+                <KPI_CARD
+                  value={`${analytics.resolution_rate ?? 0}%`}
+                  label="Resolution Rate"
+                  tooltip="% of cases resolved or closed"
+                />
+                <KPI_CARD
+                  value={analytics.total_users ?? 0}
+                  label="Total Users"
+                  tooltip="All platform users"
+                />
+                <KPI_CARD
+                  value={analytics.new_users_30d ?? 0}
+                  label={`New Users (${dateRange}d)`}
+                  tooltip="Users joined in selected period"
+                  trend={analytics.new_users_trend}
+                  onClick={() => openDrill('new_users')}
+                />
+                <KPI_CARD
+                  value={analytics.active_mediators ?? 0}
+                  label="Active Mediators"
+                  tooltip="Mediators and trainees"
+                  onClick={() => setDrillMode('mediators')}
+                />
+                <KPI_CARD
+                  value={analytics.training_completed ?? 0}
+                  label="Training Completed"
+                  tooltip="Completed training modules"
+                />
+                <KPI_CARD
+                  value={(analytics.revenue_minor_units ?? 0) / 100}
+                  label="Revenue (units)"
+                  tooltip="Total paid revenue"
+                />
               </div>
 
-              {timeseries?.length > 0 && (
-                <div className="analytics-chart-card">
-                  <h3 className="analytics-chart-title">Cases Created vs Resolved (12 months)</h3>
-                  <ResponsiveContainer width="100%" height={260}>
-                    <ComposedChart data={timeseries} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e2e8f0)" />
-                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                      <Legend />
-                      <Bar dataKey="created" name="Created" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                      <Line type="monotone" dataKey="resolved" name="Resolved" stroke="#34d399" strokeWidth={2} dot={false} />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
+              <div className="charts-grid">
+                {timeseries?.length > 0 && (
+                  <div className="analytics-chart-card chart-main">
+                    <h3 className="analytics-chart-title">Cases Created vs Resolved</h3>
+                    <ResponsiveContainer width="100%" height={260}>
+                      <ComposedChart data={timeseries} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e2e8f0)" />
+                        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                        <Legend />
+                        <Bar dataKey="created" name="Created" fill="#b45309" radius={[4, 4, 0, 0]} />
+                        <Line type="monotone" dataKey="resolved" name="Resolved" stroke="#34d399" strokeWidth={2} dot={false} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+                {caseDistribution?.length > 0 && (
+                  <div className="analytics-chart-card chart-pie">
+                    <h3 className="analytics-chart-title">Case Distribution by Type</h3>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie
+                          data={caseDistribution}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={70}
+                          label={({ name, value }) => `${name}: ${value}`}
+                        >
+                          {caseDistribution.map((_, i) => (
+                            <Cell key={i} fill={['#b45309', '#d97706', '#f59e0b', '#fbbf24', '#fde68a'][i % 5]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </div>
 
               {mediatorPerformance?.length > 0 && (
                 <div className="analytics-chart-card">
-                  <h3 className="analytics-chart-title">Mediator Performance</h3>
-                  <div className="mediator-grid">
-                    {mediatorPerformance.map((m) => (
-                      <div key={m.id} className={`mediator-card ${m.resolution_rate >= 70 ? 'high' : m.resolution_rate >= 40 ? 'medium' : 'low'}`}>
-                        <span className="mediator-name">{m.name}</span>
-                        <span className="mediator-cases">{m.cases_handled} cases</span>
-                        <span className="mediator-rate">{m.resolution_rate}% resolution</span>
-                      </div>
-                    ))}
-                  </div>
+                  <h3 className="analytics-chart-title">Mediator Workload</h3>
+                  <ResponsiveContainer width="100%" height={Math.min(300, mediatorPerformance.length * 48)}>
+                    <BarChart data={mediatorPerformance} layout="vertical" margin={{ top: 4, right: 24, left: 80, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e2e8f0)" />
+                      <XAxis type="number" tick={{ fontSize: 11 }} />
+                      <YAxis type="category" dataKey="name" width={75} tick={{ fontSize: 11 }} />
+                      <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Bar dataKey="cases_handled" name="Cases" fill="#b45309" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               )}
 
@@ -302,15 +463,92 @@ export default function AdminDashboardPage() {
 
               {unresolved?.length > 0 && (
                 <div className="analytics-chart-card">
-                  <h3 className="analytics-chart-title"><FileText size={18} /> Unresolved Cases (&gt;30 days)</h3>
+                  <h3 className="analytics-chart-title"><FileText size={18} /> Unresolved Cases (&gt;{dateRange}d)</h3>
                   <div className="unresolved-list">
                     {unresolved.slice(0, 10).map((c) => (
-                      <div key={c.id} className="unresolved-item">
+                      <Link key={c.id} to={`/cases/${c.id}`} className="unresolved-item unresolved-link">
                         <span className="unresolved-title">{c.case_number} – {c.title}</span>
                         <span className="unresolved-meta">{c.days_unresolved}d · {c.status}</span>
-                      </div>
+                      </Link>
                     ))}
                     {unresolved.length > 10 && <p className="unresolved-more">+{unresolved.length - 10} more</p>}
+                  </div>
+                </div>
+              )}
+
+              {drillMode && (
+                <div className="modal-overlay" onClick={() => setDrillMode(null)}>
+                  <div className="modal-card modal-drill" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal-drill-header">
+                      <h3>
+                        {drillMode === 'active_cases' && 'Active Cases'}
+                        {drillMode === 'new_users' && 'New Users'}
+                        {drillMode === 'mediators' && 'Mediator Performance'}
+                      </h3>
+                      <button className="btn-close" onClick={() => setDrillMode(null)}><X size={20} /></button>
+                    </div>
+                    <div className="modal-drill-body">
+                      {drillMode === 'active_cases' && (
+                        <div className="drill-table-wrap">
+                          <table className="drill-table">
+                            <thead>
+                              <tr><th>Case #</th><th>Title</th><th>Type</th><th>Status</th><th>Days Active</th></tr>
+                            </thead>
+                            <tbody>
+                              {drillData.map((c) => (
+                                <tr key={c.id} onClick={() => navigate(`/cases/${c.id}`)} className="drill-row-clickable">
+                                  <td>{c.case_number}</td>
+                                  <td>{c.title}</td>
+                                  <td>{c.case_type}</td>
+                                  <td>{c.status}</td>
+                                  <td>{c.days_active}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {drillData.length === 0 && <p className="empty-msg">No active cases in period.</p>}
+                        </div>
+                      )}
+                      {drillMode === 'new_users' && (
+                        <div className="drill-table-wrap">
+                          <table className="drill-table">
+                            <thead>
+                              <tr><th>Name</th><th>Email</th><th>Role</th><th>Country</th><th>Joined</th></tr>
+                            </thead>
+                            <tbody>
+                              {drillData.map((u) => (
+                                <tr key={u.id}>
+                                  <td>{u.display_name || '-'}</td>
+                                  <td>{u.email}</td>
+                                  <td>{u.role}</td>
+                                  <td>{u.country || '-'}</td>
+                                  <td>{u.created_at?.slice(0, 10)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {drillData.length === 0 && <p className="empty-msg">No new users in period.</p>}
+                        </div>
+                      )}
+                      {drillMode === 'mediators' && (
+                        <div className="drill-table-wrap">
+                          <table className="drill-table">
+                            <thead>
+                              <tr><th>Mediator</th><th>Cases</th><th>Resolution Rate</th></tr>
+                            </thead>
+                            <tbody>
+                              {mediatorPerformance.map((m) => (
+                                <tr key={m.id}>
+                                  <td>{m.name}</td>
+                                  <td>{m.cases_handled}</td>
+                                  <td>{m.resolution_rate}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

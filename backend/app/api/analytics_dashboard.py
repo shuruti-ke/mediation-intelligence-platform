@@ -27,13 +27,15 @@ def _tenant_filter(q, model, tenant_id):
 
 @router.get("/dashboard")
 async def get_dashboard_metrics(
+    days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin", "mediator")),
 ):
-    """Dashboard metrics: active cases, revenue, user growth, training completion."""
+    """Dashboard metrics: active cases, revenue, user growth, training completion. Supports date range."""
     tenant_filter = user.tenant_id
     now = datetime.utcnow()
-    thirty_days_ago = now - timedelta(days=30)
+    period_start = now - timedelta(days=days)
+    prev_period_start = now - timedelta(days=days * 2)
 
     # Active cases by status
     cases_q = select(Case.status, func.count(Case.id)).group_by(Case.status)
@@ -42,12 +44,22 @@ async def get_dashboard_metrics(
     cases_result = await db.execute(cases_q)
     case_status_counts = {row[0]: row[1] for row in cases_result.all()}
 
-    # User growth (last 30 days)
-    users_q = select(func.count(User.id)).where(User.created_at >= thirty_days_ago)
+    # User growth (last N days)
+    users_q = select(func.count(User.id)).where(User.created_at >= period_start)
     if tenant_filter:
         users_q = users_q.where(User.tenant_id == tenant_filter)
     users_q = users_q.where(User.role != "super_admin")
     new_users = (await db.execute(users_q)).scalar() or 0
+
+    # Previous period new users (for trend)
+    prev_users_q = select(func.count(User.id)).where(
+        User.created_at >= prev_period_start,
+        User.created_at < period_start,
+    )
+    if tenant_filter:
+        prev_users_q = prev_users_q.where(User.tenant_id == tenant_filter)
+    prev_users_q = prev_users_q.where(User.role != "super_admin")
+    prev_new_users = (await db.execute(prev_users_q)).scalar() or 0
 
     # Total users
     total_q = select(func.count(User.id)).where(User.role != "super_admin")
@@ -68,6 +80,7 @@ async def get_dashboard_metrics(
     total_cases = sum(case_status_counts.values())
     resolved_count = sum(v for k, v in case_status_counts.items() if str(k).lower() in ("resolved", "closed", "settled"))
     resolution_rate = round((resolved_count / total_cases * 100), 1) if total_cases else 0
+    active_cases = sum(v for k, v in case_status_counts.items() if str(k).lower() not in ("closed", "settled"))
 
     # Active mediators count
     mediators_q = select(func.count(User.id)).where(User.role.in_(["mediator", "trainee"]), User.is_active == True)
@@ -75,16 +88,21 @@ async def get_dashboard_metrics(
         mediators_q = mediators_q.where(User.tenant_id == tenant_filter)
     active_mediators = (await db.execute(mediators_q)).scalar() or 0
 
+    # Trend: new users vs previous period
+    new_users_trend = (new_users - prev_new_users) if prev_new_users else (new_users if new_users else 0)
+
     return {
         "case_status": case_status_counts,
-        "active_cases": sum(v for k, v in case_status_counts.items() if str(k).lower() not in ("closed", "settled")),
+        "active_cases": active_cases,
         "total_cases": total_cases,
         "resolution_rate": resolution_rate,
         "new_users_30d": new_users,
+        "new_users_trend": new_users_trend,
         "total_users": total_users,
         "active_mediators": active_mediators,
         "training_completed": training_completed,
         "revenue_minor_units": revenue_minor,
+        "period_days": days,
     }
 
 
@@ -252,6 +270,99 @@ async def get_unresolved_cases(
         }
         for c in cases
     ]
+
+
+@router.get("/drill-down/active-cases")
+async def get_active_cases_list(
+    days: int = Query(90, ge=1, le=365),
+    status: str | None = Query(None),
+    case_type: str | None = Query(None),
+    mediator_id: str | None = Query(None),
+    country: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin", "mediator")),
+):
+    """List active cases for drill-down. Supports filters."""
+    tenant_filter = user.tenant_id
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    q = select(Case).where(Case.created_at >= cutoff)
+    resolved_list = ["resolved", "closed", "settled", "CLOSED", "SETTLED"]
+    q = q.where(~Case.status.in_(resolved_list))
+    if tenant_filter:
+        q = q.where(Case.tenant_id == tenant_filter)
+    if status:
+        q = q.where(Case.status == status)
+    if case_type:
+        q = q.where(Case.case_type == case_type)
+    if mediator_id:
+        q = q.where(Case.mediator_id == mediator_id)
+    if country:
+        q = q.where(Case.jurisdiction_country == country)
+    q = q.order_by(Case.updated_at.desc())
+    result = await db.execute(q)
+    cases = result.scalars().all()
+    return [
+        {
+            "id": str(c.id),
+            "case_number": c.case_number,
+            "title": c.title or c.dispute_category or "-",
+            "case_type": c.case_type or "other",
+            "status": c.status,
+            "mediator_id": str(c.mediator_id) if c.mediator_id else None,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+            "days_active": (datetime.utcnow() - (c.updated_at or c.created_at)).days if c.updated_at or c.created_at else 0,
+        }
+        for c in cases
+    ]
+
+
+@router.get("/drill-down/new-users")
+async def get_new_users_list(
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin", "mediator")),
+):
+    """List new users for drill-down."""
+    tenant_filter = user.tenant_id
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    q = select(User).where(User.created_at >= cutoff, User.role != "super_admin")
+    if tenant_filter:
+        q = q.where(User.tenant_id == tenant_filter)
+    q = q.order_by(User.created_at.desc())
+    result = await db.execute(q)
+    users = result.scalars().all()
+    return [
+        {
+            "id": str(u.id),
+            "email": u.email,
+            "display_name": u.display_name,
+            "role": u.role,
+            "country": u.country,
+            "status": u.status,
+            "is_active": u.is_active,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        }
+        for u in users
+    ]
+
+
+@router.get("/drill-down/case-distribution")
+async def get_case_distribution(
+    days: int = Query(90, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin", "mediator")),
+):
+    """Case distribution by type for pie chart."""
+    tenant_filter = user.tenant_id
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    q = select(Case.case_type, func.count(Case.id)).where(Case.created_at >= cutoff)
+    if tenant_filter:
+        q = q.where(Case.tenant_id == tenant_filter)
+    q = q.group_by(Case.case_type)
+    result = await db.execute(q)
+    rows = result.all()
+    return [{"name": row[0] or "other", "value": row[1]} for row in rows]
 
 
 @router.get("/africa")

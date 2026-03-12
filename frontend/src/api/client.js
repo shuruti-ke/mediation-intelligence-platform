@@ -187,12 +187,15 @@ export const usersApi = {
 };
 
 export const analyticsApi = {
-  getDashboard: () => api.get('/analytics/dashboard'),
+  getDashboard: (params) => api.get('/analytics/dashboard', { params }),
   getTimeseries: (months = 12) => api.get('/analytics/timeseries', { params: { months } }),
   getGeographic: () => api.get('/analytics/geographic'),
   getMediators: () => api.get('/analytics/mediators'),
   getUnresolvedCases: (days = 30) => api.get('/analytics/reports/unresolved', { params: { days } }),
   getAfricaMetrics: () => api.get('/analytics/africa'),
+  getActiveCases: (params) => api.get('/analytics/drill-down/active-cases', { params }),
+  getNewUsers: (params) => api.get('/analytics/drill-down/new-users', { params }),
+  getCaseDistribution: (params) => api.get('/analytics/drill-down/case-distribution', { params }),
 };
 
 export const calendarApi = {
