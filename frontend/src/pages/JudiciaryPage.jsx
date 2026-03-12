@@ -54,6 +54,7 @@ export default function JudiciaryPage() {
             />
             <div className="judiciary-search-row">
               <select value={region} onChange={(e) => setRegion(e.target.value)} className="judiciary-region-select">
+                <option value="AF">Africa (all)</option>
                 <option value="KE">Kenya</option>
                 <option value="ZA">South Africa</option>
                 <option value="NG">Nigeria</option>

@@ -25,42 +25,85 @@ settings = get_settings()
 SCRAPE_UA = "Mozilla/5.0 (compatible; MediationPlatform/1.0; +https://mediation-intelligence-platform.vercel.app)"
 
 
+def _extract_ddg_url(href: str) -> str:
+    """Extract real URL from DuckDuckGo redirect link."""
+    if not href:
+        return ""
+    if "uddg=" in href:
+        parsed = urlparse(href)
+        qs = parse_qs(parsed.query)
+        return unquote(qs.get("uddg", [""])[0]) if qs.get("uddg") else href
+    return href
+
+
+async def _scrape_duckduckgo(search_q: str, max_results: int = 10) -> list[dict]:
+    """Generic DuckDuckGo HTML search. Returns list of {title, url, snippet}. No API keys needed."""
+    try:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            r = await client.get(
+                "https://html.duckduckgo.com/html/",
+                params={"q": search_q},
+                headers={"User-Agent": SCRAPE_UA},
+            )
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+        results = []
+        for div in soup.find_all("div", class_="result")[:max_results]:
+            link = div.find("a", class_="result__a") or div.find("a", class_="result-link")
+            snippet_el = div.find("a", class_="result__snippet") or div.find("div", class_="result__snippet") or div.find("div", class_="result__body")
+            if not link:
+                continue
+            href = link.get("href", "")
+            real_url = _extract_ddg_url(href)
+            if not real_url or real_url.startswith("https://duckduckgo.com"):
+                continue
+            title = link.get_text(strip=True)
+            snippet = snippet_el.get_text(strip=True) if snippet_el else ""
+            results.append({"title": title, "url": real_url, "snippet": snippet})
+        return results
+    except Exception as e:
+        logger.warning("DuckDuckGo scrape error: %s", str(e) or type(e).__name__)
+        return []
+
+
 async def scrape_kenya_law(query: str, max_results: int = 10) -> tuple[list[dict], list[str]]:
     """Search Kenya Law via DuckDuckGo HTML (site:new.kenyalaw.org). No API keys needed."""
     q = quote_plus(f"{query} site:new.kenyalaw.org")
-    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-        r = await client.get(
-            "https://html.duckduckgo.com/html/",
-            params={"q": q},
-            headers={"User-Agent": SCRAPE_UA},
-        )
-    r.raise_for_status()
-    soup = BeautifulSoup(r.text, "html.parser")
-    results = []
-    # DDG HTML: .result + .result__a (link), .result__snippet or .result__body
-    for div in soup.find_all("div", class_="result")[:max_results]:
-        link = div.find("a", class_="result__a") or div.find("a", class_="result-link")
-        snippet_el = div.find("a", class_="result__snippet") or div.find("div", class_="result__snippet") or div.find("div", class_="result__body")
-        if not link:
-            continue
-        href = link.get("href", "")
-        if "uddg=" in href:
-            parsed = urlparse(href)
-            qs = parse_qs(parsed.query)
-            real_url = unquote(qs.get("uddg", [""])[0]) if qs.get("uddg") else href
-        else:
-            real_url = href
-        if "kenyalaw.org" not in real_url:
-            continue
-        title = link.get_text(strip=True)
-        snippet = snippet_el.get_text(strip=True) if snippet_el else ""
-        results.append({
-            "title": title,
-            "url": real_url,
-            "snippet": snippet,
-            "source": "Kenya Law",
-        })
+    raw = await _scrape_duckduckgo(q, max_results)
+    results = [r for r in raw if "kenyalaw.org" in r.get("url", "")]
+    for r in results:
+        r["source"] = "Kenya Law"
     return results, ["Kenya Law"] if results else []
+
+
+# Region-specific legal databases for web search fallback (no API keys)
+_REGION_SITES = {
+    "AF": (None, "AfricanLII"),  # Africa-wide: African Legal Information Institute + broad search
+    "ZA": ("site:saflii.org", "SAFLII"),  # Southern African Legal Information Institute
+    "NG": ("site:lawpavilion.com", "Law Pavilion"),
+}
+
+
+async def scrape_web_search_region(query: str, region: str, max_results: int = 10) -> tuple[list[dict], list[str]]:
+    """Web search for case law in a given region via DuckDuckGo. No API keys needed."""
+    region = region.upper()
+    if region in _REGION_SITES:
+        site_op, label = _REGION_SITES[region]
+        if site_op:
+            search_q = f"{query} {site_op}"
+        else:
+            # Africa-wide: search AfricanLII + broad Africa case law
+            search_q = f"{query} site:africanlii.org"
+    else:
+        # Generic fallback: search for query + country name + case law
+        country_names = {"ZA": "South Africa", "NG": "Nigeria", "GH": "Ghana", "TZ": "Tanzania", "UG": "Uganda"}
+        country = country_names.get(region, region)
+        search_q = f"{query} {country} case law judiciary"
+        label = "Web search"
+    raw = await _scrape_duckduckgo(search_q, max_results)
+    for r in raw:
+        r["source"] = label
+    return raw, [label] if raw else []
 
 
 class SearchRequest(BaseModel):
@@ -88,13 +131,13 @@ async def search_judiciary(
         .limit(1)
     )
     cached = result.scalar_one_or_none()
-    # Don't use cache for placeholder results - run fresh search (including Kenya Law scrape)
+    # Don't use cache for placeholder results - run fresh search (including web search fallback)
     if cached:
         cached_results = cached.results_json or []
         is_placeholder = (
             not cached_results
             or (len(cached_results) == 1 and cached_results[0].get("source") == "system")
-            or (len(cached_results) == 1 and "Search on Kenya Law" in cached_results[0].get("title", ""))
+            or (len(cached_results) == 1 and ("Search on " in cached_results[0].get("title", "") or "No results" in cached_results[0].get("title", "")))
         )
         if not is_placeholder:
             return {"results": cached_results, "sources": ["cache"], "query": data.query, "cached": True}
@@ -103,7 +146,7 @@ async def search_judiciary(
     sources = []
 
     # Laws.Africa API (legislation) - v3/search may return 404 if endpoint changed/deprecated
-    if settings.laws_africa_api_key:
+    if settings.laws_africa_api_key and data.region.upper() != "AF":
         try:
             async with httpx.AsyncClient() as client:
                 r = await client.get(
@@ -167,10 +210,18 @@ async def search_judiciary(
             results = []
             sources = []
 
+    # Fallback for other regions (ZA, NG, etc.): web search via DuckDuckGo - no API keys needed
+    if not results and data.region.upper() != "KE":
+        try:
+            results, sources = await scrape_web_search_region(data.query, data.region)
+        except Exception as e:
+            logger.warning("Web search fallback error: %s", str(e) or type(e).__name__)
+            results = []
+            sources = []
+
     # Final fallback when nothing worked
     if not results:
         if data.region.upper() == "KE":
-            from urllib.parse import quote_plus
             results = [{
                 "title": "Search on Kenya Law",
                 "snippet": "Could not fetch results. Search directly on Kenya Law.",
@@ -178,10 +229,34 @@ async def search_judiciary(
                 "source": "Kenya Law",
             }]
             sources = ["Kenya Law"]
+        elif data.region.upper() == "ZA":
+            results = [{
+                "title": "Search on SAFLII",
+                "snippet": "Could not fetch results. Search directly on SAFLII (Southern African Legal Information Institute).",
+                "url": f"https://www.saflii.org/search.html?q={quote_plus(data.query)}",
+                "source": "SAFLII",
+            }]
+            sources = ["SAFLII"]
+        elif data.region.upper() == "NG":
+            results = [{
+                "title": "Search on Law Pavilion",
+                "snippet": "Could not fetch results. Search directly on Law Pavilion.",
+                "url": f"https://www.lawpavilion.com/search/?q={quote_plus(data.query)}",
+                "source": "Law Pavilion",
+            }]
+            sources = ["Law Pavilion"]
+        elif data.region.upper() == "AF":
+            results = [{
+                "title": "Search on AfricanLII",
+                "snippet": "Could not fetch results. Search directly on AfricanLII (African Legal Information Institute).",
+                "url": f"https://africanlii.org/en/search/?keywords={quote_plus(data.query)}",
+                "source": "AfricanLII",
+            }]
+            sources = ["AfricanLII"]
         else:
             results = [{
-                "title": "No API results",
-                "snippet": f"Configure LAWS_AFRICA_API_KEY and/or TAUSI_API_KEY for {data.region}. See IMPLEMENTATION_PLAN.md.",
+                "title": "No results",
+                "snippet": f"No case law sources configured for {data.region}. Try Kenya, South Africa, or Nigeria.",
                 "source": "system",
             }]
             sources = ["system"]
@@ -191,7 +266,8 @@ async def search_judiciary(
         len(results) == 1
         and (
             results[0].get("source") == "system"
-            or "Search on Kenya Law" in results[0].get("title", "")
+            or "Search on " in results[0].get("title", "")
+            or "No results" in results[0].get("title", "")
         )
     )
     if not is_placeholder:
@@ -216,8 +292,8 @@ async def list_sources(
         sources.append("Laws.Africa")
     if settings.tausi_api_key:
         sources.append("Tausi (Kenya)")
-    if not sources:
-        sources.append("Kenya Law (fallback when API keys not configured)")
+    sources.append("Kenya Law (KE)")
+    sources.append("AfricanLII (Africa-wide), SAFLII (ZA), Law Pavilion (NG)")
     return {
         "sources": sources,
         "keys_configured": {
