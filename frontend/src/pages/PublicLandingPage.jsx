@@ -98,8 +98,8 @@ export default function PublicLandingPage() {
       <section className="landing-hero">
         <div className="section-inner">
           <img
-            src="/mediation-hero.png"
-            alt="Professional multicultural mediation meeting in Kenya"
+            src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1200&q=80"
+            alt="Diverse African professionals in a professional mediation meeting"
             className="hero-image"
           />
         </div>

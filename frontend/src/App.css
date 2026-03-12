@@ -1,43 +1,52 @@
 @import "tailwindcss";
 
-/* Vibrant Mediation Platform - Warm Orange & Cream Theme */
+/* Omen-inspired Mediation Platform - Warm Earth Tones, Calm & Professional */
 :root {
-  /* Primary Colors */
-  --primary-orange-dark: #92400e;
-  --primary-orange: #b45309;
-  --primary-orange-light: #d97706;
-  --primary-amber: #f59e0b;
-  --primary-amber-light: #fbbf24;
-  --accent-orange-50: #fef3c7;
-  --accent-orange-100: #fed7aa;
-  --accent-orange-200: #fdba74;
-  --accent-orange-300: #fb923c;
+  /* Omen Palette */
+  --primary-bg: #F6EEE7;
+  --primary-text: #0C0906;
+  --dark-brown: #532D19;
+  --medium-dark-brown: #695440;
+  --terracotta: #936243;
+  --golden-tan: #AE8E6C;
+  --muted-taupe: #BCAE9E;
+  --accent-slate: #748CA3;
+  /* Primary Colors (Omen mapping) */
+  --primary-orange-dark: #532D19;
+  --primary-orange: #936243;
+  --primary-orange-light: #AE8E6C;
+  --primary-amber: #AE8E6C;
+  --primary-amber-light: #BCAE9E;
+  --accent-orange-50: #F6EEE7;
+  --accent-orange-100: #BCAE9E;
+  --accent-orange-200: #AE8E6C;
+  --accent-orange-300: #936243;
   /* Text */
-  --text-dark: #1f2937;
-  --text-gray-900: #111827;
-  --text-gray-700: #374151;
-  --text-slate-700: #47556f;
-  --text-slate-600: #5b6b7f;
-  --text-slate-500: #64748b;
-  --text-gray-600: #4b5563;
+  --text-dark: #0C0906;
+  --text-gray-900: #0C0906;
+  --text-gray-700: #532D19;
+  --text-slate-700: #695440;
+  --text-slate-600: #695440;
+  --text-slate-500: #695440;
+  --text-gray-600: #532D19;
   --text-white: #ffffff;
   /* Backgrounds */
-  --bg-cream: #fffbeb;
-  --bg-orange-50: #fff7ed;
-  --bg-yellow-50: #fefce8;
+  --bg-cream: #F6EEE7;
+  --bg-orange-50: #F6EEE7;
+  --bg-yellow-50: #F6EEE7;
   --bg-white: #ffffff;
-  --bg-light: #faf8f6;
+  --bg-light: #F6EEE7;
   /* Shadows */
-  --shadow-orange: 0 0 30px rgba(180, 83, 9, 0.3);
-  --shadow-orange-lg: 0 10px 40px rgba(180, 83, 9, 0.2);
-  --shadow-subtle: 0 0 30px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 15px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.1);
+  --shadow-orange: 0 0 30px rgba(147, 98, 67, 0.2);
+  --shadow-orange-lg: 0 10px 40px rgba(11, 9, 6, 0.08);
+  --shadow-subtle: 0 0 30px rgba(11, 9, 6, 0.05);
+  --shadow-md: 0 4px 15px rgba(11, 9, 6, 0.08);
+  --shadow-lg: 0 10px 30px rgba(11, 9, 6, 0.1);
   /* Borders */
-  --border-orange-light: #fed7aa;
-  --border-orange: #fdba74;
-  --border-slate: #cbd5e1;
-  --border-gray-light: #e5e7eb;
+  --border-orange-light: #BCAE9E;
+  --border-orange: #AE8E6C;
+  --border-slate: #BCAE9E;
+  --border-gray-light: #BCAE9E;
   /* Transitions */
   --transition-fast: 0.2s ease;
   --transition-normal: 0.3s ease;
@@ -56,7 +65,7 @@
   --color-text-muted: var(--text-slate-600);
   --color-border: var(--border-orange-light);
   --color-success: #059669;
-  --color-warning: #d97706;
+  --color-warning: #AE8E6C;
   --color-error: #dc2626;
   --radius: 12px;
   --radius-lg: 16px;
@@ -133,13 +142,13 @@ a:hover {
 .bg-glass {
   background: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(180, 83, 9, 0.2);
+  border: 1px solid rgba(147, 98, 67, 0.2);
 }
 
 .bg-glass-strong {
   background: rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(180, 83, 9, 0.25);
+  border: 1px solid rgba(147, 98, 67, 0.25);
 }
 
 /* Animations */
@@ -186,7 +195,7 @@ a:hover {
 
 .btn-primary:hover {
   transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 0 40px rgba(180, 83, 9, 0.4);
+  box-shadow: 0 0 40px rgba(147, 98, 67, 0.25);
 }
 
 .btn-secondary {
@@ -321,7 +330,7 @@ a:hover {
 .login-card input:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.15);
+  box-shadow: 0 0 0 3px rgba(147, 98, 67, 0.15);
 }
 
 .login-card button {
@@ -409,7 +418,7 @@ a:hover {
 
 .dashboard header a:hover {
   transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 0 40px rgba(180, 83, 9, 0.4);
+  box-shadow: 0 0 40px rgba(147, 98, 67, 0.4);
 }
 
 .library-page, .judiciary-page {
@@ -589,8 +598,8 @@ a:hover {
 }
 
 .client-actions .action-card:hover {
-  border-color: #b45309;
-  box-shadow: 0 4px 12px rgba(43, 108, 176, 0.12);
+  border-color: #936243;
+  box-shadow: 0 4px 12px rgba(147, 98, 67, 0.12);
 }
 
 .client-actions .action-icon {
@@ -652,11 +661,11 @@ a:hover {
 .admin-dashboard nav button:hover,
 .admin-dashboard nav a:hover {
   transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 0 40px rgba(180, 83, 9, 0.4);
+  box-shadow: 0 0 40px rgba(147, 98, 67, 0.25);
 }
 
 .admin-dashboard .nav-active {
-  box-shadow: 0 0 20px rgba(180, 83, 9, 0.5);
+  box-shadow: 0 0 20px rgba(147, 98, 67, 0.3);
 }
 
 .admin-dashboard-section {
@@ -882,7 +891,7 @@ a:hover {
   display: block;
   font-size: 1.75rem;
   font-weight: 700;
-  color: #92400e;
+  color: #532D19;
 }
 
 .widget-label {
@@ -1102,7 +1111,7 @@ a:hover {
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background: #b45309;
+  background: #936243;
 }
 
 .toggle-switch input:checked + .toggle-slider:before {
@@ -1181,13 +1190,13 @@ a:hover {
 
 .orgkb-title-btn:hover {
   text-decoration: underline;
-  color: var(--accent, #92400e);
+  color: var(--accent, #532D19);
 }
 
 .orgkb-badge {
   padding: 0.2rem 0.5rem;
   background: #fef3c7;
-  color: #92400e;
+  color: #532D19;
   border-radius: 6px;
   font-size: 0.8rem;
 }
@@ -1446,7 +1455,7 @@ a:hover {
 
 .btn-caucus {
   padding: 0.5rem 1rem;
-  background: #b45309;
+  background: #936243;
   color: white;
   border: none;
   border-radius: 6px;
@@ -1528,7 +1537,7 @@ a:hover {
 
 .primary {
   padding: 0.75rem 1.5rem;
-  background: #b45309;
+  background: #936243;
   color: white;
   border: none;
   border-radius: 8px;
@@ -1897,7 +1906,7 @@ a:hover {
 
 .btn-demo:hover {
   transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 0 40px rgba(180, 83, 9, 0.4);
+  box-shadow: 0 0 40px rgba(147, 98, 67, 0.25);
 }
 
 .hero-section {
@@ -1945,7 +1954,7 @@ a:hover {
 
 .btn-hero:hover {
   transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 0 40px rgba(180, 83, 9, 0.4);
+  box-shadow: 0 0 40px rgba(147, 98, 67, 0.25);
 }
 
 .stats-section {
@@ -2058,7 +2067,7 @@ a:hover {
   font-weight: 700;
   font-size: 1.125rem;
   margin-bottom: 1rem;
-  box-shadow: 0 8px 24px rgba(180, 83, 9, 0.2);
+  box-shadow: 0 8px 24px rgba(147, 98, 67, 0.2);
 }
 
 .process-step h3 {
@@ -2171,7 +2180,7 @@ a:hover {
 }
 
 .landing-footer {
-  background: linear-gradient(135deg, var(--primary-orange-dark) 0%, var(--primary-orange) 100%);
+  background: linear-gradient(135deg, #0C0906 0%, #532D19 100%);
   color: rgba(255, 255, 255, 0.95);
   padding: 4rem 2rem 2rem;
   width: 100%;
@@ -2287,7 +2296,7 @@ a:hover {
 
 .public-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #92400e 0%, #92400e 100%);
+  background: linear-gradient(135deg, #532D19 0%, #532D19 100%);
   color: white;
 }
 
@@ -2309,7 +2318,7 @@ a:hover {
 
 .public-page.halomd-style .public-header.compact h1,
 .public-page.halomd-style .public-header.compact a {
-  color: #92400e;
+  color: #532D19;
 }
 
 .public-page.halomd-style .assessment-form input,
@@ -2321,14 +2330,14 @@ a:hover {
 }
 
 .public-page.halomd-style .primary {
-  background: #b45309;
+  background: #936243;
   color: white;
 }
 
 /* Should I Mediate - in-depth assessment */
 .confidentiality-banner {
-  background: #edf2f7;
-  border-left: 4px solid #b45309;
+  background: #F6EEE7;
+  border-left: 4px solid #936243;
   padding: 1rem 1.5rem;
   margin: 0 2rem 1.5rem;
   font-size: 0.9rem;
@@ -2351,7 +2360,7 @@ a:hover {
 }
 
 .step-indicator span.active {
-  background: #b45309;
+  background: #936243;
   color: white;
 }
 
@@ -2361,7 +2370,7 @@ a:hover {
 
 .form-step h3 {
   margin: 0 0 1rem;
-  color: #92400e;
+  color: #532D19;
 }
 
 .form-step label {
@@ -2442,7 +2451,7 @@ a:hover {
 }
 
 .assessment-form select option {
-  color: #92400e;
+  color: #532D19;
 }
 
 .check-eligibility form {
@@ -2457,7 +2466,7 @@ a:hover {
 
 .check-eligibility form button {
   padding: 0.75rem 1rem;
-  background: #b45309;
+  background: #936243;
   color: white;
   border: none;
   border-radius: 8px;
@@ -2497,14 +2506,14 @@ a:hover {
   display: inline-block;
   margin-top: 1rem;
   padding: 0.75rem 1.5rem;
-  background: #b45309;
+  background: #936243;
   color: white;
   text-decoration: none;
   border-radius: 8px;
 }
 
 .public-page .primary:hover {
-  background: #92400e;
+  background: #532D19;
 }
 
 .public-page .error {
@@ -2558,13 +2567,13 @@ a:hover {
   text-decoration: none;
   font-weight: 600;
   font-size: 0.9rem;
-  color: #b45309;
-  background: rgba(43, 108, 176, 0.08);
+  color: #936243;
+  background: rgba(147, 98, 67, 0.08);
   transition: background 0.2s;
 }
 
 .training-page nav a:hover {
-  background: rgba(43, 108, 176, 0.15);
+  background: rgba(147, 98, 67, 0.15);
 }
 
 /* Training hero stats */
@@ -2579,12 +2588,12 @@ a:hover {
 }
 
 .stat-card {
-  background: linear-gradient(135deg, #b45309 0%, #92400e 100%);
+  background: linear-gradient(135deg, #936243 0%, #532D19 100%);
   color: white;
   padding: 1.25rem;
   border-radius: 12px;
   text-align: center;
-  box-shadow: 0 4px 12px rgba(43, 108, 176, 0.25);
+  box-shadow: 0 4px 12px rgba(147, 98, 67, 0.25);
 }
 
 .stat-value {
@@ -2609,14 +2618,14 @@ a:hover {
   border: 1px solid #cbd5e0;
   border-radius: 12px;
   padding: 1.5rem;
-  border-left: 4px solid #b45309;
+  border-left: 4px solid #936243;
 }
 
 .reflection-badge {
   display: inline-block;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #b45309;
+  color: #936243;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 0.5rem;
@@ -2663,8 +2672,8 @@ a:hover {
 }
 
 .quick-action-card:hover {
-  border-color: #b45309;
-  box-shadow: 0 4px 12px rgba(43, 108, 176, 0.15);
+  border-color: #936243;
+  box-shadow: 0 4px 12px rgba(147, 98, 67, 0.15);
 }
 
 .quick-icon {
@@ -2728,7 +2737,7 @@ a:hover {
   width: 24px;
   height: 24px;
   border: 3px solid #e2e8f0;
-  border-top-color: #b45309;
+  border-top-color: #936243;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -2770,8 +2779,8 @@ a:hover {
 }
 
 .module-card:hover {
-  border-color: #b45309;
-  box-shadow: 0 4px 12px rgba(43, 108, 176, 0.12);
+  border-color: #936243;
+  box-shadow: 0 4px 12px rgba(147, 98, 67, 0.12);
 }
 
 .module-header {
@@ -2817,7 +2826,7 @@ a:hover {
 
 .badge.progress {
   background: #fef3c7;
-  color: #b45309;
+  color: #936243;
 }
 
 .badge.completed {
@@ -2844,7 +2853,7 @@ a:hover {
   background: white;
   padding: 1rem;
   border-radius: 8px;
-  border-left: 3px solid #b45309;
+  border-left: 3px solid #936243;
 }
 
 .scenario-prompt-card h4 {
@@ -2864,7 +2873,7 @@ a:hover {
   display: inline-block;
   margin-top: 0.5rem;
   font-weight: 600;
-  color: #b45309;
+  color: #936243;
   text-decoration: none;
   font-size: 0.95rem;
 }
@@ -2887,7 +2896,7 @@ a:hover {
 .training-module-page header a {
   display: inline-block;
   margin-bottom: 0.5rem;
-  color: #b45309;
+  color: #936243;
   text-decoration: none;
   font-weight: 600;
   font-size: 0.9rem;
@@ -2917,7 +2926,7 @@ a:hover {
 
 .module-progress-bar .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #b45309, #d97706);
+  background: linear-gradient(90deg, #936243, #AE8E6C);
   transition: width 0.3s;
 }
 
@@ -2951,7 +2960,7 @@ a:hover {
 
 .module-reflect {
   background: linear-gradient(135deg, #edf2f7 0%, #e2e8f0 100%);
-  border-left: 4px solid #b45309;
+  border-left: 4px solid #936243;
   padding: 1rem 1.25rem;
   border-radius: 8px;
   margin-bottom: 1.25rem;
@@ -2960,7 +2969,7 @@ a:hover {
 .module-reflect .reflect-badge {
   font-size: 0.75rem;
   font-weight: 700;
-  color: #b45309;
+  color: #936243;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2996,7 +3005,7 @@ a:hover {
 
 .module-actions .primary {
   padding: 0.6rem 1.25rem;
-  background: #b45309;
+  background: #936243;
   color: white;
   border: none;
   border-radius: 8px;
@@ -3007,7 +3016,7 @@ a:hover {
 }
 
 .module-actions .primary:hover {
-  background: #92400e;
+  background: #532D19;
 }
 
 /* Interactive module steps */
@@ -3064,8 +3073,8 @@ a:hover {
 }
 
 .choice-btn:hover:not(:disabled) {
-  border-color: #b45309;
-  background: rgba(43, 108, 176, 0.05);
+  border-color: #936243;
+  background: rgba(147, 98, 67, 0.05);
 }
 
 .choice-btn:disabled {
@@ -3108,7 +3117,7 @@ a:hover {
 
 .cpd-progress .progress-fill {
   height: 100%;
-  background: #b45309;
+  background: #936243;
   transition: width 0.3s;
 }
 
@@ -3154,7 +3163,7 @@ a:hover {
 
 .generate-form .primary {
   padding: 0.5rem 1.25rem;
-  background: #b45309;
+  background: #936243;
   color: white;
   border: none;
   border-radius: 8px;
@@ -3163,7 +3172,7 @@ a:hover {
 }
 
 .generate-form .primary:hover:not(:disabled) {
-  background: #92400e;
+  background: #532D19;
 }
 
 .generate-form .primary:disabled {
@@ -3227,7 +3236,7 @@ a:hover {
 
 .reflection-section {
   background: linear-gradient(135deg, #edf2f7 0%, #e2e8f0 100%);
-  border-left: 4px solid #b45309;
+  border-left: 4px solid #936243;
   padding: 1.25rem;
   border-radius: 8px;
 }
@@ -3262,7 +3271,7 @@ a:hover {
   content: "→";
   position: absolute;
   left: 0;
-  color: #b45309;
+  color: #936243;
   font-weight: 700;
 }
 
@@ -3404,7 +3413,7 @@ a:hover {
 
 .role-play-msg-party_a {
   background: #fef3c7;
-  border-left: 4px solid #d97706;
+  border-left: 4px solid #AE8E6C;
 }
 
 .role-play-msg-party_b {
@@ -3509,7 +3518,7 @@ a:hover {
 .calendar-brand h1 {
   margin: 0.25rem 0 0;
   font-size: 1.75rem;
-  background: linear-gradient(135deg, #92400e 0%, #b45309 50%, #d97706 100%);
+  background: linear-gradient(135deg, #532D19 0%, #936243 50%, #AE8E6C 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -3520,7 +3529,7 @@ a:hover {
   align-items: center;
   gap: 0.4rem;
   padding: 0.6rem 1.2rem;
-  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  background: linear-gradient(135deg, #AE8E6C 0%, #936243 100%);
   color: white;
   border: none;
   border-radius: 10px;
@@ -3582,7 +3591,7 @@ a:hover {
 }
 
 .calendar-day-header {
-  background: linear-gradient(135deg, #b45309 0%, #d97706 100%);
+  background: linear-gradient(135deg, #936243 0%, #AE8E6C 100%);
   color: white;
   padding: 0.75rem;
   font-size: 0.8rem;
@@ -3628,12 +3637,12 @@ a:hover {
 
 .slot.avail {
   background: linear-gradient(135deg, #fde68a 0%, #fcd34d 100%);
-  color: #92400e;
+  color: #532D19;
 }
 
 .slot.booking {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #92400e;
+  color: #532D19;
 }
 
 .slot-delete {
@@ -3846,12 +3855,12 @@ a:hover {
 
 .doc-visibility-badge.org {
   background: #fef3c7;
-  color: #92400e;
+  color: #532D19;
 }
 
 .doc-visibility-badge.public {
   background: #fef3c7;
-  color: #92400e;
+  color: #532D19;
 }
 
 .doc-visibility-badge.private {
@@ -3893,7 +3902,7 @@ a:hover {
   font-size: 0.75rem;
   padding: 0.15rem 0.4rem;
   background: #fef3c7;
-  color: #92400e;
+  color: #532D19;
   border-radius: 4px;
 }
 
@@ -4015,7 +4024,7 @@ a:hover {
 .search-input:focus, .ai-input:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.15);
+  box-shadow: 0 0 0 3px rgba(147, 98, 67, 0.15);
 }
 
 .search-btn, .ai-btn {
@@ -4047,7 +4056,7 @@ a:hover {
 }
 
 .search-result-card strong {
-  color: #92400e;
+  color: #532D19;
   font-size: 0.95rem;
 }
 
@@ -4096,7 +4105,7 @@ a:hover {
 
 .citations-modern strong {
   font-size: 0.9rem;
-  color: #92400e;
+  color: #532D19;
 }
 
 .citations-modern ul {
@@ -4114,7 +4123,7 @@ a:hover {
 }
 
 .training-header .back-link {
-  color: #92400e;
+  color: #532D19;
   text-decoration: none;
   font-weight: 600;
   font-size: 0.9rem;
@@ -4130,7 +4139,7 @@ a:hover {
   display: inline-block;
   padding: 0.35rem 0.8rem;
   background: linear-gradient(135deg, #a7f3d0 0%, #6ee7b7 100%);
-  color: #92400e;
+  color: #532D19;
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: 700;
@@ -4140,7 +4149,7 @@ a:hover {
 .training-hero-modern h1 {
   margin: 0 0 0.25rem;
   font-size: 1.75rem;
-  background: linear-gradient(135deg, #92400e 0%, #b45309 50%, #d97706 100%);
+  background: linear-gradient(135deg, #532D19 0%, #936243 50%, #AE8E6C 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -4148,7 +4157,7 @@ a:hover {
 
 .training-hero-modern p {
   margin: 0;
-  color: #92400e;
+  color: #532D19;
   font-size: 1rem;
   opacity: 0.9;
 }
@@ -4170,7 +4179,7 @@ a:hover {
 
 .nav-pill.cpd {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #92400e;
+  color: #532D19;
 }
 
 .nav-pill.roleplay {
@@ -4180,7 +4189,7 @@ a:hover {
 
 .nav-pill.trainee {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #92400e;
+  color: #532D19;
 }
 
 .nav-pill:hover {
@@ -4207,11 +4216,11 @@ a:hover {
 
 .stat-card-modern:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.15);
+  box-shadow: 0 6px 20px rgba(147, 98, 67, 0.15);
 }
 
 .stat-card-modern.primary {
-  background: linear-gradient(135deg, #b45309 0%, #92400e 100%);
+  background: linear-gradient(135deg, #936243 0%, #532D19 100%);
   border: none;
   color: white;
 }
@@ -4240,12 +4249,12 @@ a:hover {
 .scenarios-section-modern h2 {
   margin: 0 0 0.5rem;
   font-size: 1.35rem;
-  color: #92400e;
+  color: #532D19;
 }
 
 .section-subtitle {
   margin: 0 0 1.25rem;
-  color: #92400e;
+  color: #532D19;
   font-size: 0.95rem;
   opacity: 0.9;
 }
@@ -4256,13 +4265,13 @@ a:hover {
   justify-content: center;
   gap: 0.75rem;
   padding: 2rem;
-  color: #92400e;
+  color: #532D19;
 }
 
 .training-empty-modern {
   text-align: center;
   padding: 2rem;
-  color: #92400e;
+  color: #532D19;
 }
 
 .module-grid-modern {
@@ -4287,9 +4296,9 @@ a:hover {
 }
 
 .module-card-modern:hover {
-  border-color: #d97706;
+  border-color: #AE8E6C;
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2);
+  box-shadow: 0 8px 24px rgba(147, 98, 67, 0.2);
 }
 
 .module-card-header {
@@ -4302,7 +4311,7 @@ a:hover {
 .module-card-modern h3 {
   margin: 0;
   font-size: 1.1rem;
-  color: #92400e;
+  color: #532D19;
 }
 
 .module-desc-modern {
@@ -4316,7 +4325,7 @@ a:hover {
   display: flex;
   gap: 1rem;
   font-size: 0.8rem;
-  color: #b45309;
+  color: #936243;
 }
 
 .badge-modern {
@@ -4328,12 +4337,12 @@ a:hover {
 
 .badge-modern.progress {
   background: #fef3c7;
-  color: #92400e;
+  color: #532D19;
 }
 
 .badge-modern.completed {
   background: #a7f3d0;
-  color: #92400e;
+  color: #532D19;
 }
 
 .reflection-section-modern {
@@ -4345,14 +4354,14 @@ a:hover {
   border: 1px solid #a7f3d0;
   border-radius: 16px;
   padding: 1.5rem;
-  border-left: 4px solid #b45309;
+  border-left: 4px solid #936243;
 }
 
 .reflection-badge-modern {
   display: inline-block;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #92400e;
+  color: #532D19;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 0.5rem;
@@ -4361,7 +4370,7 @@ a:hover {
 .reflection-card-modern h3 {
   margin: 0 0 0.75rem;
   font-size: 1.1rem;
-  color: #92400e;
+  color: #532D19;
 }
 
 .reflection-prompt-modern {
@@ -4374,7 +4383,7 @@ a:hover {
 
 .reflection-hint-modern {
   font-size: 0.85rem;
-  color: #92400e;
+  color: #532D19;
   margin: 0;
   opacity: 0.9;
 }
@@ -4411,7 +4420,7 @@ a:hover {
   background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
 }
 
-.quick-card-modern.trainee:hover { border-color: #d97706; }
+.quick-card-modern.trainee:hover { border-color: #AE8E6C; }
 
 .quick-icon-modern {
   font-size: 2rem;
@@ -4450,14 +4459,14 @@ a:hover {
   background: white;
   padding: 1.25rem;
   border-radius: 12px;
-  border-left: 4px solid #d97706;
+  border-left: 4px solid #AE8E6C;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 
 .scenario-card-modern h4 {
   margin: 0 0 0.5rem;
   font-size: 1rem;
-  color: #92400e;
+  color: #532D19;
 }
 
 .scenario-card-modern p {
@@ -4471,7 +4480,7 @@ a:hover {
   display: inline-block;
   margin-top: 0.5rem;
   font-weight: 600;
-  color: #b45309;
+  color: #936243;
   text-decoration: none;
   font-size: 0.95rem;
 }
@@ -4513,7 +4522,7 @@ a:hover {
   display: block;
   margin-top: 0.5rem;
   font-size: 0.8rem;
-  color: #b45309;
+  color: #936243;
   font-weight: 500;
 }
 
@@ -4549,7 +4558,7 @@ a:hover {
   text-align: left;
   font-size: 1rem;
   font-weight: 600;
-  color: #92400e;
+  color: #532D19;
 }
 
 .scenario-section-toggle:hover {
@@ -4577,7 +4586,7 @@ a:hover {
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0;
-  color: #b45309;
+  color: #936243;
   font-weight: 500;
   text-decoration: none;
 }
@@ -4610,7 +4619,7 @@ a:hover {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background: linear-gradient(90deg, #b45309, #d97706);
+  background: linear-gradient(90deg, #936243, #AE8E6C);
   color: white;
   border: none;
   border-radius: 10px;
@@ -4621,7 +4630,7 @@ a:hover {
 }
 
 .btn-practice-now:hover {
-  background: linear-gradient(90deg, #92400e, #b45309);
+  background: linear-gradient(90deg, #532D19, #936243);
 }
 
 .scenario-cta-hint {
@@ -4669,7 +4678,7 @@ a:hover {
   justify-content: center;
   min-height: 50vh;
   gap: 1rem;
-  color: #92400e;
+  color: #532D19;
 }
 
 .training-module-page-modern {
@@ -4681,19 +4690,19 @@ a:hover {
 }
 
 .training-module-page-modern header a {
-  color: #b45309;
+  color: #936243;
 }
 
 .training-module-page-modern header h1 {
-  color: #92400e;
+  color: #532D19;
 }
 
 .training-module-page-modern .module-progress-bar .progress-fill {
-  background: linear-gradient(90deg, #b45309, #d97706);
+  background: linear-gradient(90deg, #936243, #AE8E6C);
 }
 
 .training-module-page-modern .progress-label {
-  color: #92400e;
+  color: #532D19;
 }
 
 .training-module-page-modern .content-html {
@@ -4703,12 +4712,12 @@ a:hover {
 .training-module-page-modern .choice-btn {
   background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
   border: 1px solid #6ee7b7;
-  color: #92400e;
+  color: #532D19;
 }
 
 .training-module-page-modern .choice-btn:hover {
   background: linear-gradient(135deg, #a7f3d0 0%, #6ee7b7 100%);
-  border-color: #d97706;
+  border-color: #AE8E6C;
 }
 
 .training-module-page-modern .step-feedback {
@@ -4717,13 +4726,13 @@ a:hover {
 }
 
 .training-module-page-modern .feedback-badge {
-  color: #92400e;
+  color: #532D19;
 }
 
 .training-module-page-modern .next-btn {
-  background: linear-gradient(135deg, #b45309 0%, #92400e 100%);
+  background: linear-gradient(135deg, #936243 0%, #532D19 100%);
 }
 
 .training-module-page-modern .next-btn:hover {
-  background: linear-gradient(135deg, #92400e 0%, #78350f 100%);
+  background: linear-gradient(135deg, #532D19 0%, #78350f 100%);
 }
