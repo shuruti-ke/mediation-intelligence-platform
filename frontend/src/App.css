@@ -50,6 +50,13 @@
   --border-orange: #a78bfa;
   --border-slate: #e5e7eb;
   --border-gray-light: #e5e7eb;
+  /* Design system (Mediation Dashboard spec) */
+  --bold-purple: #7C3AED;
+  --softer-purple: #8B5CF6;
+  --off-white: #F9FAFB;
+  --dark-gray: #374151;
+  --medium-gray: #6B7280;
+  --light-gray: #D1D5DB;
   /* Transitions */
   --transition-fast: 0.2s ease;
   --transition-normal: 0.3s ease;
@@ -1798,6 +1805,14 @@ a:hover {
   font-size: 0.95rem;
 }
 
+.audit-section .icon-text {
+  color: var(--dark-gray);
+}
+
+.audit-section-desc {
+  color: var(--medium-gray) !important;
+}
+
 .audit-controls {
   margin-bottom: 1rem;
   display: flex;
@@ -1813,20 +1828,22 @@ a:hover {
 
 .audit-filter label {
   font-size: 0.9rem;
-  color: var(--color-text-muted);
+  color: var(--medium-gray);
 }
 
 .audit-filter select {
   padding: 0.4rem 0.6rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--light-gray);
   border-radius: 6px;
   font-size: 0.9rem;
 }
 
 .audit-table-wrap {
   overflow-x: auto;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--light-gray);
   border-radius: var(--radius);
+  background: var(--bg-white);
+  box-shadow: var(--shadow-subtle);
 }
 
 .audit-table-wrap table {
@@ -1838,25 +1855,27 @@ a:hover {
 .audit-table-wrap td {
   padding: 0.6rem 1rem;
   text-align: left;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--light-gray);
 }
 
 .audit-table-wrap th {
-  background: var(--bg-cream);
+  background: var(--off-white);
   font-weight: 600;
   font-size: 0.85rem;
+  color: var(--dark-gray);
 }
 
 .audit-table-wrap td code {
   font-size: 0.8rem;
-  background: var(--accent-orange-50);
+  background: var(--off-white);
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
+  border: 1px solid var(--light-gray);
 }
 
 .audit-action {
   font-weight: 500;
-  color: var(--primary-orange);
+  color: var(--bold-purple);
 }
 
 .orgkb-upload {

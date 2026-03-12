@@ -1125,9 +1125,9 @@ export default function AdminDashboardPage() {
       )}
 
       {tab === 'audit' && (
-        <section className="admin-dashboard-section">
+        <section className="admin-dashboard-section audit-section">
           <h2 className="icon-text"><FileText size={22} /> Audit Log</h2>
-          <p className="section-desc">Security and compliance audit trail. Super-admin only.</p>
+          <p className="section-desc audit-section-desc">Security and compliance audit trail. Super-admin only.</p>
           <div className="audit-controls">
             <div className="audit-filter">
               <label>Resource type:</label>
