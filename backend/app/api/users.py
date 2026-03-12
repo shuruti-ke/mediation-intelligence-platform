@@ -144,6 +144,53 @@ async def list_my_clients(
     return [_user_to_response(u) for u in users]
 
 
+@router.get("/me/dashboard")
+async def get_my_client_dashboard(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Client dashboard: cases, bookings, mediator. Clients only."""
+    if user.role not in ("client_corporate", "client_individual"):
+        raise HTTPException(status_code=403, detail="Client dashboard only")
+    # Cases
+    client_user_id_str = getattr(user, "user_id", None)
+    conditions = [Case.id.in_(select(CaseParty.case_id).where(CaseParty.user_id == user.id))]
+    if client_user_id_str:
+        conditions.append(Case.internal_reference == client_user_id_str)
+    cases_q = select(Case).where(or_(*conditions)).order_by(Case.updated_at.desc().nullslast(), Case.created_at.desc()).limit(20)
+    cases_result = await db.execute(cases_q)
+    my_cases = cases_result.scalars().unique().all()
+    # Bookings (from calendar)
+    from app.models.calendar import CalendarBooking
+    from datetime import date
+    today = date.today()
+    bookings_q = select(CalendarBooking).where(
+        CalendarBooking.client_id == user.id,
+        CalendarBooking.slot_date >= today,
+        CalendarBooking.status == "scheduled",
+    ).order_by(CalendarBooking.slot_date, CalendarBooking.start_time).limit(10)
+    bookings_result = await db.execute(bookings_q)
+    my_bookings = bookings_result.scalars().all()
+    # Mediator
+    mediator = None
+    if getattr(user, "assigned_mediator_id", None):
+        m = await db.get(User, user.assigned_mediator_id)
+        if m:
+            mediator = {"display_name": m.display_name or m.email, "email": m.email}
+    return {
+        "user": {"display_name": user.display_name, "email": user.email, "user_id": getattr(user, "user_id", None)},
+        "mediator": mediator,
+        "cases": [
+            {"id": str(c.id), "case_number": c.case_number, "title": c.title, "status": c.status, "case_type": c.case_type or c.dispute_category}
+            for c in my_cases
+        ],
+        "bookings": [
+            {"id": str(b.id), "slot_date": b.slot_date.isoformat(), "start_time": b.start_time.strftime("%H:%M"), "end_time": b.end_time.strftime("%H:%M"), "meeting_type": b.meeting_type}
+            for b in my_bookings
+        ],
+    }
+
+
 @router.get("/{user_id}/cases")
 async def get_user_cases(
     user_id: uuid.UUID,
@@ -155,6 +202,9 @@ async def get_user_cases(
         client = await db.get(User, user_id)
         if not client or client.assigned_mediator_id != user.id:
             raise HTTPException(status_code=403, detail="Access denied")
+    elif user.role in ("client_corporate", "client_individual"):
+        if user_id != user.id:
+            raise HTTPException(status_code=403, detail="You can only view your own cases")
     client_obj = await db.get(User, user_id)
     client_user_id_str = getattr(client_obj, "user_id", None) if client_obj else None
     # Cases linked via CaseParty.user_id OR Case.internal_reference = client's user_id (e.g. USR-KE-2026-0001)

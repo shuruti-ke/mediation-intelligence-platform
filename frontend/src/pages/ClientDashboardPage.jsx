@@ -1,7 +1,19 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { HelpCircle, Calendar, LogOut } from 'lucide-react';
+import { HelpCircle, Calendar, LogOut, FileText, User, Mail } from 'lucide-react';
+import { usersApi } from '../api/client';
 
 export default function ClientDashboardPage() {
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    usersApi.getMyDashboard()
+      .then(({ data }) => setDashboard(data))
+      .catch(() => setDashboard(null))
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <div className="dashboard client-dashboard">
       <header>
@@ -17,21 +29,86 @@ export default function ClientDashboardPage() {
           <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><LogOut size={16} /> Sign out</Link>
         </nav>
       </header>
+
       <section className="client-welcome">
-        <h2>Welcome</h2>
-        <p>As a client, you can explore mediation options and book sessions.</p>
-        <div className="client-actions">
-          <Link to="/should-i-mediate" className="action-card">
-            <span className="action-icon"><HelpCircle size={28} /></span>
-            <h3>Should I Mediate?</h3>
-            <p>Take a short assessment to see if mediation is right for your dispute.</p>
-          </Link>
-          <Link to="/calendar" className="action-card">
-            <span className="action-icon"><Calendar size={28} /></span>
-            <h3>Calendar & Bookings</h3>
-            <p>View your sessions and book consultations with mediators.</p>
-          </Link>
-        </div>
+        <h2>Welcome{dashboard?.user?.display_name ? `, ${dashboard.user.display_name}` : ''}</h2>
+        <p>View your cases, upcoming sessions, and mediator contact.</p>
+
+        {loading ? (
+          <p>Loading...</p>
+        ) : dashboard ? (
+          <>
+            {dashboard.mediator && (
+              <div className="client-mediator-card">
+                <h3><User size={18} /> Your Mediator</h3>
+                <p className="mediator-name">{dashboard.mediator.display_name}</p>
+                <a href={`mailto:${dashboard.mediator.email}`} className="mediator-email"><Mail size={14} /> {dashboard.mediator.email}</a>
+              </div>
+            )}
+
+            <div className="client-cases-section">
+              <h3><FileText size={18} /> My Cases</h3>
+              {dashboard.cases?.length > 0 ? (
+                <ul className="client-case-list">
+                  {dashboard.cases.map((c) => (
+                    <li key={c.id}>
+                      <Link to={`/cases/${c.id}`} className="client-case-link">
+                        <span className="case-num">{c.case_number}</span>
+                        <span className="case-title">{c.title || c.case_type || '—'}</span>
+                        <span className={`case-status status-${(c.status || '').toLowerCase()}`}>{c.status}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="empty-msg">No cases yet. Your mediator will add you to a case when one is opened.</p>
+              )}
+            </div>
+
+            <div className="client-bookings-section">
+              <h3><Calendar size={18} /> Upcoming Sessions</h3>
+              {dashboard.bookings?.length > 0 ? (
+                <ul className="client-booking-list">
+                  {dashboard.bookings.map((b) => (
+                    <li key={b.id}>
+                      <span className="booking-date">{b.slot_date}</span>
+                      <span className="booking-time">{b.start_time} – {b.end_time}</span>
+                      <span className="booking-type">{b.meeting_type}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="empty-msg">No upcoming sessions. <Link to="/calendar">Book a consultation</Link>.</p>
+              )}
+            </div>
+
+            <div className="client-actions">
+              <Link to="/should-i-mediate" className="action-card">
+                <span className="action-icon"><HelpCircle size={28} /></span>
+                <h3>Should I Mediate?</h3>
+                <p>Take a short assessment to see if mediation is right for your dispute.</p>
+              </Link>
+              <Link to="/calendar" className="action-card">
+                <span className="action-icon"><Calendar size={28} /></span>
+                <h3>Calendar & Bookings</h3>
+                <p>View your sessions and book consultations with mediators.</p>
+              </Link>
+            </div>
+          </>
+        ) : (
+          <div className="client-actions">
+            <Link to="/should-i-mediate" className="action-card">
+              <span className="action-icon"><HelpCircle size={28} /></span>
+              <h3>Should I Mediate?</h3>
+              <p>Take a short assessment to see if mediation is right for your dispute.</p>
+            </Link>
+            <Link to="/calendar" className="action-card">
+              <span className="action-icon"><Calendar size={28} /></span>
+              <h3>Calendar & Bookings</h3>
+              <p>View your sessions and book consultations with mediators.</p>
+            </Link>
+          </div>
+        )}
       </section>
     </div>
   );

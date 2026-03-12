@@ -748,6 +748,113 @@ a:hover {
   padding: 2rem 0;
 }
 
+.client-mediator-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.client-mediator-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.client-mediator-card .mediator-name {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.client-mediator-card .mediator-email {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.client-mediator-card .mediator-email:hover {
+  text-decoration: underline;
+}
+
+.client-cases-section,
+.client-bookings-section {
+  margin-bottom: 1.5rem;
+}
+
+.client-cases-section h3,
+.client-bookings-section h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.client-case-list,
+.client-booking-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.client-case-list li,
+.client-booking-list li {
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  background: var(--color-bg-card);
+}
+
+.client-case-link {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.client-case-link:hover {
+  color: var(--color-primary);
+}
+
+.client-case-link .case-num {
+  font-weight: 600;
+  min-width: 140px;
+}
+
+.client-case-link .case-title {
+  flex: 1;
+}
+
+.client-case-link .case-status {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  background: #fafafa;
+}
+
+.client-booking-list li {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.client-booking-list .booking-date {
+  font-weight: 600;
+  min-width: 100px;
+}
+
 .client-actions {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -1689,6 +1796,67 @@ a:hover {
   margin: 0 0 1rem;
   color: #4a5568;
   font-size: 0.95rem;
+}
+
+.audit-controls {
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.audit-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.audit-filter label {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.audit-filter select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.audit-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.audit-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.audit-table-wrap th,
+.audit-table-wrap td {
+  padding: 0.6rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.audit-table-wrap th {
+  background: var(--bg-cream);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.audit-table-wrap td code {
+  font-size: 0.8rem;
+  background: var(--accent-orange-50);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+.audit-action {
+  font-weight: 500;
+  color: var(--primary-orange);
 }
 
 .orgkb-upload {

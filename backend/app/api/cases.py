@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, or_
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, require_role
@@ -194,7 +194,7 @@ async def list_cases(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ) -> list[CaseResponse]:
-    """List cases. Filtered by tenant. Mediators see own cases when mediator_id not specified."""
+    """List cases. Filtered by tenant. Mediators see own cases. Clients see cases linked to them."""
     q = select(Case)
     if user.tenant_id:
         q = q.where(Case.tenant_id == user.tenant_id)
@@ -202,6 +202,12 @@ async def list_cases(
         q = q.where(Case.status == status)
     if user.role in ("mediator", "trainee"):
         q = q.where(Case.mediator_id == user.id)
+    elif user.role in ("client_corporate", "client_individual"):
+        client_user_id = getattr(user, "user_id", None)
+        conditions = [Case.id.in_(select(CaseParty.case_id).where(CaseParty.user_id == user.id))]
+        if client_user_id:
+            conditions.append(Case.internal_reference == client_user_id)
+        q = q.where(or_(*conditions))
     elif mediator_id:
         q = q.where(Case.mediator_id == mediator_id)
     q = q.order_by(Case.updated_at.desc().nullslast(), Case.created_at.desc()).offset(skip).limit(limit)

@@ -17,7 +17,7 @@ import {
   BarChart,
 } from 'recharts';
 import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus, FolderOpen, Search, Plus, MoreVertical, ArrowLeft } from 'lucide-react';
-import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi, cases } from '../api/client';
+import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi, cases, auditApi } from '../api/client';
 
 const STATUS_BADGES = {
   active: { label: 'Active', class: 'badge-active' },
@@ -97,6 +97,8 @@ export default function AdminDashboardPage() {
   const [userActionsOpen, setUserActionsOpen] = useState(null);
   const [editUserOpen, setEditUserOpen] = useState(false);
   const [editUserForm, setEditUserForm] = useState({ display_name: '', email: '', phone: '', country: '', assigned_mediator_id: '', status: '', is_active: true });
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditResourceFilter, setAuditResourceFilter] = useState('');
   const navigate = useNavigate();
 
   const DATE_RANGES = [
@@ -178,10 +180,16 @@ export default function AdminDashboardPage() {
         .then(({ data }) => setUsers(data || []))
         .catch(() => setUsers([]))
         .finally(() => setLoading(false));
+    } else if (tab === 'audit') {
+      setLoading(true);
+      auditApi.listLogs({ resource_type: auditResourceFilter || undefined, limit: 100 })
+        .then(({ data }) => setAuditLogs(data || []))
+        .catch(() => setAuditLogs([]))
+        .finally(() => setLoading(false));
     } else {
       refreshDashboard();
     }
-  }, [tab, dateRange, userRoleFilter, userStatusFilter, searchQuery]);
+  }, [tab, dateRange, userRoleFilter, userStatusFilter, searchQuery, auditResourceFilter]);
 
   useEffect(() => {
     if (tab !== 'users') return;
@@ -388,6 +396,7 @@ export default function AdminDashboardPage() {
           <button className={tab === 'tenants' ? 'nav-active' : ''} onClick={() => setTab('tenants')}><Building2 size={16} /> Tenants</button>
           <button className={tab === 'orgkb' ? 'nav-active' : ''} onClick={() => setTab('orgkb')}><BookOpen size={16} /> Org KB</button>
           <button className={tab === 'trainees' ? 'nav-active' : ''} onClick={() => setTab('trainees')}><GraduationCap size={16} /> Trainees</button>
+          <button className={tab === 'audit' ? 'nav-active' : ''} onClick={() => setTab('audit')}><FileText size={16} /> Audit Log</button>
           <Link to="/admin/training-academy" className="nav-training-academy"><Sparkles size={16} /> Training Academy</Link>
           <Link to="/calendar"><Calendar size={16} /> Calendar</Link>
           <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><LogOut size={16} /> Sign out</Link>
@@ -1111,6 +1120,54 @@ export default function AdminDashboardPage() {
                 </li>
               ))}
             </ul>
+          )}
+        </section>
+      )}
+
+      {tab === 'audit' && (
+        <section className="admin-dashboard-section">
+          <h2 className="icon-text"><FileText size={22} /> Audit Log</h2>
+          <p className="section-desc">Security and compliance audit trail. Super-admin only.</p>
+          <div className="audit-controls">
+            <div className="audit-filter">
+              <label>Resource type:</label>
+              <select value={auditResourceFilter} onChange={(e) => setAuditResourceFilter(e.target.value)}>
+                <option value="">All</option>
+                <option value="case">Case</option>
+                <option value="user">User</option>
+                <option value="session">Session</option>
+                <option value="document">Document</option>
+                <option value="tenant">Tenant</option>
+              </select>
+            </div>
+          </div>
+          {loading ? <p>Loading...</p> : auditLogs.length === 0 ? (
+            <p className="empty-msg">No audit logs yet.</p>
+          ) : (
+            <div className="audit-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Action</th>
+                    <th>Resource</th>
+                    <th>Resource ID</th>
+                    <th>User ID</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td><span className="audit-action">{log.action}</span></td>
+                      <td>{log.resource_type}</td>
+                      <td><code>{log.resource_id || '—'}</code></td>
+                      <td><code>{log.user_id || '—'}</code></td>
+                      <td>{log.created_at ? new Date(log.created_at).toLocaleString() : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       )}

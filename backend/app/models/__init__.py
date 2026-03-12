@@ -11,6 +11,7 @@ from app.models.academy import AcademyModule, AcademyLesson, AcademyMaterial, Ac
 from app.models.audit import AuditLog
 from app.models.announcement import Announcement
 from app.models.calendar import MediatorAvailability, CalendarBooking
+from app.models.notification import InAppNotification
 
 __all__ = [
     "Tenant",
@@ -46,4 +47,5 @@ __all__ = [
     "Announcement",
     "MediatorAvailability",
     "CalendarBooking",
+    "InAppNotification",
 ]

@@ -197,6 +197,7 @@ export const usersApi = {
   updateClientProfile: (id, data) => api.patch(`/users/${id}/profile`, data),
   updateStatus: (id, data) => api.patch(`/users/${id}`, data),
   reassignMediator: (userId, data) => api.post(`/users/${userId}/reassign-mediator`, data),
+  getMyDashboard: () => api.get('/users/me/dashboard'),
 };
 
 export const analyticsApi = {
@@ -210,6 +211,12 @@ export const analyticsApi = {
   getNewUsers: (params) => api.get('/analytics/drill-down/new-users', { params }),
   getActiveTrainees: () => api.get('/analytics/drill-down/active-trainees'),
   getCaseDistribution: (params) => api.get('/analytics/drill-down/case-distribution', { params }),
+};
+
+export const notificationsApi = {
+  list: (params) => api.get('/notifications', { params }),
+  markRead: (ids) => api.patch('/notifications/read', { ids: ids || null }),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
 };
 
 export const calendarApi = {
