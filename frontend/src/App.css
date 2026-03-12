@@ -940,7 +940,7 @@ a:hover {
 .admin-sidebar-brand h1 {
   margin: 0;
   font-size: 1.1rem;
-  color: var(--bold-purple);
+  color: var(--softer-purple);
   font-weight: 700;
 }
 
@@ -965,7 +965,7 @@ a:hover {
   font-family: inherit;
   white-space: nowrap;
   border-radius: 0.5rem !important;
-  background: var(--softer-purple) !important;
+  background: #a78bfa !important;
   color: white !important;
   border: none !important;
   text-decoration: none;
@@ -981,14 +981,14 @@ a:hover {
 
 .admin-sidebar-nav button:hover,
 .admin-sidebar-nav a:hover {
-  background: var(--bold-purple) !important;
+  background: var(--softer-purple) !important;
   transform: translateX(2px);
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25);
 }
 
 .admin-sidebar-nav .nav-active {
-  background: var(--bold-purple) !important;
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+  background: var(--softer-purple) !important;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
 }
 
 .admin-main {
