@@ -16,8 +16,8 @@ import {
   Cell,
   BarChart,
 } from 'recharts';
-import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi } from '../api/client';
+import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus, FolderOpen, Search, Plus } from 'lucide-react';
+import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi, cases } from '../api/client';
 
 const STATUS_BADGES = {
   active: { label: 'Active', class: 'badge-active' },
@@ -85,6 +85,10 @@ export default function AdminDashboardPage() {
   const [drillMode, setDrillMode] = useState(null);
   const [drillData, setDrillData] = useState([]);
   const [caseDistribution, setCaseDistribution] = useState([]);
+  const [caseList, setCaseList] = useState([]);
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [userSearchDebounce, setUserSearchDebounce] = useState(null);
   const navigate = useNavigate();
 
   const DATE_RANGES = [
@@ -122,6 +126,10 @@ export default function AdminDashboardPage() {
   }, [tab]);
 
   useEffect(() => {
+    usersApi.pendingApprovals().then(({ data }) => setPendingApprovals(data || [])).catch(() => setPendingApprovals([]));
+  }, []);
+
+  useEffect(() => {
     if (tab === 'orgkb') {
       setLoading(true);
       knowledge.listOrgDocuments()
@@ -134,9 +142,21 @@ export default function AdminDashboardPage() {
         .catch(() => setTenants([]))
         .finally(() => setLoading(false));
     } else if (tab === 'users') {
-      usersApi.list()
+      usersApi.list({ search: searchQuery.trim() || undefined })
         .then(({ data }) => setUsers(data || []))
         .catch(() => setUsers([]))
+        .finally(() => setLoading(false));
+    } else if (tab === 'cases') {
+      setLoading(true);
+      cases.list({ limit: 100 })
+        .then(({ data }) => setCaseList(data || []))
+        .catch(() => setCaseList([]))
+        .finally(() => setLoading(false));
+    } else if (tab === 'approvals') {
+      setLoading(true);
+      usersApi.pendingApprovals()
+        .then(({ data }) => setPendingApprovals(data || []))
+        .catch(() => setPendingApprovals([]))
         .finally(() => setLoading(false));
     } else if (tab === 'trainees') {
       usersApi.list({ role: 'trainee' })
@@ -300,7 +320,9 @@ export default function AdminDashboardPage() {
         </div>
         <nav>
           <button className={tab === 'dashboard' ? 'nav-active' : ''} onClick={() => setTab('dashboard')}><LayoutDashboard size={16} /> Dashboard</button>
-          <button className={tab === 'users' ? 'nav-active' : ''} onClick={() => setTab('users')}><Users size={16} /> Users</button>
+          <button className={tab === 'cases' ? 'nav-active' : ''} onClick={() => setTab('cases')}><FolderOpen size={16} /> Cases</button>
+          <button className={tab === 'users' ? 'nav-active' : ''} onClick={() => setTab('users')}><Users size={16} /> Users{pendingApprovals.length > 0 && <span className="nav-badge">{pendingApprovals.length}</span>}</button>
+          <button className={tab === 'approvals' ? 'nav-active' : ''} onClick={() => setTab('approvals')}><UserPlus size={16} /> Approvals{pendingApprovals.length > 0 && <span className="nav-badge">{pendingApprovals.length}</span>}</button>
           <button className={tab === 'tenants' ? 'nav-active' : ''} onClick={() => setTab('tenants')}><Building2 size={16} /> Tenants</button>
           <button className={tab === 'orgkb' ? 'nav-active' : ''} onClick={() => setTab('orgkb')}><BookOpen size={16} /> Org KB</button>
           <button className={tab === 'trainees' ? 'nav-active' : ''} onClick={() => setTab('trainees')}><GraduationCap size={16} /> Trainees</button>
@@ -557,17 +579,115 @@ export default function AdminDashboardPage() {
         </section>
       )}
 
+      {tab === 'cases' && (
+        <section className="admin-dashboard-section">
+          <div className="section-header">
+            <h2 className="icon-text"><FolderOpen size={22} /> Cases</h2>
+            <Link to="/cases/new" className="primary"><Plus size={16} /> New Case</Link>
+          </div>
+          {loading ? <p>Loading...</p> : (
+            <div className="case-cards-grid">
+              {caseList.map((c) => (
+                <div key={c.id} className="case-card" onClick={() => navigate(`/cases/${c.id}`)}>
+                  <div className="case-card-header">
+                    <span className="case-number">{c.case_number}</span>
+                    <span className={`badge ${STATUS_BADGES[c.status?.toLowerCase()]?.class || c.status?.toLowerCase() || ''}`}>{c.status}</span>
+                  </div>
+                  <div className="case-card-title">{c.title || c.case_number}</div>
+                  <div className="case-card-meta">{c.case_type || c.dispute_category || '-'}</div>
+                  <div className="case-card-actions">
+                    <Link to={`/cases/${c.id}`} className="btn-sm" onClick={(e) => e.stopPropagation()}>View</Link>
+                    <Link to={`/cases/${c.id}/edit`} className="btn-sm" onClick={(e) => e.stopPropagation()}>Edit</Link>
+                  </div>
+                </div>
+              ))}
+              {caseList.length === 0 && <p className="empty-msg">No cases yet.</p>}
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === 'approvals' && (
+        <section className="admin-dashboard-section">
+          <div className="section-header">
+            <h2 className="icon-text"><UserPlus size={22} /> Pending Approvals</h2>
+          </div>
+          {loading ? <p>Loading...</p> : pendingApprovals.length === 0 ? (
+            <p className="empty-msg">No pending approvals.</p>
+          ) : (
+            <div className="user-table-wrapper">
+              <table className="user-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Type</th>
+                    <th>Phone</th>
+                    <th>Country</th>
+                    <th>Submitted</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingApprovals.map((u) => (
+                    <tr key={u.id}>
+                      <td>{u.display_name || '-'}</td>
+                      <td>{u.email}</td>
+                      <td><span className={`badge ${USER_TYPE_BADGES[u.role]?.class || ''}`}>{USER_TYPE_BADGES[u.role]?.label || u.role}</span></td>
+                      <td>{u.phone || '-'}</td>
+                      <td>{u.country || '-'}</td>
+                      <td>{u.created_at?.slice(0, 10)}</td>
+                      <td>
+                        <button className="btn-sm primary" onClick={async () => {
+                          try {
+                            await usersApi.approve(u.id);
+                            usersApi.pendingApprovals().then(({ data }) => setPendingApprovals(data || []));
+                          } catch (err) { alert(err.response?.data?.detail || 'Failed'); }
+                        }}>Approve</button>
+                        <button className="btn-sm" onClick={async () => {
+                          const reason = prompt('Rejection reason (optional):');
+                          try {
+                            await usersApi.reject(u.id, reason || undefined);
+                            usersApi.pendingApprovals().then(({ data }) => setPendingApprovals(data || []));
+                          } catch (err) { alert(err.response?.data?.detail || 'Failed'); }
+                        }}>Reject</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
       {tab === 'users' && (
         <section className="admin-dashboard-section">
           <div className="section-header">
             <h2 className="icon-text"><Users size={22} /> User Management</h2>
             <button className="primary" onClick={() => setOnboardOpen(true)}><UserPlus size={16} /> New User</button>
           </div>
+          <div className="search-bar">
+            <Search size={18} />
+            <input
+              type="text"
+              placeholder="Search by User ID, Name, Email, Phone..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (userSearchDebounce) clearTimeout(userSearchDebounce);
+                setUserSearchDebounce(setTimeout(() => {
+                  usersApi.list({ search: e.target.value.trim() || undefined }).then(({ data }) => setUsers(data || [])).catch(() => setUsers([]));
+                }, 300));
+              }}
+            />
+          </div>
           {loading ? <p>Loading...</p> : (
             <div className="user-table-wrapper">
               <table className="user-table">
                 <thead>
                   <tr>
+                    <th>User ID</th>
                     <th>Email</th>
                     <th>Name</th>
                     <th>Type</th>
@@ -581,6 +701,7 @@ export default function AdminDashboardPage() {
                 <tbody>
                   {users.map((u) => (
                     <tr key={u.id}>
+                      <td><code className="user-id">{u.user_id || '-'}</code></td>
                       <td>{u.email}</td>
                       <td>{u.display_name || '-'}</td>
                       <td>

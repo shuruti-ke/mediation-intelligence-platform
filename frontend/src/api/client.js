@@ -180,8 +180,14 @@ export const tenantsApi = {
 export const usersApi = {
   list: (params) => api.get('/users', { params }),
   get: (id) => api.get(`/users/${id}`),
+  search: (q, limit = 20) => api.get('/users/search', { params: { q, limit } }),
+  pendingApprovals: () => api.get('/users/pending-approvals'),
+  approve: (id) => api.post(`/users/${id}/approve`),
+  reject: (id, reason) => api.post(`/users/${id}/reject`, { reason }),
   onboard: (data) => api.post('/users', data),
+  onboardClient: (data) => api.post('/users/onboard-client', data),
   intake: (data) => api.post('/users/intake', data),
+  update: (id, data) => api.patch(`/users/${id}`, data),
   updateStatus: (id, data) => api.patch(`/users/${id}`, data),
   reassignMediator: (userId, data) => api.post(`/users/${userId}/reassign-mediator`, data),
 };

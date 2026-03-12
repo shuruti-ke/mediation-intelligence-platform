@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, text, and_
+from sqlalchemy import select, func, text, and_, or_
 
 from app.api.deps import get_current_user, require_role
 from app.core.database import get_db
@@ -14,6 +14,17 @@ from app.core.security import get_password_hash
 from app.models.tenant import User, Tenant
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+async def _generate_user_id(db: AsyncSession, country: str = "KE") -> str:
+    """Generate USR-{COUNTRY}-{YEAR}-{SEQ}."""
+    year = datetime.utcnow().year
+    prefix = f"USR-{country}-{year}-"
+    result = await db.execute(
+        select(func.count(User.id)).where(User.user_id.like(f"{prefix}%"))
+    )
+    count = result.scalar() or 0
+    return f"{prefix}{count + 1:04d}"
 
 # Country codes for phone (Africa-first)
 COMMON_COUNTRY_CODES = {"KE": "+254", "NG": "+234", "ZA": "+27", "GH": "+233", "TZ": "+255", "UG": "+256"}
@@ -50,14 +61,54 @@ class UserResponse(BaseModel):
     phone: str | None = None
     country: str | None = None
     assigned_mediator_id: str | None = None
+    user_id: str | None = None
+    approval_status: str | None = None
 
     class Config:
         from_attributes = True
 
 
+class UserProfileUpdate(BaseModel):
+    display_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    country: str | None = None
+    assigned_mediator_id: uuid.UUID | None = None
+    is_active: bool | None = None
+    status: str | None = None
+
+
+class ApproveReject(BaseModel):
+    reason: str | None = None
+
+
+def _user_to_response(u: User) -> UserResponse:
+    return UserResponse(
+        id=str(u.id),
+        email=u.email,
+        display_name=u.display_name,
+        role=u.role,
+        status=getattr(u, "status", "active") or "active",
+        is_active=u.is_active,
+        onboarded_at=u.onboarded_at.isoformat() if getattr(u, "onboarded_at", None) else None,
+        last_login_at=u.last_login_at.isoformat() if getattr(u, "last_login_at", None) else None,
+        created_at=u.created_at.isoformat(),
+        phone=getattr(u, "phone", None),
+        country=getattr(u, "country", None),
+        assigned_mediator_id=str(u.assigned_mediator_id) if getattr(u, "assigned_mediator_id", None) else None,
+        user_id=getattr(u, "user_id", None),
+        approval_status=getattr(u, "approval_status", None),
+    )
+
+
 class UserStatusUpdate(BaseModel):
     is_active: bool | None = None
     status: str | None = None  # pending, active, inactive
+    display_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    country: str | None = None
+    assigned_mediator_id: uuid.UUID | None = None
 
 
 class ReassignMediator(BaseModel):
@@ -67,10 +118,56 @@ class ReassignMediator(BaseModel):
     notify_user_and_mediator: bool = True
 
 
+@router.get("/search", response_model=list[UserResponse])
+async def search_users(
+    q: str = Query(..., min_length=2),
+    limit: int = Query(20, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+):
+    """Search users by user_id (exact), name, email, phone (partial)."""
+    term = f"%{q.strip()}%"
+    exact_term = q.strip()
+    qry = select(User).where(User.role != "super_admin")
+    if user.tenant_id:
+        qry = qry.where(User.tenant_id == user.tenant_id)
+    qry = qry.where(
+        or_(
+            User.user_id == exact_term,
+            User.email.ilike(term),
+            User.display_name.ilike(term),
+            User.phone.ilike(term),
+        )
+    )
+    qry = qry.order_by(User.display_name.asc()).limit(limit)
+    result = await db.execute(qry)
+    users = result.scalars().all()
+    return [_user_to_response(u) for u in users]
+
+
+@router.get("/pending-approvals", response_model=list[UserResponse])
+async def list_pending_approvals(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+):
+    """List users pending admin approval."""
+    qry = select(User).where(User.role != "super_admin")
+    if user.tenant_id:
+        qry = qry.where(User.tenant_id == user.tenant_id)
+    qry = qry.where(User.approval_status == "pending_approval")
+    qry = qry.order_by(User.created_at.desc())
+    result = await db.execute(qry)
+    users = result.scalars().all()
+    return [_user_to_response(u) for u in users]
+
+
 @router.get("", response_model=list[UserResponse])
 async def list_users(
     role: str | None = Query(None, description="Filter by role: mediator, client_individual, client_corporate"),
     status: str | None = Query(None, description="Filter by status: pending, active, inactive"),
+    search: str | None = Query(None, description="Search by name, email, user_id"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin")),
 ):
@@ -82,26 +179,20 @@ async def list_users(
         q = q.where(User.role == role)
     if status:
         q = q.where(User.status == status)
-    q = q.order_by(User.created_at.desc())
+    if search and len(search.strip()) >= 2:
+        term = f"%{search.strip()}%"
+        q = q.where(
+            or_(
+                User.email.ilike(term),
+                User.display_name.ilike(term),
+                User.user_id.ilike(term) if hasattr(User, "user_id") else False,
+                User.phone.ilike(term) if hasattr(User, "phone") else False,
+            )
+        )
+    q = q.order_by(User.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(q)
     users = result.scalars().all()
-    return [
-        UserResponse(
-            id=str(u.id),
-            email=u.email,
-            display_name=u.display_name,
-            role=u.role,
-            status=getattr(u, "status", "active") or "active",
-            is_active=u.is_active,
-            onboarded_at=u.onboarded_at.isoformat() if getattr(u, "onboarded_at", None) else None,
-            last_login_at=u.last_login_at.isoformat() if getattr(u, "last_login_at", None) else None,
-            created_at=u.created_at.isoformat(),
-            phone=getattr(u, "phone", None),
-            country=getattr(u, "country", None),
-            assigned_mediator_id=str(u.assigned_mediator_id) if getattr(u, "assigned_mediator_id", None) else None,
-        )
-        for u in users
-    ]
+    return [_user_to_response(u) for u in users]
 
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -117,20 +208,57 @@ async def get_user(
         raise HTTPException(status_code=404, detail="User not found")
     if user.tenant_id and u.tenant_id != user.tenant_id:
         raise HTTPException(status_code=403, detail="Access denied")
-    return UserResponse(
-        id=str(u.id),
-        email=u.email,
-        display_name=u.display_name,
-        role=u.role,
-        status=getattr(u, "status", "active") or "active",
-        is_active=u.is_active,
-        onboarded_at=u.onboarded_at.isoformat() if getattr(u, "onboarded_at", None) else None,
-        last_login_at=u.last_login_at.isoformat() if getattr(u, "last_login_at", None) else None,
-        created_at=u.created_at.isoformat(),
-        phone=getattr(u, "phone", None),
-        country=getattr(u, "country", None),
-        assigned_mediator_id=str(u.assigned_mediator_id) if getattr(u, "assigned_mediator_id", None) else None,
-    )
+    return _user_to_response(u)
+
+
+@router.post("/{user_id}/approve", response_model=UserResponse)
+async def approve_user(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role("super_admin")),
+):
+    """Approve pending user: generate user_id, activate account."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    u = result.scalar_one_or_none()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    if admin.tenant_id and u.tenant_id != admin.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if getattr(u, "approval_status", None) != "pending_approval":
+        raise HTTPException(status_code=400, detail="User is not pending approval")
+    country = (getattr(u, "country", None) or "KE").upper()[:2]
+    u.user_id = await _generate_user_id(db, country)
+    u.approval_status = "approved"
+    u.approval_rejection_reason = None
+    u.status = "active"
+    u.is_active = True
+    u.onboarded_at = datetime.utcnow()
+    await db.flush()
+    await db.refresh(u)
+    return _user_to_response(u)
+
+
+@router.post("/{user_id}/reject", response_model=UserResponse)
+async def reject_user(
+    user_id: uuid.UUID,
+    data: ApproveReject,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role("super_admin")),
+):
+    """Reject pending user with reason."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    u = result.scalar_one_or_none()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    if admin.tenant_id and u.tenant_id != admin.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if getattr(u, "approval_status", None) != "pending_approval":
+        raise HTTPException(status_code=400, detail="User is not pending approval")
+    u.approval_status = "rejected"
+    u.approval_rejection_reason = data.reason
+    await db.flush()
+    await db.refresh(u)
+    return _user_to_response(u)
 
 
 async def _assign_mediator(db: AsyncSession, tenant_id: uuid.UUID | None) -> uuid.UUID | None:
@@ -155,13 +283,56 @@ async def _assign_mediator(db: AsyncSession, tenant_id: uuid.UUID | None) -> uui
     return best.id
 
 
+@router.post("/onboard-client", response_model=UserResponse)
+async def mediator_onboard_client(
+    data: UserIntakeMinimal,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin", "mediator", "trainee")),
+):
+    """Mediator initiates client onboarding. Creates pending_approval; admin must approve."""
+    if data.invite_via_link and data.password:
+        raise HTTPException(status_code=400, detail="Use either password or invite link, not both")
+    if not data.invite_via_link and not data.password:
+        raise HTTPException(status_code=400, detail="Provide password or select invite via link")
+
+    result = await db.execute(select(User).where(User.email == data.email))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    tenant_id = user.tenant_id
+    if not tenant_id:
+        t = (await db.execute(select(Tenant).limit(1))).scalar_one_or_none()
+        tenant_id = t.id if t else None
+
+    role = "client_individual" if data.user_type == "individual" else "client_corporate"
+    password = get_password_hash(data.password) if data.password else get_password_hash(secrets.token_urlsafe(16))
+
+    new_user = User(
+        email=data.email,
+        hashed_password=password,
+        display_name=data.full_name,
+        role=role,
+        tenant_id=tenant_id,
+        phone=data.phone,
+        country=data.country.upper()[:2],
+        is_active=False,
+        status="pending",
+        onboarded_at=None,
+        approval_status="pending_approval",
+    )
+    db.add(new_user)
+    await db.flush()
+    await db.refresh(new_user)
+    return _user_to_response(new_user)
+
+
 @router.post("/intake", response_model=UserResponse)
 async def create_user_intake(
     data: UserIntakeMinimal,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin")),
 ):
-    """Stage 1: Create user with minimal intake. Auto-assign or invite."""
+    """Stage 1: Create user with minimal intake. Admin bypasses approval; user_id generated."""
     if data.invite_via_link and data.password:
         raise HTTPException(status_code=400, detail="Use either password or invite link, not both")
     if not data.invite_via_link and not data.password:
@@ -194,7 +365,12 @@ async def create_user_intake(
     db.add(new_user)
     await db.flush()
 
-    # Auto-assign mediator
+    # Admin-created: generate user_id immediately
+    country = (data.country or "KE").upper()[:2]
+    new_user.user_id = await _generate_user_id(db, country)
+    new_user.approval_status = "approved"
+
+    # Auto-assign mediator (clients only)
     mediator_id = await _assign_mediator(db, tenant_id)
     if mediator_id:
         new_user.assigned_mediator_id = mediator_id
@@ -287,7 +463,7 @@ async def update_user_status(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin")),
 ):
-    """Activate or deactivate a user."""
+    """Update user profile and status."""
     result = await db.execute(select(User).where(User.id == user_id))
     u = result.scalar_one_or_none()
     if not u:
@@ -298,22 +474,22 @@ async def update_user_status(
         u.is_active = data.is_active
     if data.status is not None:
         u.status = data.status
+    if data.display_name is not None:
+        u.display_name = data.display_name
+    if data.email is not None:
+        u.email = data.email
+    if data.phone is not None:
+        u.phone = data.phone
+    if data.country is not None:
+        u.country = data.country.upper()[:2]
+    if data.assigned_mediator_id is not None:
+        if u.role in ("client_individual", "client_corporate"):
+            u.assigned_mediator_id = data.assigned_mediator_id
+        else:
+            u.assigned_mediator_id = None
     await db.flush()
     await db.refresh(u)
-    return UserResponse(
-        id=str(u.id),
-        email=u.email,
-        display_name=u.display_name,
-        role=u.role,
-        status=getattr(u, "status", "active") or "active",
-        is_active=u.is_active,
-        onboarded_at=u.onboarded_at.isoformat() if getattr(u, "onboarded_at", None) else None,
-        last_login_at=u.last_login_at.isoformat() if getattr(u, "last_login_at", None) else None,
-        created_at=u.created_at.isoformat(),
-        phone=getattr(u, "phone", None),
-        country=getattr(u, "country", None),
-        assigned_mediator_id=str(u.assigned_mediator_id) if getattr(u, "assigned_mediator_id", None) else None,
-    )
+    return _user_to_response(u)
 
 
 @router.post("/{user_id}/reassign-mediator", response_model=UserResponse)

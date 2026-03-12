@@ -45,8 +45,14 @@ class User(Base):
     country: Mapped[str | None] = mapped_column(String(10), nullable=True)
     # Progressive profile (Stage 2)
     profile_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    # Mediator assignment
+    # Mediator assignment (clients only)
     assigned_mediator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     profile_complete_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # User ID: USR-{COUNTRY}-{YEAR}-{SEQ}, generated on approval
+    user_id: Mapped[str | None] = mapped_column(String(30), unique=True, nullable=True, index=True)
+    # Approval: pending_approval, approved, rejected
+    approval_status: Mapped[str | None] = mapped_column(String(30), default="approved")  # legacy users
+    approval_rejection_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     tenant = relationship("Tenant", back_populates="users")

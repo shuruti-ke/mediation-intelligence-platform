@@ -1,0 +1,42 @@
+Implement and add "A vibrant admin dashboard for a Training Academy, featuring: an AI module creation wizard with sparkle icons, a grid of training module cards with edit/delete actions, a analytics section with colorful bar charts showing completion rates and average scores, and a student progress modal open showing a detailed table of completed vs. uncompleted tasks with time tracking. Style: modern, indigo-purple gradients, clean data visualization, mobile-responsive layout, dark mode option."
+AI-Assisted Creation: Admins can generate training modules using AI (topic → outline → content) or upload manually.
+Full Content Management: CRUD (Create, Read, Update, Delete) for modules, lessons, and materials (PDF, Video, Text).
+Assessment Engine: Build tests and quizzes linked to specific modules.
+Dual-Layer Analytics:
+Academy Overview: Aggregate data (completion rates, avg scores, total training time).
+Student Drill-Down: Click any student → view individual progress, uncompleted tasks, and history.
+Vibrant & Accessible: Engaging UI that works on low-bandwidth connections.
+Required Features:
+🤖 AI Module Creator
+Input: Admin enters topic (e.g., "Cross-Cultural Mediation"), target audience, duration.
+AI Output: Generates module structure (Lessons 1-5), suggested content types, and draft quiz questions.
+Human-in-the-Loop: Admin must review, edit, and approve AI content before publishing.
+Fallback: Manual upload option for existing materials (SCORM, PDF, MP4).
+📚 Content Management System (CMS)
+Module Level: Title, description, thumbnail, difficulty, tags, visibility (Public/Private).
+Lesson Level: Rich text editor, video embed, file upload, ordering/drag-and-drop.
+Version Control: Track changes to modules; notify students of major updates.
+Delete Archiving: Soft delete modules (archive instead of permanent delete to preserve student progress history).
+📝 Quiz & Assessment Builder
+Question Types: Multiple choice, True/False, Scenario-based, Drag-and-Drop.
+Settings: Passing score, time limit, randomize questions, retry attempts.
+Feedback: Custom feedback per answer (correct/incorrect explanation).
+Linkage: Quizzes attached to specific modules or as final exams.
+📊 Analytics Dashboard (Aggregate)
+KPIs: Total Enrolled, Completion Rate (%), Average Quiz Score, Total Training Hours Logged.
+Charts:
+• Module Popularity (Bar chart)
+• Completion Funnel (Started → In Progress → Completed)
+• Risk Alert: List of students with >5 uncompleted tasks or stalled progress (>30 days).
+Filters: Date range, specific module, region/country.
+👤 Student Drill-Down View
+Trigger: Click student name in any report or list.
+Profile Card: Name, Role, Region, Join Date.
+Progress Radar: Skills mastered vs. pending.
+Task List: Detailed table of every module/quiz status (Not Started, In Progress, Completed, Failed).
+Time Tracking: Time spent per module.
+Action: "Message Student" or "Assign Remedial Module" button.
+Africa-First Considerations:
+Low Bandwidth: AI generation should optimize text over heavy media; allow "Lite Mode" for videos.
+Offline Sync: Students can download modules; admin analytics update when student reconnects.
+Mobile Admin: Admins should be able to approve modules or view analytics via mobile dashboard.

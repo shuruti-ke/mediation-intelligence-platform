@@ -4,7 +4,16 @@
 **Location:** `C:\Users\shuru\Documents\AIProjects\Mediation Platform`  
 **GitHub:** https://github.com/shuruti-ke/mediation-intelligence-platform  
 **Branch:** `main`  
-**Date:** March 2025  
+**Last Updated:** March 2026  
+
+---
+
+## Quick Start for New Agent
+
+1. **Read this file first** – then the "Files to Read First" section.
+2. **Run locally:** `cd frontend && npm install && npm run dev` (frontend only). Backend needs PostgreSQL + env vars.
+3. **Deploy:** Push to `main` → Vercel auto-deploys from GitHub (if connected).
+4. **Do NOT confuse with rafiki-local** – that is a separate HR platform at `C:\Users\shuru\Documents\AIProjects\rafiki-local` (rafikihr.com). This is the Mediation Platform.
 
 ---
 
@@ -16,7 +25,7 @@ A mediation platform with AI features, Jitsi video, knowledge base, judiciary se
 
 ## Tech Stack
 
-- **Backend:** FastAPI, PostgreSQL, SQLAlchemy (async), Alembic
+- **Backend:** FastAPI, PostgreSQL, SQLAlchemy (async)
 - **Frontend:** React 19, Vite 7, React Router 7, Tailwind v4, Recharts, Lucide icons
 - **AI:** OpenAI (optional; `OPENAI_API_KEY` in config)
 - **Deploy:** Vercel (frontend), GitHub (repo)
@@ -30,87 +39,58 @@ A mediation platform with AI features, Jitsi video, knowledge base, judiciary se
 | Backend API | `backend/app/api/` |
 | Models | `backend/app/models/` |
 | Training API | `backend/app/api/training.py` |
+| Academy Admin API | `backend/app/api/academy_admin.py` |
+| Analytics API | `backend/app/api/analytics_dashboard.py` |
 | Frontend pages | `frontend/src/pages/` |
 | Admin dashboard | `frontend/src/pages/AdminDashboardPage.jsx` |
+| Training Academy admin | `frontend/src/pages/AdminTrainingAcademyPage.jsx` |
 | API client | `frontend/src/api/client.js` |
 | App routes | `frontend/src/App.jsx` |
 
 ---
 
-## Training System (Current State)
+## Recently Implemented (March 2025)
 
-### Backend Models (`backend/app/models/training.py`)
+### 1. Training Academy Admin Dashboard ✅
+- **Route:** `/admin/training-academy` (linked from Admin nav)
+- **Features:** AI module creator wizard, manual upload, module cards grid, analytics (KPIs, module popularity, completion funnel, risk alert), student drill-down modal
+- **Backend:** `academy_admin.py` – CRUD modules/lessons/quizzes, AI generation, analytics, student detail
+- **Models:** `academy.py` – AcademyModule, AcademyLesson, AcademyMaterial, AcademyModuleProgress, AcademyQuiz, AcademyQuizAttempt
 
-- **TrainingModule** – `slug`, `title`, `description`, `content_html`, `order_index`, `is_published`
-- **TrainingProgress** – `user_id`, `module_id`, `progress_pct`, `completed`, `completed_at`
-- **CPDProgress** – `user_id`, `year`, `hours_completed`, `hours_required`
-- **Quiz** – `module_id`, `title`, `questions_json`, `passing_score_pct`
-- **QuizAttempt** – `user_id`, `quiz_id`, `score_pct`, `passed`, `answers_json`
-- **RolePlayScenario** – AI-generated scenarios
-- **RolePlaySession** – Chat sessions with AI parties
-- **TrainingModuleConfig** – Interactive steps (branching)
-- **TraineeAcademyProgress** – `progress_json` for trainee academy
-
-### Trainee Academy
-
-- **Static modules** in `backend/app/api/training.py` (`TRAINEE_MODULES`)
-- **Full articles** in `backend/app/data/trainee_articles.py` (5000+ words each)
-- **API:** `GET /training/trainee-academy/modules`, `GET/POST /training/trainee-academy/progress`, `GET /training/trainee-academy/article/:lessonId`
-- **Frontend:** `TraineeTrainingPage.jsx`, `TraineeArticlePage.jsx`
-
-### Practice Scenarios
-
-- **Data:** `frontend/src/data/practiceScenarios.js` (Power imbalance, Cultural sensitivity, Hidden interests)
-- **Page:** `PracticeScenarioPage.jsx` – rich content, progressive disclosure, "Practice now" → Role-Play
-- **Completion:** `localStorage` key `practiceScenarioCompleted`
-
-### Admin Dashboard
-
-- **Route:** `/admin` (super_admin only)
-- **Tabs:** Dashboard, Tenants, Users, Trainees, Org KB
-- **Trainees:** Add trainee modal; link to Trainee Academy
-- **Training Academy admin:** Not yet implemented
+### 2. Interactive Admin Analytics Dashboard ✅
+- **Time range:** 7d, 30d, 90d, This Year
+- **Refresh:** Manual + auto-refresh (5 min)
+- **Export:** CSV download
+- **Clickable KPI cards:** Active Cases, New Users, Active Mediators → drill-down modals
+- **Trend indicators:** New Users shows ↑/↓ vs previous period
+- **Charts:** Cases Created vs Resolved, Case Distribution (pie), Mediator Workload (horizontal bar)
+- **Drill-down APIs:** `/analytics/drill-down/active-cases`, `/analytics/drill-down/new-users`, `/analytics/drill-down/case-distribution`
 
 ---
 
-## Pending Work: Training Academy Admin Dashboard
+## Training System (Current State)
 
-**Requested:** Full admin dashboard for training academy with:
+### Backend Models
+- **training.py:** TrainingModule, TrainingProgress, CPDProgress, Quiz, QuizAttempt, RolePlayScenario, RolePlaySession, TraineeAcademyProgress, TrainingModuleConfig
+- **academy.py:** AcademyModule, AcademyLesson, AcademyMaterial, AcademyModuleProgress, AcademyQuiz, AcademyQuizAttempt
 
-1. **AI Module Creator**
-   - Input: topic, audience, duration
-   - Output: module outline, lessons, draft quiz
-   - Human review before publish
-   - Fallback: manual upload (SCORM, PDF, MP4)
+### Trainee Academy (Static)
+- **TRAINEE_MODULES** in `backend/app/api/training.py`
+- **API:** `GET /training/trainee-academy/modules`, `GET/POST /training/trainee-academy/progress`
+- **Frontend:** `TraineeTrainingPage.jsx`, `TraineeArticlePage.jsx`
 
-2. **Content Management (CMS)**
-   - Module: title, description, thumbnail, difficulty, tags, visibility (Public/Private)
-   - Lesson: rich text, video embed, file upload, ordering/drag-drop
-   - Version control
-   - Soft delete (archive)
+### Training Academy (Admin-Managed)
+- **API:** `trainingAcademyApi` in `frontend/src/api/client.js`
+- **Frontend:** `AdminTrainingAcademyPage.jsx` – purple-teal theme (matches rafikihr.com), dark mode
 
-3. **Quiz & Assessment Builder**
-   - Question types: MC, T/F, scenario, drag-drop
-   - Settings: passing score, time limit, randomize, retries
-   - Feedback per answer
-   - Link to modules or final exams
+---
 
-4. **Analytics Dashboard**
-   - KPIs: enrolled, completion rate, avg score, training hours
-   - Charts: module popularity, completion funnel, risk alert
-   - Filters: date, module, region
+## Visual Design (Current)
 
-5. **Student Drill-Down**
-   - Click student → profile, progress radar, task list (Not Started / In Progress / Completed / Failed)
-   - Time tracking per module
-   - Actions: Message, Assign remedial module
-
-6. **Africa-First**
-   - Low bandwidth: text over media, “Lite Mode” for videos
-   - Offline sync
-   - Mobile admin
-
-**Design:** Indigo-purple gradients, clean data viz, mobile-responsive, dark mode option.
+- **Palette:** Purple (#8b5cf6) + Teal (#1fbfb8), matching rafikihr.com
+- **Typography:** Playfair Display (headings), Source Sans 3 (body)
+- **Key files:** `frontend/src/App.css` (:root variables), `frontend/src/pages/AdminTrainingAcademyPage.css`, `frontend/index.html` (fonts)
+- **Last restyle:** Commit `9819602` – switched from Omen earth tones to purple-teal
 
 ---
 
@@ -120,52 +100,82 @@ A mediation platform with AI features, Jitsi video, knowledge base, judiciary se
 - **Auth:** JWT in `Authorization: Bearer token`; user in `localStorage.getItem('user')`
 - **API:** `POST /api/auth/login`, `GET /api/auth/me`; `get_current_user`, `require_role` in deps
 - **OpenAI:** Uses `get_settings().openai_api_key`; if missing, falls back to rule-based/curated content
-
----
-
-## Migrations
-
-- **Alembic:** `backend/alembic/` (may not exist; check)
-- **Scripts:** `backend/scripts/` – `migrate_trainee_academy.py`, `migrate_role_play_sessions.py`, etc.
-- Run migrations before starting new schema work
+- **Database:** `init_db()` creates tables on startup (no Alembic migrations)
 
 ---
 
 ## Deployment
 
-```bash
-cd "C:\Users\shuru\Documents\AIProjects\Mediation Platform"
-git add -A && git commit -m "..." && git push origin main
-```
+- **Vercel:** Frontend auto-deploys from GitHub when `main` is pushed. Config in `vercel.json` (build: `cd frontend && npm ci && npm run build`, output: `frontend/dist`).
+- **Manual deploy:**
+  ```bash
+  cd "C:\Users\shuru\Documents\AIProjects\Mediation Platform"
+  git add -A && git commit -m "..." && git push origin main
+  ```
+- **Backend:** Not on Vercel; typically Render or similar. Check repo for backend deploy config.
 
 ---
 
 ## Suggested Next Steps for New Agent
 
-1. Inspect `AdminDashboardPage.jsx` and add a new tab (e.g. “Training Academy”) or section.
-2. Add backend models (e.g. `AcademyModule`, `AcademyLesson`, `AcademyMaterial`) if needed beyond `TrainingModule`.
-3. Add API endpoints for AI module creation, CRUD, analytics, student progress.
-4. Build UI: AI wizard, module cards, analytics charts, student drill-down modal.
-5. Implement quiz builder and link to modules.
-6. Add soft delete and version control.
+**Priority:** Read `CURRENT STATE & PROBLEMS.md` for core platform gaps (interactive cases, approval workflow, search, scalable user management, mediator assignment).
+
+1. **Training Academy enhancements**
+   - Module edit flow (currently only archive)
+   - Quiz builder UI (backend exists)
+   - Filter bar (region, case type, mediator) on analytics
+   - "Message Student" / "Assign Remedial Module" actions
+
+2. **Analytics enhancements**
+   - PDF export (currently CSV only)
+   - Custom date range picker (calendar)
+   - Threshold alerts / anomaly detection
+   - User activity heatmap
+
+3. **Africa-first**
+   - Low bandwidth mode (disable auto-refresh, lighter charts)
+   - Multi-language labels (EN, FR, SW, AR)
+   - Offline support / stale data indicator
+
+4. **Other**
+   - Practice scenario completion → backend (currently localStorage)
+   - Alembic migrations for schema changes
 
 ---
 
 ## Files to Read First
 
-- `backend/app/api/training.py` – training APIs
-- `backend/app/models/training.py` – training models
-- `frontend/src/pages/AdminDashboardPage.jsx` – admin layout
-- `frontend/src/pages/TraineeTrainingPage.jsx` – trainee view
-- `frontend/src/api/client.js` – API client
+- `docs/CURRENT STATE & PROBLEMS.md` – implementation & deployment guide (core gaps)
+- `backend/app/api/academy_admin.py` – academy CRUD, AI, analytics
+- `backend/app/api/analytics_dashboard.py` – dashboard + drill-down
+- `frontend/src/pages/AdminDashboardPage.jsx` – main admin + analytics
+- `frontend/src/pages/AdminTrainingAcademyPage.jsx` – training academy
+- `frontend/src/api/client.js` – API client (analyticsApi, trainingAcademyApi)
+
+---
+
+## Important: Separate from rafiki-local
+
+- **rafiki-local** = HR platform (rafikihr.com), at `C:\Users\shuru\Documents\AIProjects\rafiki-local`
+- **Mediation Platform** = This project, at `C:\Users\shuru\Documents\AIProjects\Mediation Platform`
+- They share a similar visual style (purple-teal) but are different codebases, repos, and deployments.
 
 ---
 
 ## Known Gaps
 
-- `TrainingModule` has no `thumbnail`, `difficulty`, `tags`, `visibility`
-- No lesson-level model (lesson data in `content_html` or `config_json`)
-- No time-tracking per module
-- No student drill-down API
-- Analytics: `analyticsApi` exists for cases/dashboard; not for training academy
-- Practice scenario completion is `localStorage` only (no backend)
+**Infrastructure & Training:**
+- No Alembic; schema changes require `init_db()` or manual migration scripts
+- Practice scenario completion is `localStorage` only
+- Module edit UI not implemented (archive only)
+- Quiz builder UI not built (backend ready)
+- Export is CSV only (no PDF)
+- No threshold alerts or anomaly detection
+
+**Core Platform (see `CURRENT STATE & PROBLEMS.md` for full spec):**
+- Cases in mediation dashboard are static (not clickable/editable)
+- No approval process for new user onboarding
+- No searchable internal reference system (User ID, Client ID, name, email)
+- User management lacks scalability for 1000+ users
+- No mediator assignment workflow from admin panel
+- All users currently assigned a mediator (incorrect—only clients should have mediators)
