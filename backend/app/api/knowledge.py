@@ -60,9 +60,8 @@ def _search_words(query: str) -> list[str]:
     return [w for w in words if w not in _STOPWORDS][:8]
 
 
-async def _web_search_books(query: str, max_results: int = 8) -> list[dict]:
-    """Search for books on the topic via DuckDuckGo. Returns title, url, snippet."""
-    search_q = f"{query} books"
+async def _web_search_duckduckgo(search_q: str, max_results: int = 8) -> list[dict]:
+    """Search via DuckDuckGo HTML. Returns title, url, snippet."""
     SCRAPE_UA = "Mozilla/5.0 (compatible; MediationPlatform/1.0; +https://mediation-intelligence-platform.vercel.app)"
     try:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
@@ -75,8 +74,8 @@ async def _web_search_books(query: str, max_results: int = 8) -> list[dict]:
         soup = BeautifulSoup(r.text, "html.parser")
         results = []
         for div in soup.find_all("div", class_="result")[:max_results]:
-            link = div.find("a", class_="result__a")
-            snippet_el = div.find("a", class_="result__snippet")
+            link = div.find("a", class_="result__a") or div.find("a", class_="result-link")
+            snippet_el = div.find("a", class_="result__snippet") or div.find("div", class_="result__snippet") or div.find("div", class_="result__body")
             if not link:
                 continue
             href = link.get("href", "")
@@ -92,6 +91,34 @@ async def _web_search_books(query: str, max_results: int = 8) -> list[dict]:
         return results
     except Exception:
         return []
+
+
+async def _web_search_books(query: str, max_results: int = 8) -> list[dict]:
+    """Search for books on the topic via DuckDuckGo."""
+    return await _web_search_duckduckgo(f"{query} mediation books", max_results)
+
+
+async def _web_search_resources(query: str, max_results: int = 10) -> list[dict]:
+    """Search for PDFs, docs, guides that can be added to the knowledge base."""
+    results = []
+    seen_urls = set()
+    for search_q in [f"{query} mediation PDF", f"{query} mediation guide filetype:pdf", f"{query} mediation handbook"]:
+        hits = await _web_search_duckduckgo(search_q, max_results=4)
+        for r in hits:
+            url = r.get("url", "")
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                # Infer type from URL
+                rtype = "pdf" if ".pdf" in url.lower() else "doc" if any(x in url.lower() for x in [".doc", ".docx"]) else "article"
+                results.append({"title": r.get("title", ""), "url": url, "snippet": r.get("snippet", ""), "type": rtype})
+                if len(results) >= max_results:
+                    return results
+    return results
+
+
+async def _web_search_general(query: str, max_results: int = 6) -> list[dict]:
+    """Search for general mediation info on the topic."""
+    return await _web_search_duckduckgo(f"{query} mediation Kenya Africa", max_results)
 
 
 # --- Mediator ingest (personal KB, optional share to org) ---
@@ -467,12 +494,25 @@ async def query_knowledge(
             citations.append({"document_title": doc.title, "snippet": chunk.content[:200]})
         context_parts.append(chunk.content)
 
+    # Fetch suggested resources (PDFs, docs, books) for all queries
+    suggested_resources = await _web_search_resources(data.query, max_results=8)
+    book_results = await _web_search_books(data.query, max_results=4)
+    for r in book_results:
+        if r.get("url") and not any(s["url"] == r["url"] for s in suggested_resources):
+            suggested_resources.append({"title": r["title"], "url": r["url"], "snippet": r.get("snippet", ""), "type": "book"})
+        if len(suggested_resources) >= 10:
+            break
+
     if context_parts:
         context = "\n\n---\n\n".join(context_parts)
         answer = ""
         if settings.openai_api_key:
             try:
                 import httpx
+                sys_prompt = """Answer the user's question using the provided context when relevant. Cite document titles from the context.
+If the context does NOT adequately address the question, say so clearly and provide a helpful general explanation based on mediation best practices.
+NEVER quote or cite laws unless they appear verbatim in the context. If legal specifics are needed, direct to Kenya Law (new.kenyalaw.org) or a qualified legal professional.
+Be detailed and practical. For topics like employment disputes, explain process, key considerations, and best practices."""
                 async with httpx.AsyncClient() as client:
                     r = await client.post(
                         "https://api.openai.com/v1/chat/completions",
@@ -480,10 +520,10 @@ async def query_knowledge(
                         json={
                             "model": "gpt-4o-mini",
                             "messages": [
-                                {"role": "system", "content": "Answer based only on the provided context. Cite document titles. NEVER quote or cite any law unless it appears verbatim in the context from a verified source. Do not invent laws or present them as real. If legal specifics are needed, direct users to Kenya Law (new.kenyalaw.org) or a qualified legal professional."},
+                                {"role": "system", "content": sys_prompt},
                                 {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {data.query}"},
                             ],
-                            "max_tokens": 500,
+                            "max_tokens": 800,
                         },
                         timeout=30,
                     )
@@ -495,38 +535,59 @@ async def query_knowledge(
         if not answer:
             answer = f"Based on the knowledge base:\n\n{context_parts[0][:500]}..."
 
-        # Always run web search to supplement with books and external resources
-        book_results = await _web_search_books(data.query, max_results=6)
-        if book_results:
-            answer += "\n\n---\n\nAdditional resources from the web (books and articles that may help):\n\n"
-            for i, r in enumerate(book_results[:5], 1):
-                answer += f"{i}. {r['title']}\n"
-                if r.get("snippet"):
-                    answer += f"   {r['snippet'][:120]}...\n"
-                if r.get("url"):
-                    answer += f"   {r['url']}\n"
+        if suggested_resources:
+            answer += "\n\n---\n\n**Suggested resources to add to your knowledge base** (download and upload via the form above):\n\n"
+            for i, res in enumerate(suggested_resources[:6], 1):
+                answer += f"{i}. **{res['title']}**\n   {res['url']}\n"
+                if res.get("snippet"):
+                    answer += f"   {res['snippet'][:100]}...\n"
                 answer += "\n"
-        return {"answer": answer, "citations": citations}
+        return {"answer": answer, "citations": citations, "suggested_resources": suggested_resources[:8]}
 
-    # No docs found: web search for book recommendations
-    book_results = await _web_search_books(data.query, max_results=8)
-    if book_results:
-        lines = [
-            "No relevant documents found in the knowledge base for your query.",
-            "",
-            "Here are some books and resources that may help:",
-            "",
-        ]
-        for i, r in enumerate(book_results[:6], 1):
-            lines.append(f"{i}. {r['title']}")
-            if r.get("snippet"):
-                lines.append(f"   {r['snippet'][:150]}...")
-            if r.get("url"):
-                lines.append(f"   {r['url']}")
-            lines.append("")
-        answer = "\n".join(lines)
-        return {"answer": answer, "citations": [], "source": "web_search"}
-    return {
-        "answer": "No relevant documents found in the knowledge base for your query. Try rephrasing or uploading documents on this topic.",
-        "citations": [],
-    }
+    # No docs found: web search for detailed answer + suggested resources
+    web_results = await _web_search_general(data.query, max_results=8)
+    web_context = "\n\n".join([f"Source: {r.get('title','')}\n{r.get('snippet','')}" for r in web_results if r.get("snippet")])
+
+    answer = ""
+    if settings.openai_api_key and web_context:
+        try:
+            import httpx
+            sys_prompt = """You are a mediation expert. The user asked a question but no relevant documents were found in their knowledge base.
+Use the web search results below to provide a detailed, practical answer. Cover key concepts, process, best practices, and considerations.
+For legal topics (employment, family, etc.), explain general principles and direct to Kenya Law (new.kenyalaw.org) or qualified professionals for specifics.
+Be thorough and helpful. Format with clear sections if appropriate."""
+            async with httpx.AsyncClient() as client:
+                r = await client.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+                    json={
+                        "model": "gpt-4o-mini",
+                        "messages": [
+                            {"role": "system", "content": sys_prompt},
+                            {"role": "user", "content": f"Web search results:\n{web_context}\n\nQuestion: {data.query}"},
+                        ],
+                        "max_tokens": 1000,
+                    },
+                    timeout=30,
+                )
+                if r.status_code == 200:
+                    data_res = r.json()
+                    answer = data_res.get("choices", [{}])[0].get("message", {}).get("content", "")
+        except Exception:
+            pass
+
+    if not answer:
+        answer = "No relevant documents found in your knowledge base for this query.\n\n"
+        if web_results:
+            answer += "Here are some web resources that may help:\n\n"
+            for i, r in enumerate(web_results[:5], 1):
+                answer += f"{i}. {r.get('title','')}\n   {r.get('url','')}\n"
+        else:
+            answer += "Try rephrasing your question or uploading relevant documents on this topic."
+
+    if suggested_resources:
+        answer += "\n\n---\n\n**Suggested resources to add to your knowledge base** (download PDFs/docs and upload above):\n\n"
+        for i, res in enumerate(suggested_resources[:6], 1):
+            answer += f"{i}. **{res['title']}** ({res.get('type','link')})\n   {res['url']}\n"
+
+    return {"answer": answer, "citations": citations, "suggested_resources": suggested_resources[:8], "source": "web_search" if not context_parts else "knowledge_base"}

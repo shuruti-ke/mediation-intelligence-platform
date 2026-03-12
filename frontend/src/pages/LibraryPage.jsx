@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Upload, FileText, Search, Sparkles, Building2, User, Lock, Share2, Trash2, Download, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Upload, FileText, Sparkles, Building2, User, Lock, Share2, Trash2, Download, X } from 'lucide-react';
 import { knowledge } from '../api/client';
 
 export default function LibraryPage() {
-  const [query, setQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
   const [aiQuery, setAiQuery] = useState('');
   const [aiAnswer, setAiAnswer] = useState(null);
   const [documents, setDocuments] = useState([]);
@@ -26,21 +24,6 @@ export default function LibraryPage() {
     knowledge.listDocuments(docScope).then(({ data }) => setDocuments(data)).catch(() => setDocuments([]));
   }, [docScope]);
 
-  const handleSearch = async (e) => {
-    e?.preventDefault();
-    if (!query.trim()) return;
-    setLoading(true);
-    setActiveTab('search');
-    try {
-      const { data } = await knowledge.search(query, docScope);
-      setSearchResults(data.results || []);
-    } catch (err) {
-      setSearchResults([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleAiQuery = async (e) => {
     e?.preventDefault();
     if (!aiQuery.trim()) return;
@@ -49,9 +32,13 @@ export default function LibraryPage() {
     setActiveTab('ai');
     try {
       const { data } = await knowledge.query(aiQuery, docScope);
-      setAiAnswer({ answer: data.answer, citations: data.citations || [] });
+      setAiAnswer({
+        answer: data.answer,
+        citations: data.citations || [],
+        suggested_resources: data.suggested_resources || [],
+      });
     } catch (err) {
-      setAiAnswer({ answer: 'Error querying knowledge base.', citations: [] });
+      setAiAnswer({ answer: 'Error querying knowledge base.', citations: [], suggested_resources: [] });
     } finally {
       setLoading(false);
     }
@@ -159,27 +146,16 @@ export default function LibraryPage() {
       </div>
 
       <div className="library-quick-search">
-        <form onSubmit={handleSearch} className="library-search-inline">
-          <Search size={18} />
+        <form onSubmit={handleAiQuery} className="library-ai-inline library-ai-single">
+          <Sparkles size={20} />
           <input
             type="text"
-            placeholder="Search knowledge base..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="search-inline-input"
-          />
-          <button type="submit" disabled={loading}>Search</button>
-        </form>
-        <form onSubmit={handleAiQuery} className="library-ai-inline">
-          <Sparkles size={18} />
-          <input
-            type="text"
-            placeholder="Ask AI: e.g. What are best practices for employment mediation?"
+            placeholder="Ask AI: e.g. employment disputes, best practices for family mediation, Kenya Law..."
             value={aiQuery}
             onChange={(e) => setAiQuery(e.target.value)}
             className="ai-inline-input"
           />
-          <button type="submit" disabled={loading}>{loading ? '…' : 'Ask'}</button>
+          <button type="submit" disabled={loading}>{loading ? 'Thinking…' : 'Ask'}</button>
         </form>
       </div>
 
@@ -187,11 +163,8 @@ export default function LibraryPage() {
         <button className={activeTab === 'documents' ? 'active' : ''} onClick={() => setActiveTab('documents')}>
           <FileText size={16} /> Documents ({documents.length})
         </button>
-        <button className={activeTab === 'search' ? 'active' : ''} onClick={() => setActiveTab('search')}>
-          <Search size={16} /> Search
-        </button>
         <button className={activeTab === 'ai' ? 'active' : ''} onClick={() => setActiveTab('ai')}>
-          <Sparkles size={16} /> Ask AI
+          <Sparkles size={16} /> AI Answers
         </button>
       </div>
 
@@ -229,42 +202,6 @@ export default function LibraryPage() {
         </section>
       )}
 
-      {activeTab === 'search' && (
-        <section className="library-section">
-          <div className="doc-scope-tabs">
-            <button className={docScope === 'all' ? 'active' : ''} onClick={() => setDocScope('all')}><FileText size={14} /> All</button>
-            <button className={docScope === 'org' ? 'active' : ''} onClick={() => setDocScope('org')}><Building2 size={14} /> Organization</button>
-            <button className={docScope === 'personal' ? 'active' : ''} onClick={() => setDocScope('personal')}><User size={14} /> My Documents</button>
-          </div>
-          <form onSubmit={handleSearch} className="search-form">
-            <input
-              type="text"
-              placeholder="Search knowledge base..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="search-input"
-            />
-            <button type="submit" disabled={loading} className="search-btn">
-              <Search size={16} /> {loading ? '…' : 'Search'}
-            </button>
-          </form>
-          {searchResults.length > 0 && (
-            <ul className="search-results-modern">
-              {searchResults.map((r, i) => (
-                <li key={i} className="search-result-card">
-                  <strong>{r.document_title}</strong>
-                  {r.is_org && <span className="result-badge">Org</span>}
-                  <p>{r.content}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-          {activeTab === 'search' && searchResults.length === 0 && query && !loading && (
-            <p className="no-results">No results found.</p>
-          )}
-        </section>
-      )}
-
       {activeTab === 'ai' && (
         <section className="library-section">
           <div className="doc-scope-tabs">
@@ -287,13 +224,27 @@ export default function LibraryPage() {
           {aiAnswer && (
             <div className="ai-answer-card">
               <span className="ai-badge">✨ AI Answer</span>
-              <p className="ai-answer-text">{aiAnswer.answer}</p>
+              <div className="ai-answer-text" style={{ whiteSpace: 'pre-wrap' }}>{aiAnswer.answer}</div>
               {aiAnswer.citations?.length > 0 && (
                 <div className="citations-modern">
-                  <strong>Sources</strong>
+                  <strong>From your knowledge base</strong>
                   <ul>
                     {aiAnswer.citations.map((c, i) => (
                       <li key={i}>{c.document_title}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {aiAnswer.suggested_resources?.length > 0 && (
+                <div className="suggested-resources">
+                  <strong>📥 Add to your knowledge base</strong>
+                  <p className="suggested-desc">Download these PDFs and documents, then upload above.</p>
+                  <ul className="suggested-links">
+                    {aiAnswer.suggested_resources.map((r, i) => (
+                      <li key={i}>
+                        <a href={r.url} target="_blank" rel="noopener noreferrer">{r.title}</a>
+                        {r.type && <span className="resource-type">{r.type}</span>}
+                      </li>
                     ))}
                   </ul>
                 </div>
