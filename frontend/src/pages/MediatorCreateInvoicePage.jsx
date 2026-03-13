@@ -33,7 +33,7 @@ export default function MediatorCreateInvoicePage() {
     setLoading(true);
     Promise.all([
       paymentsApi.listServices().then((r) => r.data || []),
-      usersApi.myClients({ limit: 200 }).then((r) => r.data || []),
+      usersApi.myClients({ limit: 100 }).then((r) => r.data || []),
       cases.list({ limit: 200 }).then((r) => r.data || []),
     ])
       .then(([svc, cl, cs]) => {

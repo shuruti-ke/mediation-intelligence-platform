@@ -167,13 +167,27 @@ async def list_my_submitted_clients(
 async def list_my_clients(
     search: str | None = Query(None, description="Search by name, email, user_id"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("mediator", "trainee")),
 ):
-    """List clients assigned to the current mediator."""
-    q = select(User).where(User.assigned_mediator_id == user.id)
+    """List clients assigned to the mediator OR clients who are parties in the mediator's cases."""
+    # Case parties: user_ids from CaseParty where case.mediator_id == current user
+    case_party_user_ids = (
+        select(CaseParty.user_id)
+        .join(Case, Case.id == CaseParty.case_id)
+        .where(Case.mediator_id == user.id)
+        .where(CaseParty.user_id.isnot(None))
+    )
+    # Assigned clients OR case parties
+    q = select(User).where(
+        or_(
+            User.assigned_mediator_id == user.id,
+            User.id.in_(case_party_user_ids),
+        )
+    )
     q = q.where(User.role.in_(["client_individual", "client_corporate"]))
+    q = q.where(User.is_active == True)
     if search and len(search.strip()) >= 2:
         term = f"%{search.strip()}%"
         conds = [User.email.ilike(term), User.display_name.ilike(term)]
@@ -182,9 +196,9 @@ async def list_my_clients(
         if hasattr(User, "phone"):
             conds.append(User.phone.ilike(term))
         q = q.where(or_(*conds))
-    q = q.order_by(User.display_name.asc()).offset(skip).limit(limit)
+    q = q.order_by(User.display_name.asc().nullslast()).offset(skip).limit(limit)
     result = await db.execute(q)
-    users = result.scalars().all()
+    users = result.scalars().unique().all()
     return [_user_to_response(u) for u in users]
 
 
