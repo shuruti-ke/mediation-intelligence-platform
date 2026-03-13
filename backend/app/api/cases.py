@@ -192,7 +192,7 @@ async def list_cases(
     status: str | None = Query(None),
     mediator_id: uuid.UUID | None = Query(None, description="Filter by mediator (mediators see own by default)"),
     skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=500),
 ) -> list[CaseResponse]:
     """List cases. Filtered by tenant. Mediators see own cases. Clients see cases linked to them."""
     q = select(Case)
