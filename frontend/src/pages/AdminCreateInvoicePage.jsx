@@ -111,6 +111,11 @@ export default function AdminCreateInvoicePage() {
       alert('Select the client/mediator/trainee to invoice');
       return;
     }
+    const isPlatformInvoice = form.clientType === 'mediator';
+    if (!isPlatformInvoice && mediators.length > 0 && !form.mediator_id) {
+      alert('Select the earning mediator for reconciliation. This ensures client payments are correctly attributed.');
+      return;
+    }
     const lineItems = form.line_items.filter((li) => (li.description || '').trim() && (parseFloat(li.unit_price) || 0) > 0);
     if (lineItems.length === 0) {
       alert('Add at least one line item with description and price');
@@ -119,7 +124,6 @@ export default function AdminCreateInvoicePage() {
     const total = lineItems.reduce((s, li) => s + (parseFloat(li.quantity) || 1) * (parseFloat(li.unit_price) || 0), 0);
     setSubmitting(true);
     try {
-      const isPlatformInvoice = form.clientType === 'mediator';
       await paymentsApi.createInvoice({
         user_id: form.user_id,
         amount_minor_units: Math.round(total * 100),
@@ -212,7 +216,7 @@ export default function AdminCreateInvoicePage() {
           </div>
           {form.clientType !== 'mediator' && mediators.length > 0 && (
             <div className="form-group">
-              <label>Earning mediator (for reconciliation)</label>
+              <label>Earning mediator (required for reconciliation) <span className="required">*</span></label>
               <select
                 value={form.mediator_id}
                 onChange={(e) => setForm({ ...form, mediator_id: e.target.value })}
@@ -257,7 +261,18 @@ export default function AdminCreateInvoicePage() {
           </div>
           <div className="form-group">
             <label>Case (optional)</label>
-            <select value={form.case_id} onChange={(e) => setForm({ ...form, case_id: e.target.value })}>
+            <select
+              value={form.case_id}
+              onChange={(e) => {
+                const caseId = e.target.value;
+                const c = caseList.find((x) => x.id === caseId);
+                setForm((f) => ({
+                  ...f,
+                  case_id: caseId,
+                  mediator_id: c?.mediator_id && mediators.some((m) => m.id === c.mediator_id) ? c.mediator_id : f.mediator_id,
+                }));
+              }}
+            >
               <option value="">— None —</option>
               {caseList.map((c) => (
                 <option key={c.id} value={c.id}>{c.case_number} – {c.title || c.case_type || '—'}</option>

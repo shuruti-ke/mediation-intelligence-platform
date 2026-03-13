@@ -297,6 +297,12 @@ async def create_invoice(
         mediator_id_val = user.id
     elif user.role == "super_admin" and invoice_type == "platform":
         mediator_id_val = None  # Platform invoice: user_id is the mediator being billed
+    elif user.role == "super_admin" and invoice_type == "client" and not mediator_id_val and data.case_id:
+        # Fallback: derive mediator from case for correct attribution
+        case_res = await db.execute(select(Case).where(Case.id == data.case_id, Case.tenant_id == user.tenant_id))
+        case_row = case_res.scalar_one_or_none()
+        if case_row and case_row.mediator_id:
+            mediator_id_val = case_row.mediator_id
 
     invoice = Invoice(
         tenant_id=user.tenant_id,
@@ -816,7 +822,16 @@ async def get_reconciliation(
 
     base_inv = and_(Invoice.tenant_id == user.tenant_id, Invoice.invoice_type == "client")
     if mediator_id:
-        base_inv = and_(base_inv, Invoice.mediator_id == mediator_id)
+        # Include invoices with mediator_id set, OR invoices with null mediator_id but case assigned to this mediator
+        mediator_client_inv_filter = or_(
+            Invoice.mediator_id == mediator_id,
+            and_(
+                Invoice.mediator_id.is_(None),
+                Invoice.case_id.isnot(None),
+                Invoice.case_id.in_(select(Case.id).where(Case.mediator_id == mediator_id)),
+            ),
+        )
+        base_inv = and_(base_inv, mediator_client_inv_filter)
 
     # Funds from clients: total paid on client invoices (mediation fees)
     client_paid_q = (
