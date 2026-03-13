@@ -159,6 +159,11 @@ export const paymentsApi = {
   initPayment: (data) => api.post('/payments/init', data),
   listInvoices: (params) => api.get('/payments/invoices', { params }),
   getAccountSummary: () => api.get('/payments/account-summary'),
+  listServices: () => api.get('/payments/services'),
+  createService: (data) => api.post('/payments/services', data),
+  updateService: (id, data) => api.put(`/payments/services/${id}`, data),
+  deleteService: (id) => api.delete(`/payments/services/${id}`),
+  searchBillableUsers: (params) => api.get('/payments/billable-users', { params }),
 };
 
 export const settlementsApi = {

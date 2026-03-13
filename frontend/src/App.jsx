@@ -6,6 +6,8 @@ import DashboardPage from './pages/DashboardPage';
 import MediatorBillingPage from './pages/MediatorBillingPage';
 import ClientProfilePage from './pages/ClientProfilePage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminAccountsPage from './pages/AdminAccountsPage';
+import AdminCreateInvoicePage from './pages/AdminCreateInvoicePage';
 import AdminTrainingAcademyPage from './pages/AdminTrainingAcademyPage';
 import ClientDashboardPage from './pages/ClientDashboardPage';
 import ClientAccountPage from './pages/ClientAccountPage';
@@ -110,6 +112,26 @@ export default function App() {
             <ProtectedRoute>
               <RoleBasedRoute allowedRoles={['super_admin']}>
                 <AdminDashboardPage />
+              </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/accounts"
+          element={
+            <ProtectedRoute>
+              <RoleBasedRoute allowedRoles={['super_admin']}>
+                <AdminAccountsPage />
+              </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/accounts/create-invoice"
+          element={
+            <ProtectedRoute>
+              <RoleBasedRoute allowedRoles={['super_admin']}>
+                <AdminCreateInvoicePage />
               </RoleBasedRoute>
             </ProtectedRoute>
           }

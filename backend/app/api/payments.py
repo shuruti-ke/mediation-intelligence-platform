@@ -11,11 +11,13 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, and_
 
-from app.api.deps import get_current_user
+from fastapi import Query
+
+from app.api.deps import get_current_user, require_role
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.tenant import User
-from app.models.payment import Invoice, PaymentTransaction
+from app.models.payment import Service, Invoice, PaymentTransaction
 from app.models.case import Case, CaseParty
 
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -63,6 +65,181 @@ class PaymentInitRequest(BaseModel):
     invoice_id: uuid.UUID
     provider: str  # mpesa, stripe
     phone: str | None = None  # For M-Pesa STK Push
+
+
+class ServiceCreate(BaseModel):
+    name: str
+    description: str | None = None
+    price_minor: int
+    currency: str = "KES"
+
+
+class ServiceUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    price_minor: int | None = None
+    currency: str | None = None
+    is_active: bool | None = None
+
+
+# ─── Services CRUD (super_admin only) ────────────────────────────────────────
+
+@router.get("/services")
+async def list_services(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> list:
+    """List all services for the tenant."""
+    if not user.tenant_id:
+        return []
+    result = await db.execute(
+        select(Service).where(Service.tenant_id == user.tenant_id).order_by(Service.name)
+    )
+    services = result.scalars().all()
+    return [
+        {
+            "id": str(s.id),
+            "name": s.name,
+            "description": s.description,
+            "price_minor": s.price_minor,
+            "price": s.price_minor / 100,
+            "currency": s.currency,
+            "is_active": s.is_active,
+        }
+        for s in services
+    ]
+
+
+@router.post("/services")
+async def create_service(
+    data: ServiceCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Create a new service."""
+    if not user.tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant required")
+    svc = Service(
+        tenant_id=user.tenant_id,
+        name=data.name,
+        description=data.description,
+        price_minor=data.price_minor,
+        currency=data.currency,
+    )
+    db.add(svc)
+    await db.flush()
+    await db.refresh(svc)
+    return {
+        "id": str(svc.id),
+        "name": svc.name,
+        "description": svc.description,
+        "price_minor": svc.price_minor,
+        "price": svc.price_minor / 100,
+        "currency": svc.currency,
+        "is_active": svc.is_active,
+    }
+
+
+@router.put("/services/{service_id}")
+async def update_service(
+    service_id: uuid.UUID,
+    data: ServiceUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Update a service."""
+    if not user.tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant required")
+    result = await db.execute(
+        select(Service).where(Service.id == service_id, Service.tenant_id == user.tenant_id)
+    )
+    svc = result.scalar_one_or_none()
+    if not svc:
+        raise HTTPException(status_code=404, detail="Service not found")
+    if data.name is not None:
+        svc.name = data.name
+    if data.description is not None:
+        svc.description = data.description
+    if data.price_minor is not None:
+        svc.price_minor = data.price_minor
+    if data.currency is not None:
+        svc.currency = data.currency
+    if data.is_active is not None:
+        svc.is_active = data.is_active
+    await db.flush()
+    await db.refresh(svc)
+    return {
+        "id": str(svc.id),
+        "name": svc.name,
+        "description": svc.description,
+        "price_minor": svc.price_minor,
+        "price": svc.price_minor / 100,
+        "currency": svc.currency,
+        "is_active": svc.is_active,
+    }
+
+
+@router.delete("/services/{service_id}")
+async def delete_service(
+    service_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Deactivate a service."""
+    if not user.tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant required")
+    result = await db.execute(
+        select(Service).where(Service.id == service_id, Service.tenant_id == user.tenant_id)
+    )
+    svc = result.scalar_one_or_none()
+    if not svc:
+        raise HTTPException(status_code=404, detail="Service not found")
+    svc.is_active = False
+    await db.flush()
+    return {"ok": True}
+
+
+# ─── Billable users search (mediators, clients, trainees) ────────────────────
+
+@router.get("/billable-users")
+async def search_billable_users(
+    q: str | None = Query(None, description="Search by name, email, user_id"),
+    role: str | None = Query(None, description="Filter: mediator, client_individual, client_corporate, trainee"),
+    limit: int = Query(50, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin", "mediator")),
+) -> list:
+    """Search users for invoicing: mediators, clients, trainees."""
+    if not user.tenant_id:
+        return []
+    roles = ["mediator", "client_individual", "client_corporate", "trainee"]
+    if role and role in roles:
+        roles = [role]
+    qry = select(User).where(User.tenant_id == user.tenant_id, User.is_active == True)
+    qry = qry.where(User.role.in_(roles))
+    if q and len(q.strip()) >= 1:
+        term = f"%{q.strip()}%"
+        conds = [User.email.ilike(term), User.display_name.ilike(term)]
+        if hasattr(User, "user_id"):
+            conds.append(User.user_id.ilike(term))
+        if hasattr(User, "phone"):
+            conds.append(User.phone.ilike(term))
+        qry = qry.where(or_(*conds))
+    qry = qry.order_by(User.display_name.asc().nullslast()).limit(limit)
+    result = await db.execute(qry)
+    users = result.scalars().all()
+    return [
+        {
+            "id": str(u.id),
+            "user_id": getattr(u, "user_id", None),
+            "display_name": u.display_name or u.email,
+            "email": u.email,
+            "phone": getattr(u, "phone", None),
+            "country": getattr(u, "country", None),
+            "role": u.role,
+        }
+        for u in users
+    ]
 
 
 @router.post("/invoices")
@@ -340,17 +517,28 @@ async def list_invoices(
     q = q.order_by(Invoice.created_at.desc()).limit(50)
     result = await db.execute(q)
     invoices = result.scalars().all()
-    return [
-        {
+    user_ids = {i.user_id for i in invoices if i.user_id}
+    users_map = {}
+    if user_ids:
+        u_result = await db.execute(select(User).where(User.id.in_(user_ids)))
+        for u in u_result.scalars().all():
+            users_map[u.id] = u
+    out = []
+    for i in invoices:
+        u = users_map.get(i.user_id) if i.user_id else None
+        out.append({
             "id": str(i.id),
             "invoice_number": i.invoice_number,
+            "user_id": str(i.user_id) if i.user_id else None,
+            "user_name": u.display_name if u else None,
+            "user_email": u.email if u else None,
             "amount": i.amount_minor_units / 100,
             "currency": i.currency_code,
             "status": i.status,
+            "due_date": i.due_date.isoformat() if i.due_date else None,
             "created_at": i.created_at.isoformat(),
-        }
-        for i in invoices
-    ]
+        })
+    return out
 
 
 @router.get("/account-summary")

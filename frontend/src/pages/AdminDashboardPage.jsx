@@ -17,10 +17,10 @@ import {
   BarChart,
 } from 'recharts';
 import { FixedSizeList } from 'react-window';
-import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus, FolderOpen, Search, Plus, MoreVertical, ArrowLeft, UserCircle, CreditCard, Smartphone } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus, FolderOpen, Search, Plus, MoreVertical, ArrowLeft, UserCircle, CreditCard } from 'lucide-react';
 import GlobalSearch from '../components/GlobalSearch';
 import LanguageSelector from '../components/LanguageSelector';
-import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi, cases, auditApi, auth, paymentsApi } from '../api/client';
+import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi, cases, auditApi, auth } from '../api/client';
 
 const STATUS_BADGES = {
   active: { label: 'Active', class: 'badge-active' },
@@ -135,15 +135,6 @@ export default function AdminDashboardPage() {
   const [thresholdAlerts, setThresholdAlerts] = useState([]);
   const [activityHeatmap, setActivityHeatmap] = useState({ data: [], period_days: 30 });
   const [liteMode, setLiteMode] = useState(() => localStorage.getItem('liteMode') === 'true');
-  const [invoices, setInvoices] = useState([]);
-  const [billingCreateOpen, setBillingCreateOpen] = useState(false);
-  const [billingPayOpen, setBillingPayOpen] = useState(null);
-  const [billingForm, setBillingForm] = useState({
-    amount: '', currency: 'KES', notes: '', purpose: 'mediation_session', due_date: '', case_id: '', user_id: '',
-    line_items: [{ description: '', quantity: 1, unit_price: '' }],
-  });
-  const [billingClients, setBillingClients] = useState([]);
-  const [payForm, setPayForm] = useState({ provider: 'mpesa', phone: '' });
   const navigate = useNavigate();
 
   const DATE_RANGES = [
@@ -248,20 +239,6 @@ export default function AdminDashboardPage() {
           setSecurityStatus(statusRes.status === 'fulfilled' ? statusRes.value?.data : null);
         })
         .catch(() => setAuditLogs([]))
-        .finally(() => setLoading(false));
-    } else if (tab === 'billing') {
-      setLoading(true);
-      Promise.all([
-        paymentsApi.listInvoices(),
-        usersApi.list({ role: 'client_individual', limit: 100 }).catch(() => ({ data: [] })),
-        usersApi.list({ role: 'client_corporate', limit: 100 }).catch(() => ({ data: [] })),
-      ])
-        .then(([invRes, indRes, corpRes]) => {
-          setInvoices(invRes.data || []);
-          const clients = [...(indRes.data || []), ...(corpRes.data || [])];
-          setBillingClients(clients);
-        })
-        .catch(() => setInvoices([]))
         .finally(() => setLoading(false));
     } else {
       refreshDashboard();
@@ -605,7 +582,7 @@ export default function AdminDashboardPage() {
             <button className={tab === 'orgkb' ? 'nav-active' : ''} onClick={() => setTab('orgkb')}><BookOpen size={16} /> Org KB</button>
             <button className={tab === 'trainees' ? 'nav-active' : ''} onClick={() => setTab('trainees')}><GraduationCap size={16} /> Trainees</button>
             <button className={tab === 'audit' ? 'nav-active' : ''} onClick={() => setTab('audit')}><FileText size={16} /> Audit Log</button>
-            <button className={tab === 'billing' ? 'nav-active' : ''} onClick={() => setTab('billing')}><CreditCard size={16} /> Billing & M-Pesa</button>
+            <Link to="/admin/accounts" className="nav-link-billing"><CreditCard size={16} /> Accounts & Billing</Link>
             <Link to="/admin/training-academy" className="nav-training-academy"><Sparkles size={16} /> Training Academy</Link>
             <Link to="/calendar"><Calendar size={16} /> Calendar</Link>
             <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><LogOut size={16} /> Sign out</Link>
@@ -1544,190 +1521,7 @@ export default function AdminDashboardPage() {
         </section>
       )}
 
-      {tab === 'billing' && (
-        <section className="admin-dashboard-section billing-section">
-          <div className="section-header">
-            <h2 className="icon-text"><CreditCard size={22} /> Billing & Payments</h2>
-            <button className="primary" onClick={() => { setBillingCreateOpen(true); setBillingForm({ amount: '', currency: 'KES', notes: '', purpose: 'mediation_session', due_date: '', case_id: '', user_id: '', line_items: [{ description: '', quantity: 1, unit_price: '' }] }); }}>
-              <Plus size={16} /> Create Invoice
-            </button>
-          </div>
-          <p className="section-desc">Manage invoices. Pay via <strong>M-Pesa</strong> (Kenya) or Stripe (cards).</p>
-          {loading ? <p>Loading...</p> : invoices.length === 0 ? (
-            <p className="empty-msg">No invoices yet. Create one to get started.</p>
-          ) : (
-            <div className="invoices-table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Invoice #</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Created</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((inv) => (
-                    <tr key={inv.id}>
-                      <td><code>{inv.invoice_number}</code></td>
-                      <td>{inv.amount} {inv.currency}</td>
-                      <td><span className={`badge ${inv.status === 'PAID' ? 'badge-active' : 'badge-pending'}`}>{inv.status}</span></td>
-                      <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : '—'}</td>
-                      <td>
-                        {inv.status !== 'PAID' && (
-                          <button
-                            className="btn-sm btn-mpesa"
-                            onClick={() => { setBillingPayOpen(inv); setPayForm({ provider: 'mpesa', phone: '' }); }}
-                            title="Pay with M-Pesa"
-                          >
-                            <Smartphone size={14} /> M-Pesa
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
-
       </main>
-
-      {billingCreateOpen && (
-        <div className="modal-overlay" onClick={() => setBillingCreateOpen(false)}>
-          <div className="modal-card modal-invoice-create" onClick={e => e.stopPropagation()}>
-            <h3>Create Invoice</h3>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const lineItems = billingForm.line_items.filter((li) => (li.description || '').trim() && (parseFloat(li.unit_price) || 0) > 0);
-              const total = lineItems.length > 0
-                ? lineItems.reduce((s, li) => s + (parseFloat(li.quantity) || 1) * (parseFloat(li.unit_price) || 0), 0)
-                : parseFloat(billingForm.amount) || 0;
-              if (total <= 0) {
-                alert('Add at least one line item with valid amount, or enter a total amount');
-                return;
-              }
-              const line_items = lineItems.length > 0 ? lineItems.map((li) => ({
-                description: li.description.trim(),
-                quantity: parseFloat(li.quantity) || 1,
-                unit_price_minor: Math.round((parseFloat(li.unit_price) || 0) * 100),
-              })) : undefined;
-              const desc = billingForm.notes || (lineItems.length > 0 ? lineItems.map((li) => li.description).join('; ') : 'Invoice');
-              try {
-                await paymentsApi.createInvoice({
-                  amount_minor_units: Math.round(total * 100),
-                  currency: billingForm.currency,
-                  description: desc,
-                  purpose: billingForm.purpose || null,
-                  due_date: billingForm.due_date || null,
-                  case_id: billingForm.case_id || null,
-                  user_id: billingForm.user_id || null,
-                  line_items,
-                });
-                setBillingCreateOpen(false);
-                if (tab === 'billing') paymentsApi.listInvoices().then(({ data }) => setInvoices(data || []));
-              } catch (err) {
-                alert(err.response?.data?.detail || 'Failed to create invoice');
-              }
-            }}>
-              <label>Bill to (client) <span className="required">*</span>
-                <select value={billingForm.user_id} onChange={e => setBillingForm({ ...billingForm, user_id: e.target.value })} required>
-                  <option value="">— Select client —</option>
-                  {billingClients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.display_name || c.email} ({c.user_id || c.id})</option>
-                  ))}
-                </select>
-              </label>
-              <label>Purpose
-                <select value={billingForm.purpose} onChange={e => setBillingForm({ ...billingForm, purpose: e.target.value })}>
-                  <option value="mediation_session">Mediation session fee</option>
-                  <option value="consultation">Consultation</option>
-                  <option value="retainer">Retainer</option>
-                  <option value="administrative">Administrative fee</option>
-                  <option value="other">Other</option>
-                </select>
-              </label>
-              <label>Case (optional)
-                <select value={billingForm.case_id} onChange={e => setBillingForm({ ...billingForm, case_id: e.target.value })}>
-                  <option value="">— None —</option>
-                  {caseList.map((c) => (
-                    <option key={c.id} value={c.id}>{c.case_number} – {c.title || c.case_type || '—'}</option>
-                  ))}
-                </select>
-              </label>
-              <label>Due date (optional)
-                <input type="date" value={billingForm.due_date} onChange={e => setBillingForm({ ...billingForm, due_date: e.target.value })} />
-              </label>
-              <label>Currency
-                <select value={billingForm.currency} onChange={e => setBillingForm({ ...billingForm, currency: e.target.value })}>
-                  <option value="KES">KES</option>
-                  <option value="USD">USD</option>
-                </select>
-              </label>
-              <div className="invoice-line-items">
-                <h4>Line items</h4>
-                {billingForm.line_items.map((li, i) => (
-                  <div key={i} className="line-item-row">
-                    <input type="text" placeholder="Description" value={li.description} onChange={e => setBillingForm({ ...billingForm, line_items: billingForm.line_items.map((x, j) => j === i ? { ...x, description: e.target.value } : x) })} />
-                    <input type="number" step="0.01" min="0" placeholder="Qty" value={li.quantity} onChange={e => setBillingForm({ ...billingForm, line_items: billingForm.line_items.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x) })} style={{ width: '70px' }} />
-                    <input type="number" step="0.01" min="0" placeholder="Unit price" value={li.unit_price} onChange={e => setBillingForm({ ...billingForm, line_items: billingForm.line_items.map((x, j) => j === i ? { ...x, unit_price: e.target.value } : x) })} />
-                    <button type="button" className="btn-sm" onClick={() => setBillingForm({ ...billingForm, line_items: billingForm.line_items.filter((_, j) => j !== i) })} disabled={billingForm.line_items.length <= 1}>×</button>
-                  </div>
-                ))}
-                <button type="button" className="btn-sm" onClick={() => setBillingForm({ ...billingForm, line_items: [...billingForm.line_items, { description: '', quantity: 1, unit_price: '' }] })}>+ Add line</button>
-              </div>
-              <div className="invoice-total">
-                Total: <strong>{billingForm.line_items.filter((li) => (li.description || '').trim() && (parseFloat(li.unit_price) || 0) > 0).reduce((s, li) => s + (parseFloat(li.quantity) || 1) * (parseFloat(li.unit_price) || 0), 0).toFixed(2)} {billingForm.currency}</strong>
-              </div>
-              <label>Notes / terms (optional)
-                <input type="text" placeholder="e.g. Payment due within 14 days" value={billingForm.notes} onChange={e => setBillingForm({ ...billingForm, notes: e.target.value })} />
-              </label>
-              <div className="modal-actions">
-                <button type="button" onClick={() => setBillingCreateOpen(false)}>Cancel</button>
-                <button type="submit" className="primary">Create Invoice</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {billingPayOpen && (
-        <div className="modal-overlay" onClick={() => setBillingPayOpen(null)}>
-          <div className="modal-card modal-mpesa" onClick={e => e.stopPropagation()}>
-            <h3><Smartphone size={20} /> Pay with M-Pesa</h3>
-            <p className="mpesa-desc">Enter your M-Pesa phone number. You will receive an STK push to complete payment.</p>
-            <p className="mpesa-amount"><strong>{billingPayOpen.amount} {billingPayOpen.currency}</strong> – {billingPayOpen.invoice_number}</p>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              if (!payForm.phone || payForm.phone.replace(/\D/g, '').length < 9) {
-                alert('Enter a valid phone number (e.g. 0712345678 or +254712345678)');
-                return;
-              }
-              try {
-                const { data } = await paymentsApi.initPayment({
-                  invoice_id: billingPayOpen.id,
-                  provider: 'mpesa',
-                  phone: payForm.phone,
-                });
-                alert(data.message || 'Check your phone for M-Pesa prompt. Enter PIN to complete.');
-                setBillingPayOpen(null);
-                if (tab === 'billing') paymentsApi.listInvoices().then(({ data: inv }) => setInvoices(inv || []));
-              } catch (err) {
-                alert(err.response?.data?.detail || 'Payment initiation failed');
-              }
-            }}>
-              <label>Phone number <input type="tel" placeholder="0712345678 or +254712345678" value={payForm.phone} onChange={e => setPayForm({ ...payForm, phone: e.target.value })} /></label>
-              <div className="modal-actions">
-                <button type="button" onClick={() => setBillingPayOpen(null)}>Cancel</button>
-                <button type="submit" className="primary">Send M-Pesa Prompt</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {onboardOpen && (
         <div className="modal-overlay" onClick={() => setOnboardOpen(false)}>

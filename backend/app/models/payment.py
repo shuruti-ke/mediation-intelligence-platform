@@ -1,11 +1,27 @@
 """Payment and invoice models."""
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, ForeignKey, BigInteger, Text
+from sqlalchemy import String, DateTime, ForeignKey, BigInteger, Text, Integer, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+
+
+class Service(Base):
+    """Platform services that can be billed (e.g. mediation session, consultation)."""
+
+    __tablename__ = "billing_services"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    price_minor: Mapped[int] = mapped_column(Integer, nullable=False)  # price in minor units (cents)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="KES")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class Invoice(Base):

@@ -146,6 +146,32 @@ async def migrate_invoice_user_id(conn):
             logger.warning("Migration invoices.user_id: %s", e)
 
 
+async def migrate_billing_services(conn):
+    """Create billing_services table for platform services."""
+    try:
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS billing_services (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                name VARCHAR(200) NOT NULL,
+                description TEXT,
+                price_minor INTEGER NOT NULL,
+                currency VARCHAR(3) NOT NULL DEFAULT 'KES',
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_billing_services_tenant_id "
+            "ON billing_services (tenant_id)"
+        ))
+        logger.info("Migration: ensured billing_services table")
+    except Exception as e:
+        if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+            logger.warning("Migration billing_services: %s", e)
+
+
 async def migrate_settlement_agreements(conn):
     """Create settlement_agreements table for Phase 6a."""
     try:
@@ -180,6 +206,7 @@ async def init_db():
         await migrate_academy_target_audience(conn)
         await migrate_kb_fts_index(conn)
         await migrate_invoice_user_id(conn)
+        await migrate_billing_services(conn)
         await migrate_settlement_agreements(conn)
         await migrate_kb_chunk_embedding(conn)
         await migrate_session_transcripts(conn)
