@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     laws_africa_api_key: str | None = None
     tausi_api_key: str | None = None
+    # Sprint 1: Judiciary source feature flags
+    judiciary_enable_laws_africa: bool = True
+    judiciary_enable_tausi: bool = True
+    judiciary_enable_kenya_law_scrape: bool = True
+    judiciary_enable_web_fallback: bool = True
+    judiciary_enable_local_corpus: bool = True
 
     # Phase 6a: Payments - M-Pesa Daraja & Stripe
     m_pesa_consumer_key: str | None = None

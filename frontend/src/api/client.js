@@ -129,6 +129,7 @@ export const knowledge = {
 export const judiciary = {
   search: (query, region) => api.post('/judiciary/search', { query, region }),
   sources: () => api.get('/judiciary/sources'),
+  health: () => api.get('/judiciary/health'),
 };
 
 // Public API (no auth required)

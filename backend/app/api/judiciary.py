@@ -1,6 +1,8 @@
 """Judiciary case search - Phase 3. Tausi, Laws.Africa, cache."""
+from datetime import datetime, timezone
 import hashlib
 import logging
+from typing import Any
 from urllib.parse import quote_plus, unquote, parse_qs, urlparse
 
 import httpx
@@ -23,6 +25,102 @@ settings = get_settings()
 
 # User-Agent for scraping (identify as a bot, be respectful)
 SCRAPE_UA = "Mozilla/5.0 (compatible; MediationPlatform/1.0; +https://mediation-intelligence-platform.vercel.app)"
+
+
+def _provider_enabled(provider: str) -> bool:
+    flags = {
+        "laws_africa": settings.judiciary_enable_laws_africa,
+        "tausi": settings.judiciary_enable_tausi,
+        "kenya_law_scrape": settings.judiciary_enable_kenya_law_scrape,
+        "web_fallback": settings.judiciary_enable_web_fallback,
+        "local_corpus": settings.judiciary_enable_local_corpus,
+    }
+    return bool(flags.get(provider, False))
+
+
+def _with_result_metadata(items: list[dict], default_confidence: float) -> list[dict]:
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    enriched: list[dict[str, Any]] = []
+    for item in items:
+        row = dict(item)
+        row["source_url"] = row.get("url", "")
+        row["confidence"] = row.get("confidence", default_confidence)
+        row["fetched_at"] = row.get("fetched_at", fetched_at)
+        enriched.append(row)
+    return enriched
+
+
+async def _search_laws_africa(query: str, region: str) -> tuple[list[dict], list[str]]:
+    if not _provider_enabled("laws_africa") or not settings.laws_africa_api_key:
+        return [], []
+    if region.upper() == "AF":
+        return [], []
+
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                "https://api.laws.africa/v3/search",
+                params={"q": query, "country": region.lower()},
+                headers={"Authorization": f"Token {settings.laws_africa_api_key}"},
+                timeout=15,
+            )
+        if r.status_code != 200:
+            logger.warning("Laws.Africa API returned %s: %s", r.status_code, r.text[:200])
+            return [], []
+
+        data_res = r.json()
+        items = data_res.get("results", [])[:10]
+        results = [{
+            "title": item.get("title", ""),
+            "url": item.get("url", ""),
+            "snippet": item.get("snippet", ""),
+            "source": "Laws.Africa",
+        } for item in items]
+        return _with_result_metadata(results, default_confidence=0.9), (["Laws.Africa"] if items else [])
+    except Exception as e:
+        logger.warning("Laws.Africa API error: %s", e)
+        return [], []
+
+
+async def _search_tausi(query: str, region: str) -> tuple[list[dict], list[str]]:
+    if not _provider_enabled("tausi") or not settings.tausi_api_key:
+        return [], []
+    if region.upper() != "KE":
+        return [], []
+
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                "https://api.tausi.laws.africa/v1/decisions",
+                params={"q": query},
+                headers={"Authorization": f"Token {settings.tausi_api_key}"},
+                timeout=15,
+            )
+        if r.status_code != 200:
+            logger.warning("Tausi API returned %s: %s", r.status_code, r.text[:200])
+            return [], []
+
+        data_res = r.json()
+        items = data_res.get("results", [])[:10]
+        results = [{
+            "title": item.get("title", item.get("citation", "")),
+            "url": item.get("url", ""),
+            "snippet": item.get("summary", ""),
+            "source": "Tausi",
+            "court": item.get("court"),
+            "date": item.get("date"),
+        } for item in items]
+        return _with_result_metadata(results, default_confidence=0.92), (["Tausi"] if items else [])
+    except Exception as e:
+        logger.warning("Tausi API error: %s", e)
+        return [], []
+
+
+async def _search_local_corpus(query: str, region: str) -> tuple[list[dict], list[str]]:
+    # Sprint 1 adapter placeholder: implement backed local corpus retrieval in Sprint 2.
+    if not _provider_enabled("local_corpus"):
+        return [], []
+    return [], []
 
 
 def _extract_ddg_url(href: str) -> str:
@@ -68,12 +166,14 @@ async def _scrape_duckduckgo(search_q: str, max_results: int = 10) -> list[dict]
 
 async def scrape_kenya_law(query: str, max_results: int = 10) -> tuple[list[dict], list[str]]:
     """Search Kenya Law via DuckDuckGo HTML (site:new.kenyalaw.org). No API keys needed."""
+    if not _provider_enabled("kenya_law_scrape"):
+        return [], []
     q = quote_plus(f"{query} site:new.kenyalaw.org")
     raw = await _scrape_duckduckgo(q, max_results)
     results = [r for r in raw if "kenyalaw.org" in r.get("url", "")]
     for r in results:
         r["source"] = "Kenya Law"
-    return results, ["Kenya Law"] if results else []
+    return _with_result_metadata(results, default_confidence=0.7), (["Kenya Law"] if results else [])
 
 
 # Region-specific legal databases for web search fallback (no API keys)
@@ -86,6 +186,8 @@ _REGION_SITES = {
 
 async def scrape_web_search_region(query: str, region: str, max_results: int = 10) -> tuple[list[dict], list[str]]:
     """Web search for case law in a given region via DuckDuckGo. No API keys needed."""
+    if not _provider_enabled("web_fallback"):
+        return [], []
     region = region.upper()
     if region in _REGION_SITES:
         site_op, label = _REGION_SITES[region]
@@ -103,7 +205,7 @@ async def scrape_web_search_region(query: str, region: str, max_results: int = 1
     raw = await _scrape_duckduckgo(search_q, max_results)
     for r in raw:
         r["source"] = label
-    return raw, [label] if raw else []
+    return _with_result_metadata(raw, default_confidence=0.55), ([label] if raw else [])
 
 
 class SearchRequest(BaseModel):
@@ -142,82 +244,31 @@ async def search_judiciary(
         if not is_placeholder:
             return {"results": cached_results, "sources": ["cache"], "query": data.query, "cached": True}
 
-    results = []
-    sources = []
+    results: list[dict] = []
+    sources: list[str] = []
 
-    # Laws.Africa API (legislation) - v3/search may return 404 if endpoint changed/deprecated
-    if settings.laws_africa_api_key and data.region.upper() != "AF":
+    # Sprint 1 provider routing order: primary providers -> local corpus -> fallback providers
+    provider_plan = [
+        ("laws_africa", _search_laws_africa),
+        ("tausi", _search_tausi),
+        ("local_corpus", _search_local_corpus),
+    ]
+    if data.region.upper() == "KE":
+        provider_plan.append(("kenya_law_scrape", lambda q, r: scrape_kenya_law(q)))
+    else:
+        provider_plan.append(("web_fallback", scrape_web_search_region))
+
+    for provider_name, provider_fn in provider_plan:
+        if not _provider_enabled(provider_name):
+            continue
         try:
-            async with httpx.AsyncClient() as client:
-                r = await client.get(
-                    "https://api.laws.africa/v3/search",
-                    params={"q": data.query, "country": data.region.lower()},
-                    headers={"Authorization": f"Token {settings.laws_africa_api_key}"},
-                    timeout=15,
-                )
-                if r.status_code == 200:
-                    data_res = r.json()
-                    items = data_res.get("results", [])[:10]
-                    for item in items:
-                        results.append({
-                            "title": item.get("title", ""),
-                            "url": item.get("url", ""),
-                            "snippet": item.get("snippet", ""),
-                            "source": "Laws.Africa",
-                        })
-                    if items:
-                        sources.append("Laws.Africa")
-                elif r.status_code == 404:
-                    logger.debug("Laws.Africa /v3/search not found (endpoint may have changed)")
-                else:
-                    logger.warning("Laws.Africa API returned %s: %s", r.status_code, r.text[:200])
+            provider_results, provider_sources = await provider_fn(data.query, data.region)
+            if provider_results:
+                results = provider_results
+                sources = provider_sources
+                break
         except Exception as e:
-            logger.warning("Laws.Africa API error: %s", e)
-
-    # Tausi API (Kenya judicial decisions)
-    if data.region.upper() == "KE" and settings.tausi_api_key:
-        try:
-            async with httpx.AsyncClient() as client:
-                r = await client.get(
-                    "https://api.tausi.laws.africa/v1/decisions",
-                    params={"q": data.query},
-                    headers={"Authorization": f"Token {settings.tausi_api_key}"},
-                    timeout=15,
-                )
-                if r.status_code == 200:
-                    data_res = r.json()
-                    items = data_res.get("results", [])[:10]
-                    for item in items:
-                        results.append({
-                            "title": item.get("title", item.get("citation", "")),
-                            "url": item.get("url", ""),
-                            "snippet": item.get("summary", ""),
-                            "source": "Tausi",
-                            "court": item.get("court"),
-                            "date": item.get("date"),
-                        })
-                    if items:
-                        sources.append("Tausi")
-        except Exception:
-            pass
-
-    # Fallback: scrape Kenya Law via DuckDuckGo search (no API keys needed)
-    if not results and data.region.upper() == "KE":
-        try:
-            results, sources = await scrape_kenya_law(data.query)
-        except Exception as e:
-            logger.warning("Kenya Law scrape error: %s", str(e) or type(e).__name__)
-            results = []
-            sources = []
-
-    # Fallback for other regions (ZA, NG, etc.): web search via DuckDuckGo - no API keys needed
-    if not results and data.region.upper() != "KE":
-        try:
-            results, sources = await scrape_web_search_region(data.query, data.region)
-        except Exception as e:
-            logger.warning("Web search fallback error: %s", str(e) or type(e).__name__)
-            results = []
-            sources = []
+            logger.warning("%s provider error: %s", provider_name, str(e) or type(e).__name__)
 
     # Final fallback when nothing worked
     if not results:
@@ -260,6 +311,7 @@ async def search_judiciary(
                 "source": "system",
             }]
             sources = ["system"]
+        results = _with_result_metadata(results, default_confidence=0.4)
 
     # Cache results (skip caching placeholders so next search tries scrape again)
     is_placeholder = (
@@ -288,19 +340,116 @@ async def list_sources(
 ) -> dict:
     """List configured sources by region."""
     sources = []
-    if settings.laws_africa_api_key:
+    if _provider_enabled("laws_africa") and settings.laws_africa_api_key:
         sources.append("Laws.Africa")
-    if settings.tausi_api_key:
+    if _provider_enabled("tausi") and settings.tausi_api_key:
         sources.append("Tausi (Kenya)")
-    sources.append("Kenya Law (KE)")
-    sources.append("AfricanLII (Africa-wide), SAFLII (ZA), Law Pavilion (NG)")
+    if _provider_enabled("kenya_law_scrape"):
+        sources.append("Kenya Law (KE)")
+    if _provider_enabled("web_fallback"):
+        sources.append("AfricanLII (Africa-wide), SAFLII (ZA), Law Pavilion (NG)")
+    if _provider_enabled("local_corpus"):
+        sources.append("Local corpus (fallback)")
     return {
         "sources": sources,
+        "providers_enabled": {
+            "laws_africa": settings.judiciary_enable_laws_africa,
+            "tausi": settings.judiciary_enable_tausi,
+            "kenya_law_scrape": settings.judiciary_enable_kenya_law_scrape,
+            "web_fallback": settings.judiciary_enable_web_fallback,
+            "local_corpus": settings.judiciary_enable_local_corpus,
+        },
         "keys_configured": {
             "laws_africa": bool(settings.laws_africa_api_key),
             "tausi": bool(settings.tausi_api_key),
         },
     }
+
+
+@router.get("/health")
+async def health_sources(
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Provider health and configuration status for judiciary adapters."""
+    providers: dict[str, dict[str, Any]] = {
+        "laws_africa": {
+            "enabled": settings.judiciary_enable_laws_africa,
+            "configured": bool(settings.laws_africa_api_key),
+            "healthy": False,
+            "message": "disabled",
+        },
+        "tausi": {
+            "enabled": settings.judiciary_enable_tausi,
+            "configured": bool(settings.tausi_api_key),
+            "healthy": False,
+            "message": "disabled",
+        },
+        "kenya_law_scrape": {
+            "enabled": settings.judiciary_enable_kenya_law_scrape,
+            "configured": True,
+            "healthy": False,
+            "message": "disabled",
+        },
+        "web_fallback": {
+            "enabled": settings.judiciary_enable_web_fallback,
+            "configured": True,
+            "healthy": False,
+            "message": "disabled",
+        },
+        "local_corpus": {
+            "enabled": settings.judiciary_enable_local_corpus,
+            "configured": True,
+            "healthy": True,
+            "message": "adapter ready",
+        },
+    }
+
+    if providers["laws_africa"]["enabled"] and providers["laws_africa"]["configured"]:
+        try:
+            async with httpx.AsyncClient(timeout=6) as client:
+                r = await client.get("https://api.laws.africa/")
+            providers["laws_africa"]["healthy"] = r.status_code < 500
+            providers["laws_africa"]["message"] = f"http_{r.status_code}"
+        except Exception as e:
+            providers["laws_africa"]["message"] = str(e) or type(e).__name__
+    elif providers["laws_africa"]["enabled"]:
+        providers["laws_africa"]["message"] = "missing_api_key"
+
+    if providers["tausi"]["enabled"] and providers["tausi"]["configured"]:
+        try:
+            async with httpx.AsyncClient(timeout=6) as client:
+                r = await client.get("https://api.tausi.laws.africa/")
+            providers["tausi"]["healthy"] = r.status_code < 500
+            providers["tausi"]["message"] = f"http_{r.status_code}"
+        except Exception as e:
+            providers["tausi"]["message"] = str(e) or type(e).__name__
+    elif providers["tausi"]["enabled"]:
+        providers["tausi"]["message"] = "missing_api_key"
+
+    if providers["kenya_law_scrape"]["enabled"]:
+        try:
+            async with httpx.AsyncClient(timeout=6) as client:
+                r = await client.get("https://new.kenyalaw.org/")
+            providers["kenya_law_scrape"]["healthy"] = r.status_code < 500
+            providers["kenya_law_scrape"]["message"] = f"http_{r.status_code}"
+        except Exception as e:
+            providers["kenya_law_scrape"]["message"] = str(e) or type(e).__name__
+
+    if providers["web_fallback"]["enabled"]:
+        try:
+            async with httpx.AsyncClient(timeout=6) as client:
+                r = await client.get("https://html.duckduckgo.com/html/?q=legal+case+law")
+            providers["web_fallback"]["healthy"] = r.status_code < 500
+            providers["web_fallback"]["message"] = f"http_{r.status_code}"
+        except Exception as e:
+            providers["web_fallback"]["message"] = str(e) or type(e).__name__
+
+    overall_ok = any(
+        provider["healthy"] and provider["enabled"]
+        for provider in providers.values()
+        if provider["enabled"]
+    )
+    return {"status": "ok" if overall_ok else "degraded", "providers": providers}
 
 
 @router.delete("/cache")
