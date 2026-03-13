@@ -149,6 +149,13 @@
   vertical-align: middle;
 }
 
+.btn-edit-type {
+  margin-left: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .btn-ghost {
   display: inline-flex;
   align-items: center;

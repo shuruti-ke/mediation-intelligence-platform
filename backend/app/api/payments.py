@@ -548,8 +548,10 @@ async def update_invoice(
         if it not in ("platform", "client"):
             raise HTTPException(status_code=400, detail="invoice_type must be platform or client")
         inv.invoice_type = it
-    if data.mediator_id is not None:
-        inv.mediator_id = data.mediator_id
+        if it == "platform":
+            inv.mediator_id = None
+        else:
+            inv.mediator_id = data.mediator_id
     await db.flush()
     await db.refresh(inv)
     return {

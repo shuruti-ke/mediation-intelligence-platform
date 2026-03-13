@@ -116,6 +116,13 @@ export default function AdminAccountsPage() {
     setPrintView({ type: 'invoice', invoice: detailInv, payments: detailPayments });
   };
 
+  const handlePrintInvoiceFromRow = (inv) => {
+    paymentsApi.listInvoicePayments(inv.id)
+      .then((r) => r.data || [])
+      .then((payments) => setPrintView({ type: 'invoice', invoice: inv, payments: Array.isArray(payments) ? payments : [] }))
+      .catch(() => setPrintView({ type: 'invoice', invoice: inv, payments: [] }));
+  };
+
   const handlePrintReceipt = (receipt) => {
     setPrintView({ type: 'receipt', invoice: detailInv, receipt });
   };
@@ -249,6 +256,7 @@ export default function AdminAccountsPage() {
                       <td>
                         <div className="accounts-row-actions">
                           <button className="btn-sm" onClick={() => openDetail(inv)}>View</button>
+                          <button className="btn-sm" onClick={() => handlePrintInvoiceFromRow(inv)} title="Print invoice"><Printer size={14} /> Print</button>
                           {inv.status === 'PENDING' && (
                             <>
                               <button
@@ -450,7 +458,12 @@ c:\Users\shuru\Documents\AIProjects\Mediation Platform\frontend\src\pages\AdminA
                   </div>
                 </div>
               ) : (
-                <p><strong>Type:</strong> {detailInv.invoice_type === 'platform' ? 'Platform' : 'Client'} <button type="button" className="btn-ghost btn-inline" onClick={() => { setEditInvType(true); setInvTypeForm({ invoice_type: detailInv.invoice_type || 'client', mediator_id: '' }); }} title="Edit type"><Edit2 size={12} /></button></p>
+                <p>
+                  <strong>Type:</strong> {detailInv.invoice_type === 'platform' ? 'Platform' : 'Client'}
+                  <button type="button" className="btn-sm btn-edit-type" onClick={() => { setEditInvType(true); setInvTypeForm({ invoice_type: detailInv.invoice_type || 'client', mediator_id: '' }); }} title="Change invoice type">
+                    <Edit2 size={14} /> Change type
+                  </button>
+                </p>
               )}
               <p><strong>Bill to:</strong> {detailInv.user_name || detailInv.user_email || '—'}</p>
               <p><strong>Amount:</strong> {detailInv.currency} {(detailInv.amount ?? 0).toFixed(2)}</p>
