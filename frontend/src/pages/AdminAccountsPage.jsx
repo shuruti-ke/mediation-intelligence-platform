@@ -423,8 +423,6 @@ export default function AdminAccountsPage() {
         </div>
       )}
 
-<｜tool▁sep｜>path
-c:\Users\shuru\Documents\AIProjects\Mediation Platform\frontend\src\pages\AdminAccountsPage.jsx
       {detailInv && (
         <div className="modal-overlay" onClick={() => setDetailInv(null)}>
           <div className="modal-card modal-wide" onClick={(e) => e.stopPropagation()}>
