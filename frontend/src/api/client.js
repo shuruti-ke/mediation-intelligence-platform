@@ -34,6 +34,8 @@ api.interceptors.response.use(
 export const auth = {
   login: (email, password) => api.post('/auth/login', { email, password }),
   getMe: () => api.get('/auth/me'),
+  changePassword: (currentPassword, newPassword) =>
+    api.post('/auth/change-password', { current_password: currentPassword, new_password: newPassword }),
   register: (data) => api.post('/auth/register', data),
 };
 
@@ -183,6 +185,7 @@ export const tenantsApi = {
 export const usersApi = {
   list: (params) => api.get('/users', { params }),
   myClients: (params) => api.get('/users/my-clients', { params }),
+  mySubmittedClients: () => api.get('/users/my-submitted-clients'),
   getClientCases: (userId) => api.get(`/users/${userId}/cases`),
   get: (id) => api.get(`/users/${id}`),
   getClientProfile: (id) => api.get(`/users/${id}/profile`),
@@ -190,6 +193,8 @@ export const usersApi = {
   pendingApprovals: () => api.get('/users/pending-approvals'),
   approve: (id) => api.post(`/users/${id}/approve`),
   reject: (id, reason) => api.post(`/users/${id}/reject`, { reason }),
+  requestInfo: (id, notes) => api.post(`/users/${id}/request-info`, { notes }),
+  resubmit: (id) => api.post(`/users/${id}/resubmit`),
   onboard: (data) => api.post('/users', data),
   onboardClient: (data) => api.post('/users/onboard-client', data),
   intake: (data) => api.post('/users/intake', data),

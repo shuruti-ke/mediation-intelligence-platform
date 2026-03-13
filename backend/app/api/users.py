@@ -13,8 +13,32 @@ from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.models.tenant import User, Tenant
 from app.models.case import Case, CaseParty
+from app.models.notification import InAppNotification
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+async def _create_notification(db: AsyncSession, user_id: uuid.UUID, title: str, body: str | None, ntype: str, link: str | None = None):
+    """Create in-app notification for a user."""
+    n = InAppNotification(user_id=user_id, title=title, body=body, type=ntype, link=link)
+    db.add(n)
+
+
+async def _notify_admins_pending_approval(db: AsyncSession, tenant_id: uuid.UUID | None, client_name: str, client_id: uuid.UUID):
+    """Notify all super_admins in tenant about new pending approval."""
+    q = select(User).where(User.role == "super_admin")
+    if tenant_id:
+        q = q.where(User.tenant_id == tenant_id)
+    result = await db.execute(q)
+    admins = result.scalars().all()
+    for admin in admins:
+        await _create_notification(
+            db, admin.id,
+            "New client pending approval",
+            f"{client_name} has been submitted for approval.",
+            "approval_pending",
+            f"/admin?tab=approvals",
+        )
 
 
 async def _generate_user_id(db: AsyncSession, country: str = "KE") -> str:
@@ -83,6 +107,10 @@ class ApproveReject(BaseModel):
     reason: str | None = None
 
 
+class RequestInfo(BaseModel):
+    notes: str = Field(..., min_length=1, max_length=500)
+
+
 def _user_to_response(u: User) -> UserResponse:
     return UserResponse(
         id=str(u.id),
@@ -117,6 +145,21 @@ class ReassignMediator(BaseModel):
     reason: str | None = None  # conflict_of_interest, user_request, workload, other
     note: str | None = None
     notify_user_and_mediator: bool = True
+
+
+@router.get("/my-submitted-clients", response_model=list[UserResponse])
+async def list_my_submitted_clients(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("mediator", "trainee")),
+):
+    """List clients submitted by current mediator (pending, on_hold, rejected) for resubmit flow."""
+    q = select(User).where(User.submitted_by_id == user.id)
+    q = q.where(User.role.in_(["client_individual", "client_corporate"]))
+    q = q.where(User.approval_status.in_(["pending_approval", "on_hold", "rejected"]))
+    q = q.order_by(User.created_at.desc())
+    result = await db.execute(q)
+    users = result.scalars().all()
+    return [_user_to_response(u) for u in users]
 
 
 @router.get("/my-clients", response_model=list[UserResponse])
@@ -263,11 +306,11 @@ async def list_pending_approvals(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin")),
 ):
-    """List users pending admin approval."""
+    """List users pending admin approval (includes on_hold)."""
     qry = select(User).where(User.role != "super_admin")
     if user.tenant_id:
         qry = qry.where(User.tenant_id == user.tenant_id)
-    qry = qry.where(User.approval_status == "pending_approval")
+    qry = qry.where(User.approval_status.in_(["pending_approval", "on_hold"]))
     qry = qry.order_by(User.created_at.desc())
     result = await db.execute(qry)
     users = result.scalars().all()
@@ -335,16 +378,28 @@ async def approve_user(
         raise HTTPException(status_code=404, detail="User not found")
     if admin.tenant_id and u.tenant_id != admin.tenant_id:
         raise HTTPException(status_code=403, detail="Access denied")
-    if getattr(u, "approval_status", None) != "pending_approval":
+    if getattr(u, "approval_status", None) not in ("pending_approval", "on_hold"):
         raise HTTPException(status_code=400, detail="User is not pending approval")
     country = (getattr(u, "country", None) or "KE").upper()[:2]
     u.user_id = await _generate_user_id(db, country)
     u.approval_status = "approved"
     u.approval_rejection_reason = None
+    u.approval_notes = None
     u.status = "active"
     u.is_active = True
     u.onboarded_at = datetime.utcnow()
+    u.must_change_password = True
+    # Assign submitting mediator to client if not already assigned
+    if getattr(u, "submitted_by_id", None) and not u.assigned_mediator_id:
+        u.assigned_mediator_id = u.submitted_by_id
     await db.flush()
+    await _create_notification(
+        db, u.id,
+        "Welcome to the Mediation Platform",
+        f"Your account has been approved. Your User ID is: {u.user_id}. Please log in and change your password.",
+        "approval_approved",
+        "/login",
+    )
     await db.refresh(u)
     return _user_to_response(u)
 
@@ -363,11 +418,82 @@ async def reject_user(
         raise HTTPException(status_code=404, detail="User not found")
     if admin.tenant_id and u.tenant_id != admin.tenant_id:
         raise HTTPException(status_code=403, detail="Access denied")
-    if getattr(u, "approval_status", None) != "pending_approval":
+    if getattr(u, "approval_status", None) not in ("pending_approval", "on_hold"):
         raise HTTPException(status_code=400, detail="User is not pending approval")
     u.approval_status = "rejected"
     u.approval_rejection_reason = data.reason
+    u.approval_notes = None
     await db.flush()
+    # Notify submitting mediator
+    submitted_by = getattr(u, "submitted_by_id", None)
+    if submitted_by:
+        reason_text = data.reason or "No reason provided"
+        await _create_notification(
+            db, submitted_by,
+            "Client approval rejected",
+            f"{u.display_name or u.email} was not approved. Reason: {reason_text}",
+            "approval_rejected",
+            "/dashboard",
+        )
+    await db.refresh(u)
+    return _user_to_response(u)
+
+
+@router.post("/{user_id}/request-info", response_model=UserResponse)
+async def request_info_user(
+    user_id: uuid.UUID,
+    data: RequestInfo,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role("super_admin")),
+):
+    """Put pending user on hold and notify mediator to provide more info."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    u = result.scalar_one_or_none()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    if admin.tenant_id and u.tenant_id != admin.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if getattr(u, "approval_status", None) != "pending_approval":
+        raise HTTPException(status_code=400, detail="User is not pending approval")
+    u.approval_status = "on_hold"
+    u.approval_notes = data.notes
+    await db.flush()
+    submitted_by = getattr(u, "submitted_by_id", None)
+    if submitted_by:
+        await _create_notification(
+            db, submitted_by,
+            "More info needed for client approval",
+            f"Admin requested more information for {u.display_name or u.email}: {data.notes}",
+            "approval_on_hold",
+            "/dashboard",
+        )
+    await db.refresh(u)
+    return _user_to_response(u)
+
+
+@router.post("/{user_id}/resubmit", response_model=UserResponse)
+async def resubmit_user(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("mediator", "trainee", "super_admin")),
+):
+    """Resubmit rejected client for approval. Mediator can only resubmit their own submissions."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    u = result.scalar_one_or_none()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    if u.tenant_id and user.tenant_id and u.tenant_id != user.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if getattr(u, "approval_status", None) != "rejected":
+        raise HTTPException(status_code=400, detail="Only rejected users can be resubmitted")
+    if user.role in ("mediator", "trainee") and getattr(u, "submitted_by_id", None) != user.id:
+        raise HTTPException(status_code=403, detail="You can only resubmit clients you submitted")
+    u.approval_status = "pending_approval"
+    u.approval_rejection_reason = None
+    u.approval_notes = None
+    u.submitted_by_id = user.id if user.role in ("mediator", "trainee") else u.submitted_by_id
+    await db.flush()
+    await _notify_admins_pending_approval(db, u.tenant_id, u.display_name or u.email, u.id)
     await db.refresh(u)
     return _user_to_response(u)
 
@@ -430,9 +556,11 @@ async def mediator_onboard_client(
         status="pending",
         onboarded_at=None,
         approval_status="pending_approval",
+        submitted_by_id=user.id,
     )
     db.add(new_user)
     await db.flush()
+    await _notify_admins_pending_approval(db, tenant_id, data.full_name or data.email, new_user.id)
     await db.refresh(new_user)
     return _user_to_response(new_user)
 

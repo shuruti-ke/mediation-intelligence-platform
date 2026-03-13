@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import ClientProfilePage from './pages/ClientProfilePage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
@@ -42,11 +43,12 @@ function RoleRedirect() {
   const token = localStorage.getItem('token');
   if (!token) return <Navigate to="/login" replace />;
   const userStr = localStorage.getItem('user');
-  let role = 'mediator';
+  let user = { role: 'mediator' };
   try {
-    if (userStr) role = JSON.parse(userStr).role;
+    if (userStr) user = JSON.parse(userStr);
   } catch {}
-  return <Navigate to={getRedirectForRole(role)} replace />;
+  if (user.must_change_password) return <Navigate to="/change-password" replace />;
+  return <Navigate to={getRedirectForRole(user.role)} replace />;
 }
 
 function RoleBasedRoute({ children, allowedRoles }) {
@@ -74,6 +76,9 @@ function RoleBasedRoute({ children, allowedRoles }) {
 
   if (loading) return <div className="loading-screen"><div className="loading-spinner" /><p>Loading...</p></div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.must_change_password && !window.location.pathname.startsWith('/change-password')) {
+    return <Navigate to="/change-password" replace />;
+  }
   const allowed = allowedRoles.includes(user.role);
   if (!allowed) return <Navigate to={getRedirectForRole(user.role)} replace />;
   return children;
@@ -89,6 +94,14 @@ export default function App() {
         <Route path="/should-i-mediate" element={<ShouldIMediatePage />} />
         <Route path="/free-tier" element={<FreeTierPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/change-password"
+          element={
+            <ProtectedRoute>
+              <ChangePasswordPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/admin"
           element={

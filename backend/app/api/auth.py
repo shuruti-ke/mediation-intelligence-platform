@@ -21,6 +21,11 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 @router.options("/login")
 async def login_options():
     """CORS preflight for login."""
@@ -52,8 +57,26 @@ async def login(
             email=user.email,
             role=user.role,
             display_name=user.display_name,
+            must_change_password=getattr(user, "must_change_password", False),
         ),
     )
+
+
+@router.post("/change-password")
+async def change_password(
+    data: ChangePasswordRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Change password. Required on first login when must_change_password is set."""
+    if not verify_password(data.current_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+    user.hashed_password = get_password_hash(data.new_password)
+    user.must_change_password = False
+    await db.flush()
+    return {"message": "Password changed successfully"}
 
 
 @router.get("/me", response_model=LoginUserInfo)
@@ -66,6 +89,7 @@ async def get_current_user_info(
         email=user.email,
         role=user.role,
         display_name=user.display_name,
+        must_change_password=getattr(user, "must_change_password", False),
     )
 
 

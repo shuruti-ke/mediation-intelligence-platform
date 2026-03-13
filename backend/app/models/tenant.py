@@ -51,8 +51,13 @@ class User(Base):
 
     # User ID: USR-{COUNTRY}-{YEAR}-{SEQ}, generated on approval
     user_id: Mapped[str | None] = mapped_column(String(30), unique=True, nullable=True, index=True)
-    # Approval: pending_approval, approved, rejected
+    # Approval: pending_approval, approved, rejected, on_hold
     approval_status: Mapped[str | None] = mapped_column(String(30), default="approved")  # legacy users
     approval_rejection_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    approval_notes: Mapped[str | None] = mapped_column(String(500), nullable=True)  # admin notes for on_hold
+    # Who submitted this client for approval (mediator)
+    submitted_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    # Force password change on first login
+    must_change_password: Mapped[bool] = mapped_column(default=False)
 
     tenant = relationship("Tenant", back_populates="users")

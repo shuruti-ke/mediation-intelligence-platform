@@ -321,6 +321,10 @@ a:hover {
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 600;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
 }
 
 .login-card .back-link:hover { color: var(--color-primary-lighter); }
@@ -1292,6 +1296,24 @@ a:hover {
   background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
   color: white;
   border: none;
+}
+.mediator-dashboard nav button.btn-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--color-primary);
+  border: 1px solid var(--border-orange);
+  border-radius: 0.75rem;
+  transition: all var(--transition-normal);
+}
+.mediator-dashboard nav button.btn-sm:hover {
+  background: rgba(139, 92, 246, 0.25);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.2);
 }
 
 .mediator-case-list {
@@ -6344,6 +6366,102 @@ a:hover {
   color: white;
   border-radius: 999px;
   margin-left: 0.35rem;
+}
+
+/* Notification bell and dropdown */
+.nav-notif-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.nav-notif-wrap .btn-icon {
+  position: relative;
+  padding: 0.4rem 0.5rem;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid var(--border-orange-light);
+  border-radius: 0.75rem;
+  cursor: pointer;
+  color: var(--color-primary);
+  transition: all var(--transition-normal);
+}
+.nav-notif-wrap .btn-icon:hover {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.2);
+}
+.nav-notif-wrap .nav-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  margin: 0;
+}
+.notif-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  min-width: 300px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 1rem;
+  z-index: 100;
+}
+.notif-dropdown h4 {
+  margin: 0 0 0.75rem;
+  font-size: 0.95rem;
+  color: var(--text-gray-900);
+}
+.notif-item {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.notif-item:last-of-type { border-bottom: none; }
+.notif-item strong { display: block; font-size: 0.9rem; color: var(--text-gray-900); }
+.notif-item p { margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--color-text-muted); }
+.notif-dropdown .btn-sm {
+  margin-top: 0.75rem;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  color: white;
+  border: none;
+}
+
+/* Mediator submitted clients panel */
+.mediator-submitted-panel {
+  margin-bottom: 1rem;
+}
+.mediator-submitted-panel .mediator-panel-title {
+  color: var(--text-gray-900);
+}
+.mediator-submitted-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.mediator-submitted-item .mediator-panel-item-name { flex: 1; min-width: 0; }
+.mediator-submitted-item .mediator-panel-item-meta.badge {
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.mediator-submitted-item .btn-sm {
+  margin-left: auto;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+}
+
+/* Change password hint */
+.change-password-hint {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin-bottom: 1rem;
 }
 
 /* User ID monospace */

@@ -737,6 +737,7 @@ export default function AdminDashboardPage() {
                     <th>Type</th>
                     <th>Phone</th>
                     <th>Country</th>
+                    <th>Status</th>
                     <th>Submitted</th>
                     <th>Actions</th>
                   </tr>
@@ -749,6 +750,11 @@ export default function AdminDashboardPage() {
                       <td><span className={`badge ${USER_TYPE_BADGES[u.role]?.class || ''}`}>{USER_TYPE_BADGES[u.role]?.label || u.role}</span></td>
                       <td>{u.phone || '-'}</td>
                       <td>{u.country || '-'}</td>
+                      <td>
+                        <span className={`badge ${u.approval_status === 'on_hold' ? 'badge-pending' : 'badge-active'}`}>
+                          {u.approval_status === 'on_hold' ? 'On Hold' : 'Pending'}
+                        </span>
+                      </td>
                       <td>{u.created_at?.slice(0, 10)}</td>
                       <td>
                         <button className="btn-sm primary" onClick={async () => {
@@ -757,6 +763,14 @@ export default function AdminDashboardPage() {
                             usersApi.pendingApprovals().then(({ data }) => setPendingApprovals(data || []));
                           } catch (err) { alert(err.response?.data?.detail || 'Failed'); }
                         }}>Approve</button>
+                        <button className="btn-sm" onClick={async () => {
+                          const notes = prompt('What information do you need from the mediator?');
+                          if (!notes?.trim()) return;
+                          try {
+                            await usersApi.requestInfo(u.id, notes.trim());
+                            usersApi.pendingApprovals().then(({ data }) => setPendingApprovals(data || []));
+                          } catch (err) { alert(err.response?.data?.detail || 'Failed'); }
+                        }}>Request Info</button>
                         <button className="btn-sm" onClick={async () => {
                           const reason = prompt('Rejection reason (optional):');
                           try {

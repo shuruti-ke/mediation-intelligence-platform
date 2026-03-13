@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, BookOpen, Scale, GraduationCap, Calendar, FolderOpen, LogOut, UserPlus, Search, Users } from 'lucide-react';
-import { cases, usersApi } from '../api/client';
+import { Plus, BookOpen, Scale, GraduationCap, Calendar, FolderOpen, LogOut, UserPlus, Search, Users, RefreshCw, Bell } from 'lucide-react';
+import { cases, usersApi, notificationsApi } from '../api/client';
 
 const COUNTRIES = [
   { value: 'KE', label: 'Kenya (+254)', prefix: '254' },
@@ -27,6 +27,11 @@ export default function DashboardPage() {
   const [onboardForm, setOnboardForm] = useState({
     full_name: '', email: '', phone: '', user_type: 'individual', country: 'KE', password: '',
   });
+  const [submittedClients, setSubmittedClients] = useState([]);
+  const [submittedExpanded, setSubmittedExpanded] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -42,6 +47,17 @@ export default function DashboardPage() {
     }, 300);
     return () => clearTimeout(t);
   }, [clientSearch]);
+
+  useEffect(() => {
+    usersApi.mySubmittedClients().then(({ data }) => setSubmittedClients(data || [])).catch(() => setSubmittedClients([]));
+  }, [onboardOpen]);
+
+  useEffect(() => {
+    notificationsApi.getUnreadCount().then(({ data }) => setNotifCount(data?.count ?? 0)).catch(() => setNotifCount(0));
+  }, []);
+  const loadNotifications = () => {
+    notificationsApi.list({ unread_only: false }).then(({ data }) => setNotifications(data || [])).catch(() => setNotifications([]));
+  };
 
   const handleOnboardClient = async (e) => {
     e.preventDefault();
@@ -60,6 +76,7 @@ export default function DashboardPage() {
       });
       setOnboardOpen(false);
       setOnboardForm({ full_name: '', email: '', phone: '', user_type: 'individual', country: 'KE', password: '' });
+      usersApi.mySubmittedClients().then(({ data }) => setSubmittedClients(data || []));
       alert('Client submitted for admin approval.');
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to submit');
@@ -76,16 +93,78 @@ export default function DashboardPage() {
         <nav>
           <Link to="/cases/new"><Plus size={16} /> New Case</Link>
           <button type="button" className="primary" onClick={() => setOnboardOpen(true)}><UserPlus size={16} /> Onboard Client</button>
+          {submittedClients.length > 0 && (
+            <button
+              type="button"
+              className="btn-sm"
+              onClick={() => setSubmittedExpanded(!submittedExpanded)}
+              title={`${submittedClients.filter((s) => s.approval_status === 'rejected').length} rejected, ${submittedClients.filter((s) => s.approval_status !== 'rejected').length} pending`}
+            >
+              <RefreshCw size={14} /> Submissions ({submittedClients.length})
+            </button>
+          )}
           <Link to="/library"><BookOpen size={16} /> Library</Link>
           <Link to="/judiciary"><Scale size={16} /> Judiciary</Link>
           <Link to="/training"><GraduationCap size={16} /> Training</Link>
           <Link to="/calendar"><Calendar size={16} /> Calendar</Link>
+          <div className="nav-notif-wrap">
+            <button type="button" className="btn-icon" onClick={() => { setNotifOpen(!notifOpen); loadNotifications(); }} title="Notifications">
+              <Bell size={18} />
+              {notifCount > 0 && <span className="nav-badge">{notifCount}</span>}
+            </button>
+            {notifOpen && (
+              <div className="notif-dropdown">
+                <h4>Notifications</h4>
+                {notifications.length === 0 ? <p className="empty-msg">No notifications</p> : (
+                  notifications.slice(0, 10).map((n) => (
+                    <div key={n.id} className="notif-item">
+                      <strong>{n.title}</strong>
+                      <p>{n.body}</p>
+                    </div>
+                  ))
+                )}
+                <button type="button" className="btn-sm" onClick={() => { setNotifOpen(false); notificationsApi.getUnreadCount().then(({ data }) => setNotifCount(data?.count ?? 0)); }}>Close</button>
+              </div>
+            )}
+          </div>
           <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><LogOut size={16} /> Sign out</Link>
         </nav>
       </header>
       <section className="mediator-split-section">
         <div className="mediator-split">
           <aside className="mediator-split-left">
+            {submittedExpanded && submittedClients.length > 0 && (
+              <div className="mediator-panel mediator-submitted-panel">
+                <h3 className="mediator-panel-title">Pending / Rejected Submissions</h3>
+                <div className="mediator-panel-list">
+                  {submittedClients.map((s) => (
+                    <div key={s.id} className="mediator-panel-item mediator-submitted-item">
+                      <span className="mediator-panel-item-name">{s.display_name || s.email}</span>
+                      <span className={`mediator-panel-item-meta badge badge-${s.approval_status === 'rejected' ? 'pending' : 'active'}`}>
+                        {s.approval_status === 'rejected' ? 'Rejected' : s.approval_status === 'on_hold' ? 'On Hold' : 'Pending'}
+                      </span>
+                      {s.approval_status === 'rejected' && (
+                        <button
+                          type="button"
+                          className="btn-sm primary"
+                          onClick={async () => {
+                            try {
+                              await usersApi.resubmit(s.id);
+                              usersApi.mySubmittedClients().then(({ data }) => setSubmittedClients(data || []));
+                              alert('Resubmitted for approval.');
+                            } catch (err) {
+                              alert(err.response?.data?.detail || 'Failed to resubmit');
+                            }
+                          }}
+                        >
+                          Resubmit
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="mediator-panel">
               <h3 className="mediator-panel-title"><Users size={16} /> My Clients</h3>
               <div className="mediator-panel-search">

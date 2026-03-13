@@ -26,7 +26,11 @@ export default function LoginPage() {
       localStorage.setItem('token', data.access_token);
       if (data.user) {
         localStorage.setItem('user', JSON.stringify(data.user));
-        navigate(getRedirectForRole(data.user.role));
+        if (data.user.must_change_password) {
+          navigate('/change-password');
+        } else {
+          navigate(getRedirectForRole(data.user.role));
+        }
       } else {
         navigate('/dashboard');
       }

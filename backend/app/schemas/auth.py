@@ -12,6 +12,7 @@ class LoginUserInfo(BaseModel):
     email: str
     role: str
     display_name: str | None
+    must_change_password: bool = False
 
 
 class LoginResponse(BaseModel):

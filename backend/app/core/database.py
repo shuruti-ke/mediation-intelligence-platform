@@ -57,11 +57,14 @@ async def migrate_kb_fts_index(conn):
 
 
 async def migrate_user_id_columns(conn):
-    """Add user_id, approval_status, approval_rejection_reason to users if missing."""
+    """Add user_id, approval_status, approval_rejection_reason, submitted_by_id, must_change_password to users if missing."""
     for col, sql in [
         ("user_id", "ALTER TABLE users ADD COLUMN IF NOT EXISTS user_id VARCHAR(30)"),
         ("approval_status", "ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_status VARCHAR(30) DEFAULT 'approved'"),
         ("approval_rejection_reason", "ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_rejection_reason VARCHAR(500)"),
+        ("approval_notes", "ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_notes VARCHAR(500)"),
+        ("submitted_by_id", "ALTER TABLE users ADD COLUMN IF NOT EXISTS submitted_by_id UUID"),
+        ("must_change_password", "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE"),
     ]:
         try:
             await conn.execute(text(sql))
