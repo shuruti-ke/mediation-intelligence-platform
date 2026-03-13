@@ -113,6 +113,17 @@ def _record_health_snapshot(providers: dict[str, dict[str, Any]]) -> None:
     )
 
 
+def _derive_sources_from_results(results: list[dict]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for row in results:
+        src = row.get("source")
+        if src and src not in seen:
+            seen.add(src)
+            ordered.append(src)
+    return ordered
+
+
 def _with_result_metadata(items: list[dict], default_confidence: float) -> list[dict]:
     fetched_at = datetime.now(timezone.utc).isoformat()
     enriched: list[dict[str, Any]] = []
@@ -516,6 +527,7 @@ async def search_judiciary(
                 )
             )
             if not is_placeholder:
+                cached_sources = _derive_sources_from_results(cached_results)
                 used_sources = {r.get("source") for r in cached_results if r.get("source")}
                 degraded_mode = bool(used_sources) and used_sources.isdisjoint(PRIMARY_SOURCES)
                 degraded_reason = "Using cached/fallback/local results while live primary sources are unavailable." if degraded_mode else None
@@ -523,7 +535,7 @@ async def search_judiciary(
                 _set_cache_tiers(
                     key=cache_key,
                     results=cached_results,
-                    sources=["cache"],
+                    sources=cached_sources,
                     degraded_mode=degraded_mode,
                     degraded_reason=degraded_reason,
                 )
@@ -532,7 +544,7 @@ async def search_judiciary(
                 _record_search_metrics(mode, source_types, degraded_mode, latency_ms)
                 return {
                     "results": cached_results,
-                    "sources": ["cache"],
+                    "sources": cached_sources,
                     "query": data.query,
                     "cached": True,
                     "cache_tier": "db",
