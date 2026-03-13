@@ -1,7 +1,9 @@
 """Judiciary case search - Phase 3. Tausi, Laws.Africa, cache."""
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 import hashlib
 import logging
+from time import monotonic
 import re
 from typing import Any
 from urllib.parse import quote_plus, unquote, parse_qs, urlparse
@@ -28,6 +30,26 @@ settings = get_settings()
 SCRAPE_UA = "Mozilla/5.0 (compatible; MediationPlatform/1.0; +https://mediation-intelligence-platform.vercel.app)"
 PRIMARY_SOURCES = {"Laws.Africa", "Tausi"}
 _CITATION_YEAR_RE = re.compile(r"(19|20)\d{2}")
+HOT_CACHE_TTL_SECONDS = 60
+WARM_CACHE_TTL_SECONDS = 10 * 60
+HEALTH_HISTORY_MAX = 200
+OUTAGE_ALERT_WINDOW_SECONDS = 15 * 60
+OUTAGE_ALERT_MIN_SNAPSHOTS = 3
+
+_hot_cache: dict[str, tuple[float, list[dict], list[str], bool, str | None]] = {}
+_warm_cache: dict[str, tuple[float, list[dict], list[str], bool, str | None]] = {}
+_metrics: dict[str, Any] = {
+    "search_total": 0,
+    "cache_hot_hits": 0,
+    "cache_warm_hits": 0,
+    "cache_db_hits": 0,
+    "degraded_total": 0,
+    "by_mode": defaultdict(int),
+    "by_source_type": defaultdict(int),
+    "provider_errors": defaultdict(int),
+    "latency_ms": deque(maxlen=500),
+}
+_health_history: deque[dict[str, Any]] = deque(maxlen=HEALTH_HISTORY_MAX)
 
 
 def _provider_enabled(provider: str) -> bool:
@@ -39,6 +61,56 @@ def _provider_enabled(provider: str) -> bool:
         "local_corpus": settings.judiciary_enable_local_corpus,
     }
     return bool(flags.get(provider, False))
+
+
+def _cache_key(query: str, region: str, mode: str) -> str:
+    return hashlib.sha256(f"{query.strip().lower()}::{region.upper()}::{mode}".encode()).hexdigest()
+
+
+def _get_cached_from_tier(cache: dict[str, tuple[float, list[dict], list[str], bool, str | None]], key: str, ttl_seconds: int):
+    entry = cache.get(key)
+    if not entry:
+        return None
+    created_at, results, sources, degraded_mode, degraded_reason = entry
+    if (monotonic() - created_at) > ttl_seconds:
+        cache.pop(key, None)
+        return None
+    return {
+        "results": results,
+        "sources": sources,
+        "degraded_mode": degraded_mode,
+        "degraded_reason": degraded_reason,
+    }
+
+
+def _set_cache_tiers(key: str, results: list[dict], sources: list[str], degraded_mode: bool, degraded_reason: str | None) -> None:
+    payload = (monotonic(), results, sources, degraded_mode, degraded_reason)
+    _hot_cache[key] = payload
+    _warm_cache[key] = payload
+
+
+def _record_provider_error(provider_name: str) -> None:
+    _metrics["provider_errors"][provider_name] += 1
+
+
+def _record_search_metrics(mode: str, source_types: list[str], degraded_mode: bool, latency_ms: int) -> None:
+    _metrics["search_total"] += 1
+    _metrics["by_mode"][mode] += 1
+    if degraded_mode:
+        _metrics["degraded_total"] += 1
+    for source_type in source_types:
+        _metrics["by_source_type"][source_type] += 1
+    _metrics["latency_ms"].append(latency_ms)
+
+
+def _record_health_snapshot(providers: dict[str, dict[str, Any]]) -> None:
+    now_epoch = datetime.now(timezone.utc).timestamp()
+    _health_history.append(
+        {
+            "ts": now_epoch,
+            "providers": providers,
+        }
+    )
 
 
 def _with_result_metadata(items: list[dict], default_confidence: float) -> list[dict]:
@@ -371,10 +443,55 @@ async def search_judiciary(
     user: User = Depends(get_current_user),
 ) -> dict:
     """Search judiciary/case databases. Caches results."""
+    started = monotonic()
     mode = (data.mode or "live").strip().lower()
     if mode not in {"live", "fast"}:
         mode = "live"
     query_hash = hashlib.sha256(f"{data.query}:{data.region}".encode()).hexdigest()
+    cache_key = _cache_key(data.query, data.region, mode)
+
+    # Sprint 4: two-tier in-memory cache (hot/warm) for recurring queries.
+    hot_hit = _get_cached_from_tier(_hot_cache, cache_key, HOT_CACHE_TTL_SECONDS)
+    if hot_hit:
+        _metrics["cache_hot_hits"] += 1
+        source_types = [r.get("source_type", "unknown") for r in hot_hit["results"]]
+        latency_ms = int((monotonic() - started) * 1000)
+        _record_search_metrics(mode, source_types, hot_hit["degraded_mode"], latency_ms)
+        return {
+            "results": hot_hit["results"],
+            "sources": hot_hit["sources"],
+            "query": data.query,
+            "cached": True,
+            "cache_tier": "hot",
+            "mode": mode,
+            "degraded_mode": hot_hit["degraded_mode"],
+            "degraded_reason": hot_hit["degraded_reason"],
+        }
+
+    warm_hit = _get_cached_from_tier(_warm_cache, cache_key, WARM_CACHE_TTL_SECONDS)
+    if warm_hit:
+        _metrics["cache_warm_hits"] += 1
+        # Promote warm entry to hot.
+        _hot_cache[cache_key] = (
+            monotonic(),
+            warm_hit["results"],
+            warm_hit["sources"],
+            warm_hit["degraded_mode"],
+            warm_hit["degraded_reason"],
+        )
+        source_types = [r.get("source_type", "unknown") for r in warm_hit["results"]]
+        latency_ms = int((monotonic() - started) * 1000)
+        _record_search_metrics(mode, source_types, warm_hit["degraded_mode"], latency_ms)
+        return {
+            "results": warm_hit["results"],
+            "sources": warm_hit["sources"],
+            "query": data.query,
+            "cached": True,
+            "cache_tier": "warm",
+            "mode": mode,
+            "degraded_mode": warm_hit["degraded_mode"],
+            "degraded_reason": warm_hit["degraded_reason"],
+        }
 
     # Fast mode: cache/local-first behavior.
     if mode == "fast":
@@ -401,14 +518,27 @@ async def search_judiciary(
             if not is_placeholder:
                 used_sources = {r.get("source") for r in cached_results if r.get("source")}
                 degraded_mode = bool(used_sources) and used_sources.isdisjoint(PRIMARY_SOURCES)
+                degraded_reason = "Using cached/fallback/local results while live primary sources are unavailable." if degraded_mode else None
+                _metrics["cache_db_hits"] += 1
+                _set_cache_tiers(
+                    key=cache_key,
+                    results=cached_results,
+                    sources=["cache"],
+                    degraded_mode=degraded_mode,
+                    degraded_reason=degraded_reason,
+                )
+                source_types = [r.get("source_type", "unknown") for r in cached_results]
+                latency_ms = int((monotonic() - started) * 1000)
+                _record_search_metrics(mode, source_types, degraded_mode, latency_ms)
                 return {
                     "results": cached_results,
                     "sources": ["cache"],
                     "query": data.query,
                     "cached": True,
+                    "cache_tier": "db",
                     "mode": mode,
                     "degraded_mode": degraded_mode,
-                    "degraded_reason": "Using cached/fallback/local results while live primary sources are unavailable." if degraded_mode else None,
+                    "degraded_reason": degraded_reason,
                 }
 
     results: list[dict] = []
@@ -458,6 +588,7 @@ async def search_judiciary(
                 break
         except Exception as e:
             logger.warning("%s provider error: %s", provider_name, str(e) or type(e).__name__)
+            _record_provider_error(provider_name)
 
     # Final fallback when nothing worked
     if not results:
@@ -524,14 +655,26 @@ async def search_judiciary(
 
     used_sources = {r.get("source") for r in results if r.get("source")}
     degraded_mode = bool(used_sources) and used_sources.isdisjoint(PRIMARY_SOURCES)
+    degraded_reason = "Live primary sources unavailable. Showing fallback/local corpus results." if degraded_mode else None
+    _set_cache_tiers(
+        key=cache_key,
+        results=results,
+        sources=sources,
+        degraded_mode=degraded_mode,
+        degraded_reason=degraded_reason,
+    )
+    source_types = [r.get("source_type", "unknown") for r in results]
+    latency_ms = int((monotonic() - started) * 1000)
+    _record_search_metrics(mode, source_types, degraded_mode, latency_ms)
     return {
         "results": results,
         "sources": sources,
         "query": data.query,
         "cached": False,
+        "cache_tier": None,
         "mode": mode,
         "degraded_mode": degraded_mode,
-        "degraded_reason": "Live primary sources unavailable. Showing fallback/local corpus results." if degraded_mode else None,
+        "degraded_reason": degraded_reason,
     }
 
 
@@ -773,7 +916,96 @@ async def health_sources(
         for provider in providers.values()
         if provider["enabled"]
     )
+    _record_health_snapshot(providers)
     return {"status": "ok" if overall_ok else "degraded", "providers": providers}
+
+
+@router.get("/metrics")
+async def judiciary_metrics(
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Return judiciary search observability metrics."""
+    latencies = list(_metrics["latency_ms"])
+    p50 = 0
+    p95 = 0
+    if latencies:
+        ordered = sorted(latencies)
+        p50 = ordered[int(len(ordered) * 0.5)]
+        p95 = ordered[min(len(ordered) - 1, int(len(ordered) * 0.95))]
+
+    return {
+        "search_total": _metrics["search_total"],
+        "cache_hits": {
+            "hot": _metrics["cache_hot_hits"],
+            "warm": _metrics["cache_warm_hits"],
+            "db": _metrics["cache_db_hits"],
+        },
+        "degraded_total": _metrics["degraded_total"],
+        "by_mode": dict(_metrics["by_mode"]),
+        "by_source_type": dict(_metrics["by_source_type"]),
+        "provider_errors": dict(_metrics["provider_errors"]),
+        "latency_ms": {
+            "sample_size": len(latencies),
+            "p50": p50,
+            "p95": p95,
+        },
+    }
+
+
+@router.get("/alerts")
+async def judiciary_alerts(
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Emit alerts for prolonged primary provider outages."""
+    now = datetime.now(timezone.utc).timestamp()
+    recent = [
+        snap
+        for snap in _health_history
+        if now - float(snap.get("ts", 0)) <= OUTAGE_ALERT_WINDOW_SECONDS
+    ]
+
+    laws_africa_down = 0
+    tausi_down = 0
+    both_down = 0
+    for snap in recent:
+        providers = snap.get("providers", {})
+        la = providers.get("laws_africa", {})
+        ta = providers.get("tausi", {})
+        la_enabled = bool(la.get("enabled", False))
+        ta_enabled = bool(ta.get("enabled", False))
+        la_healthy = bool(la.get("healthy", False))
+        ta_healthy = bool(ta.get("healthy", False))
+        if la_enabled and not la_healthy:
+            laws_africa_down += 1
+        if ta_enabled and not ta_healthy:
+            tausi_down += 1
+        if la_enabled and ta_enabled and (not la_healthy) and (not ta_healthy):
+            both_down += 1
+
+    alerts = []
+    if both_down >= OUTAGE_ALERT_MIN_SNAPSHOTS:
+        alerts.append(
+            {
+                "severity": "high",
+                "code": "PRIMARY_PROVIDERS_OUTAGE",
+                "message": "Laws.Africa and Tausi have both been unhealthy for repeated checks.",
+                "window_minutes": int(OUTAGE_ALERT_WINDOW_SECONDS / 60),
+                "checks": both_down,
+            }
+        )
+    elif laws_africa_down >= OUTAGE_ALERT_MIN_SNAPSHOTS or tausi_down >= OUTAGE_ALERT_MIN_SNAPSHOTS:
+        alerts.append(
+            {
+                "severity": "medium",
+                "code": "PARTIAL_PRIMARY_OUTAGE",
+                "message": "At least one primary judiciary provider has repeated health failures.",
+                "window_minutes": int(OUTAGE_ALERT_WINDOW_SECONDS / 60),
+                "laws_africa_failures": laws_africa_down,
+                "tausi_failures": tausi_down,
+            }
+        )
+
+    return {"alerting": bool(alerts), "alerts": alerts, "samples_in_window": len(recent)}
 
 
 @router.delete("/cache")
@@ -785,4 +1017,6 @@ async def clear_cache(
     from sqlalchemy import delete
     await db.execute(delete(JudiciarySearchCache))
     await db.flush()
-    return {"message": "Cache cleared"}
+    _hot_cache.clear()
+    _warm_cache.clear()
+    return {"message": "Cache cleared", "cleared_tiers": ["db", "hot", "warm"]}

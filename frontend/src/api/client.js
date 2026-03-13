@@ -130,6 +130,8 @@ export const judiciary = {
   search: (query, region, mode = 'live') => api.post('/judiciary/search', { query, region, mode }),
   sources: () => api.get('/judiciary/sources'),
   health: () => api.get('/judiciary/health'),
+  metrics: () => api.get('/judiciary/metrics'),
+  alerts: () => api.get('/judiciary/alerts'),
   ingestLocalCorpus: (entries, overwriteExisting = true) =>
     api.post('/judiciary/local-corpus/ingest', { entries, overwrite_existing: overwriteExisting }),
   listLocalCorpus: (params) => api.get('/judiciary/local-corpus/documents', { params }),
