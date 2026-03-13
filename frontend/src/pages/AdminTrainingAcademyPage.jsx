@@ -58,6 +58,13 @@ export default function AdminTrainingAcademyPage() {
   const [studentModal, setStudentModal] = useState(null);
   const [studentDetail, setStudentDetail] = useState(null);
   const [lessonUploading, setLessonUploading] = useState(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editModuleId, setEditModuleId] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [quizModalOpen, setQuizModalOpen] = useState(false);
+  const [quizModuleId, setQuizModuleId] = useState(null);
+  const [quizForm, setQuizForm] = useState({ title: '', passing_score_pct: 70, questions: [] });
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle('academy-dark', darkMode);
@@ -181,11 +188,151 @@ export default function AdminTrainingAcademyPage() {
 
   const openStudentModal = async (student) => {
     setStudentModal(student);
+    setAssignModalOpen(false);
     try {
       const { data } = await trainingAcademyApi.getStudentDetail(student.id);
       setStudentDetail(data);
     } catch (e) {
       setStudentDetail(null);
+    }
+  };
+
+  const openEditModule = async (m) => {
+    setEditModuleId(m.id);
+    setEditModalOpen(true);
+    try {
+      const { data } = await trainingAcademyApi.getModule(m.id);
+      setEditForm({
+        title: data.title,
+        description: data.description || '',
+        difficulty: data.difficulty || 'beginner',
+        tags: data.tags || [],
+        visibility: data.visibility || 'public',
+        is_published: data.is_published ?? false,
+        lessons: (data.lessons || []).map((l) => ({
+          id: l.id,
+          title: l.title,
+          content_type: l.content_type || 'text',
+          content_html: l.content_html || '',
+          video_url: l.video_url || '',
+          file_url: l.file_url || '',
+          order_index: l.order_index ?? 0,
+          duration_minutes: l.duration_minutes,
+        })),
+      });
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Failed to load module');
+      setEditModalOpen(false);
+    }
+  };
+
+  const handleSaveEditModule = async () => {
+    if (!editModuleId || !editForm) return;
+    setSaving(true);
+    try {
+      await trainingAcademyApi.updateModule(editModuleId, {
+        title: editForm.title,
+        description: editForm.description || undefined,
+        difficulty: editForm.difficulty,
+        tags: editForm.tags,
+        visibility: editForm.visibility,
+        is_published: editForm.is_published,
+      });
+      for (let i = 0; i < editForm.lessons.length; i++) {
+        const l = editForm.lessons[i];
+        if (l.id) {
+          await trainingAcademyApi.updateLesson(l.id, {
+            title: l.title,
+            content_type: l.content_type,
+            content_html: l.content_html || undefined,
+            video_url: l.video_url || undefined,
+            file_url: l.file_url || undefined,
+            order_index: i,
+            duration_minutes: l.duration_minutes ? parseInt(l.duration_minutes, 10) : undefined,
+          });
+        } else {
+          await trainingAcademyApi.createLesson(editModuleId, {
+            title: l.title,
+            content_type: l.content_type || 'text',
+            content_html: l.content_html || undefined,
+            video_url: l.video_url || undefined,
+            file_url: l.file_url || undefined,
+            order_index: i,
+            duration_minutes: l.duration_minutes ? parseInt(l.duration_minutes, 10) : undefined,
+          });
+        }
+      }
+      setEditModalOpen(false);
+      setEditModuleId(null);
+      setEditForm(null);
+      loadData();
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openQuizModal = (m) => {
+    setQuizModuleId(m.id);
+    setQuizForm({
+      title: `${m.title} – Quiz`,
+      passing_score_pct: 70,
+      questions: [{ question: '', options: ['', '', '', ''], correct_idx: 0, feedback_correct: '', feedback_incorrect: '' }],
+    });
+    setQuizModalOpen(true);
+  };
+
+  const handleCreateQuiz = async () => {
+    if (!quizModuleId || !quizForm.title?.trim()) return;
+    const questions = quizForm.questions.filter((q) => q.question?.trim());
+    if (questions.length === 0) {
+      alert('Add at least one question');
+      return;
+    }
+    for (const q of questions) {
+      const opts = Array.isArray(q.options) ? q.options : String(q.options || '').split(/[\n,]/).map((o) => o.trim()).filter(Boolean);
+      if (opts.length < 2) {
+        alert(`Question "${q.question.slice(0, 30)}..." needs at least 2 options`);
+        return;
+      }
+    }
+    setSaving(true);
+    try {
+      const questionsJson = { questions: questions.map((q) => {
+        const opts = Array.isArray(q.options) ? q.options.filter((o) => o?.trim()) : String(q.options || '').split(/[\n,]/).map((o) => o.trim()).filter(Boolean);
+        return {
+          question: q.question.trim(),
+          options: opts.length ? opts : ['A', 'B'],
+          correct_idx: Math.min(q.correct_idx || 0, (opts.length || 2) - 1),
+          feedback_correct: q.feedback_correct || '',
+          feedback_incorrect: q.feedback_incorrect || '',
+        };
+      }) };
+      await trainingAcademyApi.createQuiz({
+        module_id: quizModuleId,
+        title: quizForm.title.trim(),
+        questions_json: questionsJson,
+        passing_score_pct: quizForm.passing_score_pct,
+      });
+      setQuizModalOpen(false);
+      setQuizModuleId(null);
+      loadData();
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Failed to create quiz');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAssignModule = async (moduleId) => {
+    if (!studentModal?.id) return;
+    try {
+      await trainingAcademyApi.assignModule({ user_id: studentModal.id, module_id: moduleId });
+      setAssignModalOpen(false);
+      openStudentModal(studentModal);
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Failed to assign');
     }
   };
 
@@ -373,8 +520,11 @@ export default function AdminTrainingAcademyPage() {
                     </div>
                   </div>
                   <div className="module-card-actions">
-                    <button className="btn-icon" title="Edit (coming soon)">
+                    <button className="btn-icon" title="Edit" onClick={() => openEditModule(m)}>
                       <Pencil size={16} />
+                    </button>
+                    <button className="btn-icon" title="Add Quiz" onClick={() => openQuizModal(m)}>
+                      <FileText size={16} />
                     </button>
                     <button
                       className="btn-icon btn-danger"
@@ -727,6 +877,71 @@ export default function AdminTrainingAcademyPage() {
         </div>
       )}
 
+      {/* Edit Module Modal */}
+      {editModalOpen && editForm && (
+        <div className="academy-modal-overlay" onClick={() => !saving && setEditModalOpen(false)}>
+          <div className="academy-modal academy-edit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3><Pencil size={20} /> Edit Module</h3>
+              <button className="btn-close" onClick={() => !saving && setEditModalOpen(false)}><X size={20} /></button>
+            </div>
+            <div className="modal-body">
+              <label>Title<input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} /></label>
+              <label>Description<textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={3} /></label>
+              <label>Difficulty<select value={editForm.difficulty} onChange={(e) => setEditForm({ ...editForm, difficulty: e.target.value })}>{Object.entries(DIFFICULTY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+              <label className="checkbox-label"><input type="checkbox" checked={editForm.is_published} onChange={(e) => setEditForm({ ...editForm, is_published: e.target.checked })} /> Published</label>
+              <div className="wizard-lessons-section"><strong>Lessons</strong>{(editForm.lessons || []).map((l, i) => (
+                <div key={l.id || i} className="wizard-lesson-card">
+                  <div className="wizard-lesson-header"><span>Lesson {i + 1}</span></div>
+                  <label><span>Title</span><input value={l.title} onChange={(e) => { const lessons = [...editForm.lessons]; lessons[i] = { ...lessons[i], title: e.target.value }; setEditForm({ ...editForm, lessons }); }} /></label>
+                  <label><span>Content type</span><select value={l.content_type} onChange={(e) => { const lessons = [...editForm.lessons]; lessons[i] = { ...lessons[i], content_type: e.target.value }; setEditForm({ ...editForm, lessons }); }}><option value="text">Text</option><option value="video">Video</option><option value="file">File</option><option value="embed">Embed</option></select></label>
+                  {(l.content_type || 'text') === 'video' && <label><span>YouTube URL</span><input value={l.video_url || ''} onChange={(e) => { const lessons = [...editForm.lessons]; lessons[i] = { ...lessons[i], video_url: e.target.value }; setEditForm({ ...editForm, lessons }); }} /></label>}
+                  {(l.content_type || 'text') === 'text' && <label><span>Content</span><textarea value={l.content_html || ''} onChange={(e) => { const lessons = [...editForm.lessons]; lessons[i] = { ...lessons[i], content_html: e.target.value }; setEditForm({ ...editForm, lessons }); }} rows={3} /></label>}
+                  <label><span>Duration (min)</span><input type="number" value={l.duration_minutes || ''} onChange={(e) => { const lessons = [...editForm.lessons]; lessons[i] = { ...lessons[i], duration_minutes: e.target.value }; setEditForm({ ...editForm, lessons }); }} /></label>
+                </div>
+              ))}</div>
+              <div className="modal-actions">
+                <button className="academy-btn academy-btn-ghost" onClick={() => setEditModalOpen(false)}>Cancel</button>
+                <button className="academy-btn academy-btn-primary" onClick={handleSaveEditModule} disabled={saving}>{saving ? <Loader2 size={18} className="spin" /> : null} Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quiz Builder Modal */}
+      {quizModalOpen && quizModuleId && (
+        <div className="academy-modal-overlay" onClick={() => !saving && setQuizModalOpen(false)}>
+          <div className="academy-modal academy-quiz-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3><FileText size={20} /> Add Quiz</h3>
+              <button className="btn-close" onClick={() => !saving && setQuizModalOpen(false)}><X size={20} /></button>
+            </div>
+            <div className="modal-body">
+              <label>Quiz Title<input value={quizForm.title} onChange={(e) => setQuizForm({ ...quizForm, title: e.target.value })} placeholder="Module Quiz" /></label>
+              <label>Passing Score (%)<input type="number" min={1} max={100} value={quizForm.passing_score_pct} onChange={(e) => setQuizForm({ ...quizForm, passing_score_pct: parseInt(e.target.value, 10) || 70 })} /></label>
+              <div className="quiz-questions-section">
+                <strong>Questions</strong>
+                {(quizForm.questions || []).map((q, i) => (
+                  <div key={i} className="quiz-question-card">
+                    <div className="quiz-question-header"><span>Q{i + 1}</span><button type="button" className="btn-icon btn-danger" onClick={() => setQuizForm({ ...quizForm, questions: quizForm.questions.filter((_, j) => j !== i) })}><Trash2 size={14} /></button></div>
+                    <label><input value={q.question} onChange={(e) => { const qs = [...quizForm.questions]; qs[i] = { ...qs[i], question: e.target.value }; setQuizForm({ ...quizForm, questions: qs }); }} placeholder="Question text" /></label>
+                    <label>Options (comma or one per line)</label>
+                    <textarea value={(q.options || []).join('\n')} onChange={(e) => { const opts = e.target.value.split(/[\n,]/).map((o) => o.trim()).filter(Boolean); const qs = [...quizForm.questions]; qs[i] = { ...qs[i], options: opts.length ? opts : [''] }; setQuizForm({ ...quizForm, questions: qs }); }} rows={3} placeholder="A, B, C, D" />
+                    <label>Correct option index (0-based)<input type="number" min={0} value={q.correct_idx} onChange={(e) => { const qs = [...quizForm.questions]; qs[i] = { ...qs[i], correct_idx: parseInt(e.target.value, 10) || 0 }; setQuizForm({ ...quizForm, questions: qs }); }} /></label>
+                  </div>
+                ))}
+                <button type="button" className="academy-btn academy-btn-sm" onClick={() => setQuizForm({ ...quizForm, questions: [...(quizForm.questions || []), { question: '', options: ['', '', '', ''], correct_idx: 0, feedback_correct: '', feedback_incorrect: '' }] })}><Plus size={14} /> Add Question</button>
+              </div>
+              <div className="modal-actions">
+                <button className="academy-btn academy-btn-ghost" onClick={() => setQuizModalOpen(false)}>Cancel</button>
+                <button className="academy-btn academy-btn-primary" onClick={handleCreateQuiz} disabled={saving}>{saving ? <Loader2 size={18} className="spin" /> : null} Create Quiz</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Student Progress Modal */}
       {studentModal && (
         <div className="academy-modal-overlay" onClick={() => setStudentModal(null)}>
@@ -789,9 +1004,38 @@ export default function AdminTrainingAcademyPage() {
                     )}
                   </div>
                   <div className="modal-actions">
-                    <button className="academy-btn academy-btn-ghost">Message Student</button>
-                    <button className="academy-btn academy-btn-primary">Assign Remedial Module</button>
+                    <a
+                      href={`mailto:${studentDetail.profile?.email || ''}`}
+                      className="academy-btn academy-btn-ghost"
+                    >
+                      <MessageSquare size={16} /> Message Student
+                    </a>
+                    <button
+                      className="academy-btn academy-btn-primary"
+                      onClick={() => setAssignModalOpen(true)}
+                    >
+                      Assign Remedial Module
+                    </button>
                   </div>
+                  {assignModalOpen && (
+                    <div className="assign-module-dropdown">
+                      <p className="assign-module-label">Select module to assign:</p>
+                      <div className="assign-module-list">
+                        {modules.filter((mo) => !studentDetail.task_list?.some((t) => t.module_id === mo.id)).map((mo) => (
+                          <button
+                            key={mo.id}
+                            className="academy-btn academy-btn-sm"
+                            onClick={() => handleAssignModule(mo.id)}
+                          >
+                            {mo.title}
+                          </button>
+                        ))}
+                        {modules.filter((mo) => !studentDetail.task_list?.some((t) => t.module_id === mo.id)).length === 0 && (
+                          <p className="no-modules">All modules already assigned.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <p>Loading...</p>

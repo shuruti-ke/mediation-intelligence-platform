@@ -327,15 +327,21 @@ async def get_active_cases_list(
 @router.get("/drill-down/new-users")
 async def get_new_users_list(
     days: int = Query(30, ge=1, le=365),
+    country: str | None = Query(None),
+    role: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin", "mediator")),
 ):
-    """List new users for drill-down."""
+    """List new users for drill-down. Supports region (country) and role filters."""
     tenant_filter = user.tenant_id
     cutoff = datetime.utcnow() - timedelta(days=days)
     q = select(User).where(User.created_at >= cutoff, User.role != "super_admin")
     if tenant_filter:
         q = q.where(User.tenant_id == tenant_filter)
+    if country:
+        q = q.where(User.country == country)
+    if role:
+        q = q.where(User.role == role)
     q = q.order_by(User.created_at.desc())
     result = await db.execute(q)
     users = result.scalars().all()
@@ -384,15 +390,21 @@ async def get_active_trainees_list(
 @router.get("/drill-down/case-distribution")
 async def get_case_distribution(
     days: int = Query(90, ge=1, le=365),
+    country: str | None = Query(None),
+    mediator_id: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin", "mediator")),
 ):
-    """Case distribution by type for pie chart."""
+    """Case distribution by type for pie chart. Supports region and mediator filters."""
     tenant_filter = user.tenant_id
     cutoff = datetime.utcnow() - timedelta(days=days)
     q = select(Case.case_type, func.count(Case.id)).where(Case.created_at >= cutoff)
     if tenant_filter:
         q = q.where(Case.tenant_id == tenant_filter)
+    if country:
+        q = q.where(Case.jurisdiction_country == country)
+    if mediator_id:
+        q = q.where(Case.mediator_id == mediator_id)
     q = q.group_by(Case.case_type)
     result = await db.execute(q)
     rows = result.all()

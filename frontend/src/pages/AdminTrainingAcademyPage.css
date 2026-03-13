@@ -527,6 +527,16 @@
   color: #a78bfa;
 }
 
+.assign-module-dropdown { margin-top: 1rem; padding: 1rem; background: rgba(139, 92, 246, 0.08); border-radius: 10px; }
+.assign-module-label { margin: 0 0 0.5rem; font-size: 0.9rem; }
+.assign-module-list { display: flex; flex-direction: column; gap: 0.5rem; max-height: 200px; overflow-y: auto; }
+.no-modules { margin: 0; font-size: 0.9rem; color: #6b7280; }
+.quiz-questions-section { margin: 1rem 0; }
+.quiz-question-card { padding: 1rem; background: rgba(139, 92, 246, 0.06); border-radius: 10px; margin-bottom: 0.75rem; }
+.quiz-question-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.quiz-question-card label { display: block; margin-bottom: 0.5rem; }
+.quiz-question-card input, .quiz-question-card textarea { width: 100%; padding: 0.5rem; border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 6px; }
+
 .academy-empty {
   padding: 2rem;
   text-align: center;

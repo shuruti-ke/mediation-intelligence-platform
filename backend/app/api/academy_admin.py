@@ -84,6 +84,16 @@ class QuizCreate(BaseModel):
     is_final_exam: bool = False
 
 
+class QuizUpdate(BaseModel):
+    title: str | None = None
+    questions_json: dict | None = None
+    passing_score_pct: int | None = None
+    time_limit_minutes: int | None = None
+    randomize_questions: bool | None = None
+    retry_attempts: int | None = None
+    is_final_exam: bool | None = None
+
+
 # --- AI Module Generation ---
 async def _generate_ai_module(topic: str, audience: str, duration: float) -> dict | None:
     """Use OpenAI to generate module structure, lessons outline, draft quiz."""
@@ -251,11 +261,29 @@ async def get_academy_module(
         "archived_at": mod.archived_at.isoformat() if mod.archived_at else None,
         "version": mod.version,
         "lessons": [
-            {"id": str(l.id), "title": l.title, "content_type": l.content_type, "order_index": l.order_index}
+            {
+                "id": str(l.id),
+                "title": l.title,
+                "content_type": l.content_type,
+                "content_html": l.content_html,
+                "video_url": l.video_url,
+                "file_url": l.file_url,
+                "order_index": l.order_index,
+                "duration_minutes": l.duration_minutes,
+            }
             for l in lessons
         ],
         "quizzes": [
-            {"id": str(q.id), "title": q.title, "passing_score_pct": q.passing_score_pct}
+            {
+                "id": str(q.id),
+                "title": q.title,
+                "passing_score_pct": q.passing_score_pct,
+                "questions_json": q.questions_json,
+                "time_limit_minutes": q.time_limit_minutes,
+                "randomize_questions": q.randomize_questions,
+                "retry_attempts": q.retry_attempts,
+                "is_final_exam": q.is_final_exam,
+            }
             for q in quizzes
         ],
         "created_at": mod.created_at.isoformat(),
@@ -363,6 +391,43 @@ async def delete_lesson(
 
 
 # --- Quiz CRUD ---
+class AssignModuleRequest(BaseModel):
+    user_id: uuid.UUID
+    module_id: uuid.UUID
+
+
+@router.post("/assign-module")
+async def assign_module_to_student(
+    data: AssignModuleRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Assign a module to a trainee. Creates AcademyModuleProgress with not_started if not exists."""
+    mod = (await db.execute(select(AcademyModule).where(AcademyModule.id == data.module_id))).scalar_one_or_none()
+    if not mod or mod.archived_at:
+        raise HTTPException(status_code=404, detail="Module not found or archived")
+    trainee = (await db.execute(select(User).where(User.id == data.user_id, User.role == "trainee"))).scalar_one_or_none()
+    if not trainee:
+        raise HTTPException(status_code=404, detail="Student not found or not a trainee")
+    existing = (await db.execute(
+        select(AcademyModuleProgress).where(
+            AcademyModuleProgress.user_id == data.user_id,
+            AcademyModuleProgress.module_id == data.module_id,
+        )
+    )).scalar_one_or_none()
+    if existing:
+        return {"id": str(existing.id), "status": existing.status, "message": "Already assigned"}
+    prog = AcademyModuleProgress(
+        user_id=data.user_id,
+        module_id=data.module_id,
+        status="not_started",
+        progress_pct=0,
+    )
+    db.add(prog)
+    await db.flush()
+    return {"id": str(prog.id), "status": "not_started", "message": "Module assigned"}
+
+
 @router.post("/quizzes")
 async def create_quiz(
     data: QuizCreate,
@@ -381,6 +446,24 @@ async def create_quiz(
         is_final_exam=data.is_final_exam,
     )
     db.add(quiz)
+    await db.flush()
+    return {"id": str(quiz.id), "title": quiz.title}
+
+
+@router.patch("/quizzes/{quiz_id}")
+async def update_quiz(
+    quiz_id: uuid.UUID,
+    data: QuizUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Update academy quiz."""
+    result = await db.execute(select(AcademyQuiz).where(AcademyQuiz.id == quiz_id))
+    quiz = result.scalar_one_or_none()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(quiz, k, v)
     await db.flush()
     return {"id": str(quiz.id), "title": quiz.title}
 

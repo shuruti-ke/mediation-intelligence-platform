@@ -1522,6 +1522,18 @@ a:hover {
   margin-bottom: 1.5rem;
 }
 
+.analytics-filters {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.analytics-filters select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  background: var(--color-bg-card);
+}
 .controls-row {
   display: flex;
   flex-wrap: wrap;

@@ -102,6 +102,9 @@ export default function AdminDashboardPage() {
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [drillMode, setDrillMode] = useState(null);
   const [drillData, setDrillData] = useState([]);
+  const [analyticsFilterRegion, setAnalyticsFilterRegion] = useState('');
+  const [analyticsFilterCaseType, setAnalyticsFilterCaseType] = useState('');
+  const [analyticsFilterMediator, setAnalyticsFilterMediator] = useState('');
   const [caseDistribution, setCaseDistribution] = useState([]);
   const [caseList, setCaseList] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState([]);
@@ -139,13 +142,18 @@ export default function AdminDashboardPage() {
   const refreshDashboard = useCallback(() => {
     setLoading(true);
     const params = { days: dateRange };
+    const filterParams = {
+      days: dateRange,
+      country: analyticsFilterRegion || undefined,
+      mediator_id: analyticsFilterMediator || undefined,
+    };
     Promise.allSettled([
       analyticsApi.getDashboard(params).then(({ data }) => data),
       analyticsApi.getTimeseries(Math.ceil(dateRange / 30) || 12).then(({ data }) => data),
       analyticsApi.getMediators().then(({ data }) => data),
       analyticsApi.getGeographic().then(({ data }) => data),
       analyticsApi.getUnresolvedCases(dateRange).then(({ data }) => data),
-      analyticsApi.getCaseDistribution({ days: dateRange }).then(({ data }) => data),
+      analyticsApi.getCaseDistribution(filterParams).then(({ data }) => data),
     ]).then(([a, ts, m, g, u, cd]) => {
       setAnalytics(a.status === 'fulfilled' ? a.value : null);
       setTimeseries(ts.status === 'fulfilled' ? ts.value || [] : []);
@@ -155,7 +163,7 @@ export default function AdminDashboardPage() {
       setCaseDistribution(cd.status === 'fulfilled' ? cd.value || [] : []);
       setLastUpdated(new Date());
     }).catch(() => {}).finally(() => setLoading(false));
-  }, [dateRange]);
+  }, [dateRange, analyticsFilterRegion, analyticsFilterMediator]);
 
   useEffect(() => {
     if (tab === 'users') {
@@ -220,7 +228,7 @@ export default function AdminDashboardPage() {
     } else {
       refreshDashboard();
     }
-  }, [tab, dateRange, userRoleFilter, userStatusFilter, userSortFilter, userDateFrom, userDateTo, searchQuery, auditResourceFilter]);
+  }, [tab, dateRange, userRoleFilter, userStatusFilter, userSortFilter, userDateFrom, userDateTo, searchQuery, auditResourceFilter, analyticsFilterRegion, analyticsFilterCaseType, analyticsFilterMediator]);
 
   useEffect(() => {
     if (tab !== 'users') return;
@@ -246,12 +254,19 @@ export default function AdminDashboardPage() {
 
   const openDrill = async (mode) => {
     setDrillMode(mode);
+    const filterParams = {
+      days: dateRange,
+      country: analyticsFilterRegion || undefined,
+      case_type: analyticsFilterCaseType || undefined,
+      mediator_id: analyticsFilterMediator || undefined,
+      role: analyticsFilterRegion ? undefined : undefined,
+    };
     try {
       if (mode === 'active_cases') {
-        const { data } = await analyticsApi.getActiveCases({ days: dateRange });
+        const { data } = await analyticsApi.getActiveCases(filterParams);
         setDrillData(data || []);
       } else if (mode === 'new_users') {
-        const { data } = await analyticsApi.getNewUsers({ days: dateRange });
+        const { data } = await analyticsApi.getNewUsers({ days: dateRange, country: analyticsFilterRegion || undefined });
         setDrillData(data || []);
       } else if (mode === 'trainees') {
         const { data } = await analyticsApi.getActiveTrainees();
@@ -544,6 +559,32 @@ export default function AdminDashboardPage() {
                 <select value={dateRange} onChange={(e) => setDateRange(Number(e.target.value))}>
                   {DATE_RANGES.map((r) => (
                     <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="analytics-filters">
+                <select value={analyticsFilterRegion} onChange={(e) => setAnalyticsFilterRegion(e.target.value)} title="Region">
+                  <option value="">Region</option>
+                  <option value="KE">Kenya</option>
+                  <option value="NG">Nigeria</option>
+                  <option value="ZA">South Africa</option>
+                  <option value="GH">Ghana</option>
+                  <option value="TZ">Tanzania</option>
+                  <option value="UG">Uganda</option>
+                </select>
+                <select value={analyticsFilterCaseType} onChange={(e) => setAnalyticsFilterCaseType(e.target.value)} title="Case type">
+                  <option value="">Case type</option>
+                  <option value="family">Family</option>
+                  <option value="commercial">Commercial</option>
+                  <option value="employment">Employment</option>
+                  <option value="land_property">Land/Property</option>
+                  <option value="community_dispute">Community</option>
+                  <option value="other">Other</option>
+                </select>
+                <select value={analyticsFilterMediator} onChange={(e) => setAnalyticsFilterMediator(e.target.value)} title="Mediator">
+                  <option value="">Mediator</option>
+                  {mediatorPerformance?.map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
                   ))}
                 </select>
               </div>
