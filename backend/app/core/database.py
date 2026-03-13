@@ -65,6 +65,8 @@ async def migrate_user_id_columns(conn):
         ("approval_notes", "ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_notes VARCHAR(500)"),
         ("submitted_by_id", "ALTER TABLE users ADD COLUMN IF NOT EXISTS submitted_by_id UUID"),
         ("must_change_password", "ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE"),
+        ("deleted_at", "ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE"),
+        ("deactivation_reason", "ALTER TABLE users ADD COLUMN IF NOT EXISTS deactivation_reason VARCHAR(100)"),
     ]:
         try:
             await conn.execute(text(sql))

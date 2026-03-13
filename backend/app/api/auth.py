@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_role
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.models.tenant import User, Tenant
@@ -44,6 +44,8 @@ async def login(
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account is deactivated")
+    if getattr(user, "deleted_at", None):
+        raise HTTPException(status_code=403, detail="Account has been deleted")
     from datetime import datetime
     user.last_login_at = datetime.utcnow()
     if getattr(user, "status", None) == "pending":
@@ -77,6 +79,41 @@ async def change_password(
     user.must_change_password = False
     await db.flush()
     return {"message": "Password changed successfully"}
+
+
+class ImpersonateRequest(BaseModel):
+    target_user_id: str
+
+
+@router.post("/impersonate")
+async def impersonate_user(
+    data: ImpersonateRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role("super_admin")),
+):
+    """Super-admin only. Returns access token for target user to act as them."""
+    result = await db.execute(select(User).where(User.id == UUID(data.target_user_id)))
+    target = result.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if admin.tenant_id and target.tenant_id != admin.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if getattr(target, "deleted_at", None):
+        raise HTTPException(status_code=400, detail="Cannot impersonate deleted user")
+    if not target.is_active:
+        raise HTTPException(status_code=400, detail="Cannot impersonate inactive user")
+    from datetime import timedelta
+    token = create_access_token(subject=str(target.id), expires_delta=timedelta(hours=1))
+    return {
+        "access_token": token,
+        "user": {
+            "id": str(target.id),
+            "email": target.email,
+            "role": target.role,
+            "display_name": target.display_name,
+            "must_change_password": False,
+        },
+    }
 
 
 @router.get("/me", response_model=LoginUserInfo)

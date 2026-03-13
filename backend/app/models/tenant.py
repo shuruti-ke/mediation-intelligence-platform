@@ -59,5 +59,9 @@ class User(Base):
     submitted_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     # Force password change on first login
     must_change_password: Mapped[bool] = mapped_column(default=False)
+    # Soft delete
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Deactivation reason (stored when admin deactivates)
+    deactivation_reason: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     tenant = relationship("Tenant", back_populates="users")

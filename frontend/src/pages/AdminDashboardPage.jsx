@@ -16,9 +16,10 @@ import {
   Cell,
   BarChart,
 } from 'recharts';
-import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus, FolderOpen, Search, Plus, MoreVertical, ArrowLeft } from 'lucide-react';
+import { FixedSizeList } from 'react-window';
+import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus, FolderOpen, Search, Plus, MoreVertical, ArrowLeft, UserCircle } from 'lucide-react';
 import GlobalSearch from '../components/GlobalSearch';
-import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi, cases, auditApi } from '../api/client';
+import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi, cases, auditApi, auth } from '../api/client';
 
 const STATUS_BADGES = {
   active: { label: 'Active', class: 'badge-active' },
@@ -29,7 +30,23 @@ const STATUS_BADGES = {
 const USER_TYPE_BADGES = {
   client_individual: { label: 'Individual', class: 'badge-teal' },
   client_corporate: { label: 'Corporate', class: 'badge-indigo' },
+  mediator: { label: 'Mediator', class: 'badge-purple' },
+  trainee: { label: 'Trainee', class: 'badge-pending' },
 };
+
+const DEACTIVATION_REASONS = [
+  { value: 'inactive_user', label: 'Inactive user' },
+  { value: 'policy_violation', label: 'Policy violation' },
+  { value: 'user_requested', label: 'Requested by user' },
+  { value: 'other', label: 'Other' },
+];
+
+const SORT_OPTIONS = [
+  { value: 'created_at', label: 'Date Added' },
+  { value: 'name_asc', label: 'Name A–Z' },
+  { value: 'name_desc', label: 'Name Z–A' },
+  { value: 'last_active', label: 'Last Active' },
+];
 
 const COUNTRIES = [
   { value: 'KE', label: 'Kenya (+254)', prefix: '254' },
@@ -94,7 +111,17 @@ export default function AdminDashboardPage() {
   const [userDetailTab, setUserDetailTab] = useState('overview');
   const [userRoleFilter, setUserRoleFilter] = useState('');
   const [userStatusFilter, setUserStatusFilter] = useState('');
+  const [userSortFilter, setUserSortFilter] = useState('created_at');
+  const [userDateFrom, setUserDateFrom] = useState('');
+  const [userDateTo, setUserDateTo] = useState('');
   const [usersSkip, setUsersSkip] = useState(0);
+  const [usersHasMore, setUsersHasMore] = useState(true);
+  const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
+  const [deactivateUser, setDeactivateUser] = useState(null);
+  const [deactivateReason, setDeactivateReason] = useState('');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteUser, setDeleteUser] = useState(null);
+  const [userCases, setUserCases] = useState([]);
   const [userActionsOpen, setUserActionsOpen] = useState(null);
   const [editUserOpen, setEditUserOpen] = useState(false);
   const [editUserForm, setEditUserForm] = useState({ display_name: '', email: '', phone: '', country: '', assigned_mediator_id: '', status: '', is_active: true });
@@ -157,11 +184,14 @@ export default function AdminDashboardPage() {
         search: searchQuery?.trim() || undefined,
         role: userRoleFilter || undefined,
         status: userStatusFilter || undefined,
+        sort: userSortFilter || undefined,
+        date_from: userDateFrom || undefined,
+        date_to: userDateTo || undefined,
         skip: 0,
         limit: 50,
       };
       usersApi.list(params)
-        .then(({ data }) => { setUsers(data || []); setUsersSkip(0); })
+        .then(({ data }) => { setUsers(data || []); setUsersSkip(0); setUsersHasMore((data || []).length >= 50); })
         .catch(() => setUsers([]))
         .finally(() => setLoading(false));
     } else if (tab === 'cases') {
@@ -190,13 +220,23 @@ export default function AdminDashboardPage() {
     } else {
       refreshDashboard();
     }
-  }, [tab, dateRange, userRoleFilter, userStatusFilter, searchQuery, auditResourceFilter]);
+  }, [tab, dateRange, userRoleFilter, userStatusFilter, userSortFilter, userDateFrom, userDateTo, searchQuery, auditResourceFilter]);
 
   useEffect(() => {
     if (tab !== 'users') return;
     const t = setTimeout(() => setSearchQuery(searchInput), 300);
     return () => clearTimeout(t);
   }, [tab, searchInput]);
+
+  useEffect(() => {
+    if (userDetailTab === 'cases' && selectedUser?.id) {
+      usersApi.getClientCases(selectedUser.id)
+        .then(({ data }) => setUserCases(data || []))
+        .catch(() => setUserCases([]));
+    } else {
+      setUserCases([]);
+    }
+  }, [userDetailTab, selectedUser?.id]);
 
   useEffect(() => {
     if (!autoRefresh || tab !== 'dashboard') return;
@@ -388,11 +428,84 @@ export default function AdminDashboardPage() {
       setReassignOpen(false);
       setReassignUser(null);
       setReassignForm({ mediator_id: '', reason: '', note: '', notify: true });
-      if (tab === 'users') usersApi.list().then(({ data }) => setUsers(data || []));
+      if (tab === 'users') {
+        const params = { search: searchQuery?.trim(), role: userRoleFilter, status: userStatusFilter, sort: userSortFilter, date_from: userDateFrom, date_to: userDateTo, skip: 0, limit: 50 };
+        usersApi.list(params).then(({ data }) => { setUsers(data || []); setUsersSkip(0); });
+      }
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to reassign');
     }
   };
+
+  const loadMoreUsers = () => {
+    const nextSkip = usersSkip + 50;
+    const params = {
+      search: searchQuery?.trim() || undefined,
+      role: userRoleFilter || undefined,
+      status: userStatusFilter || undefined,
+      sort: userSortFilter || undefined,
+      date_from: userDateFrom || undefined,
+      date_to: userDateTo || undefined,
+      skip: nextSkip,
+      limit: 50,
+    };
+    usersApi.list(params)
+      .then(({ data }) => {
+        if (data?.length) {
+          setUsers((prev) => [...prev, ...data]);
+          setUsersSkip(nextSkip);
+          setUsersHasMore(data.length >= 50);
+        } else {
+          setUsersHasMore(false);
+        }
+      })
+      .catch(() => setUsersHasMore(false));
+  };
+
+  const handleDeactivate = async () => {
+    if (!deactivateUser) return;
+    try {
+      await usersApi.updateStatus(deactivateUser.id, {
+        is_active: false,
+        status: 'inactive',
+        deactivation_reason: deactivateReason || undefined,
+      });
+      const updated = { ...deactivateUser, is_active: false, status: 'inactive' };
+      setUsers(users.map((x) => (x.id === deactivateUser.id ? updated : x)));
+      setSelectedUser((prev) => (prev?.id === deactivateUser.id ? updated : prev));
+      setDeactivateModalOpen(false);
+      setDeactivateUser(null);
+      setDeactivateReason('');
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Failed to deactivate');
+    }
+  };
+
+  const handleSoftDelete = async () => {
+    if (!deleteUser) return;
+    try {
+      await usersApi.softDelete(deleteUser.id);
+      setUsers(users.filter((x) => x.id !== deleteUser.id));
+      if (selectedUser?.id === deleteUser.id) setSelectedUser(null);
+      setDeleteConfirmOpen(false);
+      setDeleteUser(null);
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Failed to delete');
+    }
+  };
+
+  const handleImpersonate = async (u) => {
+    try {
+      const { data } = await auth.impersonate(u.id);
+      localStorage.setItem('token', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      window.location.href = '/';
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Failed to impersonate');
+    }
+  };
+
+  const isClient = (u) => u?.role === 'client_individual' || u?.role === 'client_corporate';
 
   return (
     <div className="dashboard admin-dashboard admin-dashboard-split">
@@ -823,33 +936,59 @@ export default function AdminDashboardPage() {
                   <option value="pending">Pending</option>
                   <option value="inactive">Inactive</option>
                 </select>
+                <select value={userSortFilter} onChange={(e) => setUserSortFilter(e.target.value)}>
+                  {SORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
               </div>
-              <div className="split-view-list">
+              <div className="split-view-filters split-view-filters-row2">
+                <input type="date" placeholder="From" value={userDateFrom} onChange={(e) => setUserDateFrom(e.target.value)} className="split-view-date-input" />
+                <input type="date" placeholder="To" value={userDateTo} onChange={(e) => setUserDateTo(e.target.value)} className="split-view-date-input" />
+              </div>
+              <div className="split-view-list" style={{ height: 360 }}>
                 {loading ? <p>Loading...</p> : users.length === 0 ? (
                   <p className="empty-msg">No users yet.</p>
                 ) : (
-                  users.map((u) => (
-                    <div
-                      key={u.id}
-                      role="button"
-                      tabIndex={0}
-                      className={`split-view-item ${selectedUser?.id === u.id ? 'selected' : ''}`}
-                      onClick={() => setSelectedUser(u)}
-                      onKeyDown={(e) => e.key === 'Enter' && setSelectedUser(u)}
-                    >
-                      <div className="split-view-item-header">
-                        <span className="split-view-item-name">{u.display_name || u.email || '—'}</span>
-                        <span className={`badge ${STATUS_BADGES[u.status]?.class || 'badge-pending'}`}>
-                          {STATUS_BADGES[u.status]?.label || u.status}
-                        </span>
-                      </div>
-                      <div className="split-view-item-meta">
-                        {USER_TYPE_BADGES[u.role]?.label || u.role} • {u.user_id || '—'}
-                      </div>
-                    </div>
-                  ))
+                  <FixedSizeList
+                    height={360}
+                    itemCount={users.length}
+                    itemSize={72}
+                    width="100%"
+                    overscanCount={5}
+                  >
+                    {({ index, style }) => {
+                      const u = users[index];
+                      return (
+                        <div
+                          key={u.id}
+                          style={style}
+                          role="button"
+                          tabIndex={0}
+                          className={`split-view-item ${selectedUser?.id === u.id ? 'selected' : ''}`}
+                          onClick={() => setSelectedUser(u)}
+                          onKeyDown={(e) => e.key === 'Enter' && setSelectedUser(u)}
+                        >
+                          <div className="split-view-item-header">
+                            <span className="split-view-item-name">{u.display_name || u.email || '—'}</span>
+                            <span className={`badge ${STATUS_BADGES[u.status]?.class || 'badge-pending'}`}>
+                              {STATUS_BADGES[u.status]?.label || u.status}
+                            </span>
+                          </div>
+                          <div className="split-view-item-meta">
+                            {USER_TYPE_BADGES[u.role]?.label || u.role} • {u.user_id || '—'}
+                          </div>
+                        </div>
+                      );
+                    }}
+                  </FixedSizeList>
                 )}
               </div>
+              {users.length >= 50 && usersHasMore && (
+                <button type="button" className="btn-sm split-view-load-more" onClick={loadMoreUsers}>
+                  Load more
+                </button>
+              )}
             </aside>
             <div className="split-view-right">
               {selectedUser ? (
@@ -870,10 +1009,14 @@ export default function AdminDashboardPage() {
                         {userActionsOpen === selectedUser.id && (
                           <div className="dropdown-menu">
                             <button type="button" onClick={() => { openEditUser(selectedUser); setUserActionsOpen(null); }}>Edit User</button>
-                            <button type="button" onClick={() => { setReassignUser(selectedUser); setReassignForm({ mediator_id: selectedUser.assigned_mediator_id || '', reason: '', note: '', notify: true }); setReassignOpen(true); setUserActionsOpen(null); }}>Reassign Mediator</button>
+                            {isClient(selectedUser) && (
+                              <button type="button" onClick={() => { setReassignUser(selectedUser); setReassignForm({ mediator_id: selectedUser.assigned_mediator_id || '', reason: '', note: '', notify: true }); setReassignOpen(true); setUserActionsOpen(null); }}>Reassign Mediator</button>
+                            )}
                             <button type="button" onClick={() => { window.location.href = `mailto:${selectedUser.email || ''}`; setUserActionsOpen(null); }}>Send Message</button>
-                            <button type="button" onClick={() => { handleToggleActive(selectedUser); setUserActionsOpen(null); }}>{selectedUser.is_active ? 'Deactivate Account' : 'Activate Account'}</button>
+                            <button type="button" onClick={() => { if (selectedUser.is_active) { setDeactivateUser(selectedUser); setDeactivateModalOpen(true); } else { handleToggleActive(selectedUser); } setUserActionsOpen(null); }}>{selectedUser.is_active ? 'Deactivate Account' : 'Activate Account'}</button>
+                            <button type="button" onClick={() => { handleImpersonate(selectedUser); setUserActionsOpen(null); }}><UserCircle size={14} /> Impersonate</button>
                             <button type="button" onClick={() => { handleExportUserData(selectedUser); setUserActionsOpen(null); }}>Export Data</button>
+                            <button type="button" className="dropdown-menu-danger" onClick={() => { setDeleteUser(selectedUser); setDeleteConfirmOpen(true); setUserActionsOpen(null); }}><Trash2 size={14} /> Delete (soft)</button>
                           </div>
                         )}
                       </div>
@@ -898,7 +1041,9 @@ export default function AdminDashboardPage() {
                           <h4>Professional Details</h4>
                           <div className="form-row"><label>User ID</label><span>{selectedUser.user_id || '—'}</span></div>
                           <div className="form-row"><label>Role</label><span>{USER_TYPE_BADGES[selectedUser.role]?.label || selectedUser.role}</span></div>
-                          <div className="form-row"><label>Assigned Mediator</label><span>{selectedUser.assigned_mediator_id ? 'Assigned' : 'Unassigned'}</span></div>
+                          {isClient(selectedUser) && (
+                            <div className="form-row"><label>Assigned Mediator</label><span>{selectedUser.assigned_mediator_id ? (mediators.find((m) => m.id === selectedUser.assigned_mediator_id)?.display_name || mediators.find((m) => m.id === selectedUser.assigned_mediator_id)?.email || 'Assigned') : 'Unassigned'}</span></div>
+                          )}
                         </div>
                         <div className="split-view-form-section">
                           <h4>Account Status</h4>
@@ -922,7 +1067,24 @@ export default function AdminDashboardPage() {
                         </div>
                       </div>
                     )}
-                    {userDetailTab === 'cases' && <p className="empty-msg">Cases for this user.</p>}
+                    {userDetailTab === 'cases' && (
+                      <div className="split-view-cases">
+                        {userCases.length === 0 ? (
+                          <p className="empty-msg">No cases for this user.</p>
+                        ) : (
+                          <ul className="user-cases-list">
+                            {userCases.map((c) => (
+                              <li key={c.id}>
+                                <Link to={`/cases/${c.id}`} className="user-case-link">
+                                  <span className="user-case-name">{c.case_number} – {c.title}</span>
+                                  <span className="badge badge-sm">{c.status}</span>
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                     {userDetailTab === 'activity' && <p className="empty-msg">Activity log.</p>}
                   </div>
                 </>
@@ -1432,6 +1594,41 @@ export default function AdminDashboardPage() {
                 <button type="submit" className="primary">Save Changes</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {deactivateModalOpen && deactivateUser && (
+        <div className="modal-overlay" onClick={() => { setDeactivateModalOpen(false); setDeactivateUser(null); setDeactivateReason(''); }}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <h3>Deactivate Account – {deactivateUser.display_name || deactivateUser.email}</h3>
+            <p className="section-desc" style={{ marginBottom: '1rem' }}>The user will not be able to log in. You can reactivate later.</p>
+            <label>
+              Reason (optional)
+              <select value={deactivateReason} onChange={(e) => setDeactivateReason(e.target.value)}>
+                <option value="">Select reason</option>
+                {DEACTIVATION_REASONS.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </label>
+            <div className="modal-actions" style={{ marginTop: '1rem' }}>
+              <button type="button" onClick={() => { setDeactivateModalOpen(false); setDeactivateUser(null); setDeactivateReason(''); }}>Cancel</button>
+              <button type="button" className="btn-danger" onClick={handleDeactivate}>Deactivate</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmOpen && deleteUser && (
+        <div className="modal-overlay" onClick={() => { setDeleteConfirmOpen(false); setDeleteUser(null); }}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <h3>Delete User – {deleteUser.display_name || deleteUser.email}</h3>
+            <p className="section-desc" style={{ marginBottom: '1rem' }}>This will soft-delete the user. They will not be able to log in. Data is retained.</p>
+            <div className="modal-actions" style={{ marginTop: '1rem' }}>
+              <button type="button" onClick={() => { setDeleteConfirmOpen(false); setDeleteUser(null); }}>Cancel</button>
+              <button type="button" className="btn-danger" onClick={handleSoftDelete}>Delete</button>
+            </div>
           </div>
         </div>
       )}

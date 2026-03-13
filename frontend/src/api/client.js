@@ -37,6 +37,7 @@ export const auth = {
   changePassword: (currentPassword, newPassword) =>
     api.post('/auth/change-password', { current_password: currentPassword, new_password: newPassword }),
   register: (data) => api.post('/auth/register', data),
+  impersonate: (targetUserId) => api.post('/auth/impersonate', { target_user_id: targetUserId }),
 };
 
 export const cases = {
@@ -202,6 +203,7 @@ export const usersApi = {
   updateClientProfile: (id, data) => api.patch(`/users/${id}/profile`, data),
   updateStatus: (id, data) => api.patch(`/users/${id}`, data),
   reassignMediator: (userId, data) => api.post(`/users/${userId}/reassign-mediator`, data),
+  softDelete: (id) => api.post(`/users/${id}/soft-delete`),
   getMyDashboard: () => api.get('/users/me/dashboard'),
 };
 

@@ -138,6 +138,7 @@ class UserStatusUpdate(BaseModel):
     phone: str | None = None
     country: str | None = None
     assigned_mediator_id: uuid.UUID | None = None
+    deactivation_reason: str | None = None  # inactive_user, policy_violation, user_requested, other
 
 
 class ReassignMediator(BaseModel):
@@ -319,18 +320,24 @@ async def list_pending_approvals(
 
 @router.get("", response_model=list[UserResponse])
 async def list_users(
-    role: str | None = Query(None, description="Filter by role: mediator, client_individual, client_corporate"),
+    role: str | None = Query(None, description="Filter by role: mediator, client_individual, client_corporate, trainee"),
     status: str | None = Query(None, description="Filter by status: pending, active, inactive"),
     search: str | None = Query(None, description="Search by name, email, user_id"),
+    sort: str | None = Query("created_at", description="Sort: name_asc, name_desc, created_at, last_active"),
+    date_from: str | None = Query(None, description="Filter created_at >= YYYY-MM-DD"),
+    date_to: str | None = Query(None, description="Filter created_at <= YYYY-MM-DD"),
+    include_deleted: bool = Query(False, description="Include soft-deleted users"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin")),
 ):
-    """List users. Super-admin sees all; others filtered by tenant."""
+    """List users. Super-admin sees all; others filtered by tenant. Pagination 50 per page."""
     q = select(User).where(User.role != "super_admin")
     if user.role != "super_admin" and user.tenant_id:
         q = q.where(User.tenant_id == user.tenant_id)
+    if not include_deleted:
+        q = q.where(User.deleted_at.is_(None))
     if role:
         q = q.where(User.role == role)
     if status:
@@ -343,7 +350,29 @@ async def list_users(
         if hasattr(User, "phone"):
             conds.append(User.phone.ilike(term))
         q = q.where(or_(*conds))
-    q = q.order_by(User.created_at.desc()).offset(skip).limit(limit)
+    if date_from:
+        try:
+            from datetime import datetime
+            dt = datetime.strptime(date_from, "%Y-%m-%d")
+            q = q.where(User.created_at >= dt)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from datetime import datetime
+            dt = datetime.strptime(date_to, "%Y-%m-%d")
+            q = q.where(User.created_at <= dt)
+        except ValueError:
+            pass
+    if sort == "name_asc":
+        q = q.order_by(User.display_name.asc().nullslast(), User.email.asc())
+    elif sort == "name_desc":
+        q = q.order_by(User.display_name.desc().nullslast(), User.email.desc())
+    elif sort == "last_active":
+        q = q.order_by(User.last_login_at.desc().nullslast(), User.created_at.desc())
+    else:
+        q = q.order_by(User.created_at.desc())
+    q = q.offset(skip).limit(limit)
     result = await db.execute(q)
     users = result.scalars().all()
     return [_user_to_response(u) for u in users]
@@ -761,10 +790,14 @@ async def update_user_status(
         raise HTTPException(status_code=404, detail="User not found")
     if user.tenant_id and u.tenant_id != user.tenant_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    if getattr(u, "deleted_at", None):
+        raise HTTPException(status_code=400, detail="Cannot update soft-deleted user")
     if data.is_active is not None:
         u.is_active = data.is_active
     if data.status is not None:
         u.status = data.status
+    if data.deactivation_reason is not None:
+        u.deactivation_reason = data.deactivation_reason
     if data.display_name is not None:
         u.display_name = data.display_name
     if data.email is not None:
@@ -778,6 +811,27 @@ async def update_user_status(
             u.assigned_mediator_id = data.assigned_mediator_id
         else:
             u.assigned_mediator_id = None
+    await db.flush()
+    await db.refresh(u)
+    return _user_to_response(u)
+
+
+@router.post("/{user_id}/soft-delete", response_model=UserResponse)
+async def soft_delete_user(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role("super_admin")),
+):
+    """Soft delete user. Sets deleted_at, is_active=False. User cannot login."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    u = result.scalar_one_or_none()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    if admin.tenant_id and u.tenant_id != admin.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    u.deleted_at = datetime.utcnow()
+    u.is_active = False
+    u.status = "inactive"
     await db.flush()
     await db.refresh(u)
     return _user_to_response(u)
