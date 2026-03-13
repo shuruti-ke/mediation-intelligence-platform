@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -70,6 +70,7 @@ async def list_sessions_for_case(
 @router.get("/{session_id}/room", response_model=JitsiRoomResponse)
 async def get_jitsi_room(
     session_id: uuid.UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> JitsiRoomResponse:
@@ -104,6 +105,8 @@ async def get_jitsi_room(
             display_name=user.display_name or user.email,
             moderator=user.role in ("super_admin", "mediator"),
         )
+    from app.services.audit import log_audit
+    await log_audit(db, "SESSION_ROOM_ACCESS", "session", str(session_id), tenant_id=user.tenant_id, user_id=user.id, request=request)
     return JitsiRoomResponse(
         room_name=room_name,
         jitsi_domain=domain,
@@ -115,6 +118,7 @@ async def get_jitsi_room(
 @router.post("/{session_id}/start")
 async def start_session(
     session_id: uuid.UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin", "mediator", "trainee")),
 ) -> SessionResponse:
@@ -132,6 +136,8 @@ async def start_session(
     await db.flush()
     if user.tenant_id:
         await record_usage(db, user.tenant_id, "SESSION", 1, session.case_id)
+    from app.services.audit import log_audit
+    await log_audit(db, "SESSION_START", "session", str(session_id), tenant_id=user.tenant_id, user_id=user.id, request=request)
     await db.refresh(session)
     return session
 
@@ -144,6 +150,7 @@ class EndSessionBody(BaseModel):
 async def end_session(
     session_id: uuid.UUID,
     body: EndSessionBody | None = Body(default=None),
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin", "mediator", "trainee")),
 ) -> SessionResponse:
@@ -168,6 +175,8 @@ async def end_session(
             usage.sessions_used += 1
 
     await db.flush()
+    from app.services.audit import log_audit
+    await log_audit(db, "SESSION_END", "session", str(session_id), tenant_id=user.tenant_id, user_id=user.id, request=request)
     await db.refresh(session)
     return session
 

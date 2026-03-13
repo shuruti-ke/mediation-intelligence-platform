@@ -1,7 +1,7 @@
 """Auth routes - login, register."""
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,6 +35,7 @@ async def login_options():
 @router.post("/login", response_model=LoginResponse)
 async def login(
     data: LoginRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> LoginResponse:
     """Login with email and password. Returns JWT and user info for role-based redirect."""
@@ -51,6 +52,8 @@ async def login(
     if getattr(user, "status", None) == "pending":
         user.status = "active"
     await db.flush()
+    from app.services.audit import log_audit
+    await log_audit(db, "LOGIN", "user", str(user.id), tenant_id=user.tenant_id, user_id=user.id, request=request)
     token = create_access_token(subject=str(user.id))
     return LoginResponse(
         access_token=token,
@@ -67,6 +70,7 @@ async def login(
 @router.post("/change-password")
 async def change_password(
     data: ChangePasswordRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -78,6 +82,8 @@ async def change_password(
     user.hashed_password = get_password_hash(data.new_password)
     user.must_change_password = False
     await db.flush()
+    from app.services.audit import log_audit
+    await log_audit(db, "PASSWORD_CHANGE", "user", str(user.id), tenant_id=user.tenant_id, user_id=user.id, request=request)
     return {"message": "Password changed successfully"}
 
 
@@ -88,6 +94,7 @@ class ImpersonateRequest(BaseModel):
 @router.post("/impersonate")
 async def impersonate_user(
     data: ImpersonateRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_role("super_admin")),
 ):
@@ -103,6 +110,8 @@ async def impersonate_user(
     if not target.is_active:
         raise HTTPException(status_code=400, detail="Cannot impersonate inactive user")
     from datetime import timedelta
+    from app.services.audit import log_audit
+    await log_audit(db, "IMPERSONATE", "user", str(target.id), tenant_id=admin.tenant_id, user_id=admin.id, request=request, metadata={"target_email": target.email})
     token = create_access_token(subject=str(target.id), expires_delta=timedelta(hours=1))
     return {
         "access_token": token,

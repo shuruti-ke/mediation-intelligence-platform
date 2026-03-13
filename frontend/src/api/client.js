@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { shouldQueue, enqueue, initOnlineListener, processQueue } from '../utils/offlineQueue';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -19,7 +20,17 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (r) => r,
-  (err) => {
+  async (err) => {
+    // Phase 5.5: Store-and-forward - queue mutations when offline (network error)
+    const isNetworkError = !err.response && (err.code === 'ERR_NETWORK' || err.message?.includes('Network'));
+    if (isNetworkError && err.config && shouldQueue(err.config)) {
+      const queued = await enqueue(err.config);
+      if (queued) {
+        const e = new Error('Request queued for retry when online');
+        e.queued = true;
+        return Promise.reject(e);
+      }
+    }
     if (err.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
@@ -30,6 +41,12 @@ api.interceptors.response.use(
     return Promise.reject(err);
   }
 );
+
+// Phase 5.5: Process queued requests when back online
+initOnlineListener(api);
+if (navigator.onLine) {
+  processQueue(api);
+}
 
 export const auth = {
   login: (email, password) => api.post('/auth/login', { email, password }),
@@ -184,6 +201,7 @@ export const trainingApi = {
 
 export const auditApi = {
   listLogs: (params) => api.get('/audit/logs', { params }),
+  getSecurityStatus: () => api.get('/audit/security-status'),
 };
 
 export const tenantsApi = {

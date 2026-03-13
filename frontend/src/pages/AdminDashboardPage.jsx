@@ -130,6 +130,7 @@ export default function AdminDashboardPage() {
   const [editUserForm, setEditUserForm] = useState({ display_name: '', email: '', phone: '', country: '', assigned_mediator_id: '', status: '', is_active: true });
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditResourceFilter, setAuditResourceFilter] = useState('');
+  const [securityStatus, setSecurityStatus] = useState(null);
   const navigate = useNavigate();
 
   const DATE_RANGES = [
@@ -221,8 +222,14 @@ export default function AdminDashboardPage() {
         .finally(() => setLoading(false));
     } else if (tab === 'audit') {
       setLoading(true);
-      auditApi.listLogs({ resource_type: auditResourceFilter || undefined, limit: 100 })
-        .then(({ data }) => setAuditLogs(data || []))
+      Promise.allSettled([
+        auditApi.listLogs({ resource_type: auditResourceFilter || undefined, limit: 100 }),
+        auditApi.getSecurityStatus(),
+      ])
+        .then(([logsRes, statusRes]) => {
+          setAuditLogs(logsRes.status === 'fulfilled' ? logsRes.value?.data || [] : []);
+          setSecurityStatus(statusRes.status === 'fulfilled' ? statusRes.value?.data : null);
+        })
         .catch(() => setAuditLogs([]))
         .finally(() => setLoading(false));
     } else {
@@ -1362,6 +1369,26 @@ export default function AdminDashboardPage() {
         <section className="admin-dashboard-section audit-section">
           <h2 className="icon-text"><FileText size={22} /> Audit Log</h2>
           <p className="section-desc audit-section-desc">Security and compliance audit trail. Super-admin only.</p>
+
+          {securityStatus && (
+            <div className="security-compliance-card">
+              <h3>Phase 5.4: Security Compliance</h3>
+              <div className="compliance-checklist">
+                {(securityStatus.compliance_checklist || []).map((item, i) => (
+                  <div key={i} className={`compliance-item status-${item.status}`}>
+                    <span className="compliance-status">{item.status === 'ok' ? '✓' : item.status === 'warning' ? '!' : 'i'}</span>
+                    <span className="compliance-label">{item.item}</span>
+                    <span className="compliance-detail">{item.detail}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="compliance-meta">
+                <p><strong>Audit logs:</strong> {securityStatus.audit_logs?.recent_7_days ?? 0} in last 7 days</p>
+                <p><strong>Key rotation:</strong> {securityStatus.key_rotation?.recommendation}</p>
+              </div>
+            </div>
+          )}
+
           <div className="audit-controls">
             <div className="audit-filter">
               <label>Resource type:</label>
@@ -1371,6 +1398,7 @@ export default function AdminDashboardPage() {
                 <option value="user">User</option>
                 <option value="session">Session</option>
                 <option value="document">Document</option>
+                <option value="recording">Recording</option>
                 <option value="tenant">Tenant</option>
               </select>
             </div>

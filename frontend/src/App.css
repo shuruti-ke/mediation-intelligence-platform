@@ -2070,6 +2070,71 @@ a:hover {
   color: var(--bold-purple);
 }
 
+/* Phase 5.4: Security Compliance */
+.security-compliance-card {
+  padding: 1.25rem;
+  background: var(--off-white);
+  border: 1px solid var(--light-gray);
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+}
+.security-compliance-card h3 {
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  color: var(--bold-purple);
+}
+.compliance-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.compliance-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+.compliance-status {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.compliance-item.status-ok .compliance-status {
+  background: #d1fae5;
+  color: #059669;
+}
+.compliance-item.status-warning .compliance-status {
+  background: #fef3c7;
+  color: #d97706;
+}
+.compliance-item.status-info .compliance-status {
+  background: #dbeafe;
+  color: #2563eb;
+}
+.compliance-label {
+  font-weight: 500;
+  min-width: 140px;
+}
+.compliance-detail {
+  color: var(--medium-gray);
+  font-size: 0.85rem;
+}
+.compliance-meta {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--light-gray);
+  font-size: 0.85rem;
+  color: var(--medium-gray);
+}
+.compliance-meta p {
+  margin: 0.25rem 0;
+}
+
 .orgkb-upload {
   display: flex;
   gap: 0.75rem;

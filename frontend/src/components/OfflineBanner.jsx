@@ -18,7 +18,7 @@ export default function OfflineBanner() {
 
   return (
     <div className="offline-banner">
-      You are offline. Some features may be unavailable. Cached content will load when possible.
+      You are offline. Some features may be unavailable. Cached content will load when possible. Changes will be queued and synced when you're back online.
     </div>
   );
 }

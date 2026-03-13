@@ -3,7 +3,7 @@ import uuid
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,6 +58,7 @@ async def list_documents(
 async def upload_document(
     file: UploadFile = File(...),
     case_id: str | None = Form(None),
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
@@ -97,6 +98,8 @@ async def upload_document(
     )
     db.add(doc)
     await db.flush()
+    from app.services.audit import log_audit
+    await log_audit(db, "DOCUMENT_UPLOAD", "document", str(doc.id), tenant_id=user.tenant_id, user_id=user.id, request=request, metadata={"file_name": file.filename, "case_id": case_id})
     await db.refresh(doc)
     return {"id": str(doc.id), "filename": doc.file_name, "status": "uploaded"}
 
@@ -126,6 +129,7 @@ async def get_document(
 @router.get("/{document_id}/download")
 async def download_document(
     document_id: uuid.UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -138,6 +142,8 @@ async def download_document(
         raise HTTPException(status_code=403, detail="Access denied")
     if not os.path.exists(doc.storage_path):
         raise HTTPException(status_code=404, detail="File not found")
+    from app.services.audit import log_audit
+    await log_audit(db, "DOCUMENT_DOWNLOAD", "document", str(document_id), tenant_id=user.tenant_id, user_id=user.id, request=request)
     return FileResponse(
         doc.storage_path,
         filename=doc.file_name,
