@@ -123,7 +123,7 @@ export default function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <RoleBasedRoute allowedRoles={['mediator', 'trainee']}>
+              <RoleBasedRoute allowedRoles={['mediator', 'super_admin']}>
                 <DashboardPage />
               </RoleBasedRoute>
             </ProtectedRoute>
@@ -201,7 +201,7 @@ export default function App() {
           path="/training"
           element={
             <ProtectedRoute>
-              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+              <RoleBasedRoute allowedRoles={['mediator', 'super_admin']}>
                 <TrainingPage />
               </RoleBasedRoute>
             </ProtectedRoute>
@@ -211,7 +211,7 @@ export default function App() {
           path="/training/modules/:id"
           element={
             <ProtectedRoute>
-              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+              <RoleBasedRoute allowedRoles={['mediator', 'super_admin']}>
                 <TrainingModulePage />
               </RoleBasedRoute>
             </ProtectedRoute>
@@ -221,7 +221,7 @@ export default function App() {
           path="/training/cpd"
           element={
             <ProtectedRoute>
-              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+              <RoleBasedRoute allowedRoles={['mediator', 'super_admin']}>
                 <CPDDashboardPage />
               </RoleBasedRoute>
             </ProtectedRoute>
@@ -231,7 +231,7 @@ export default function App() {
           path="/training/scenarios/:scenarioId"
           element={
             <ProtectedRoute>
-              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+              <RoleBasedRoute allowedRoles={['mediator', 'super_admin']}>
                 <PracticeScenarioPage />
               </RoleBasedRoute>
             </ProtectedRoute>
@@ -241,7 +241,7 @@ export default function App() {
           path="/training/role-play"
           element={
             <ProtectedRoute>
-              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+              <RoleBasedRoute allowedRoles={['mediator', 'super_admin']}>
                 <RolePlayPage />
               </RoleBasedRoute>
             </ProtectedRoute>
@@ -251,7 +251,7 @@ export default function App() {
           path="/training/role-play/session/:sessionId"
           element={
             <ProtectedRoute>
-              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+              <RoleBasedRoute allowedRoles={['mediator', 'super_admin']}>
                 <RolePlayPage />
               </RoleBasedRoute>
             </ProtectedRoute>
@@ -261,7 +261,7 @@ export default function App() {
           path="/training/trainee-academy"
           element={
             <ProtectedRoute>
-              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+              <RoleBasedRoute allowedRoles={['trainee']}>
                 <TraineeTrainingPage />
               </RoleBasedRoute>
             </ProtectedRoute>
@@ -271,7 +271,7 @@ export default function App() {
           path="/training/trainee-academy/article/:lessonId"
           element={
             <ProtectedRoute>
-              <RoleBasedRoute allowedRoles={['mediator', 'trainee', 'super_admin']}>
+              <RoleBasedRoute allowedRoles={['trainee']}>
                 <TraineeArticlePage />
               </RoleBasedRoute>
             </ProtectedRoute>

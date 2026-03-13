@@ -394,8 +394,8 @@ export default function TraineeTrainingPage() {
                 ))}
               </ul>
             </div>
-            <Link to="/training" className="trainee-sidebar-back">
-              ← Back to Training
+            <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }} className="trainee-sidebar-back">
+              Sign out
             </Link>
           </div>
         </aside>
