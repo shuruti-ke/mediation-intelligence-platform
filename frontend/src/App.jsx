@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import MediatorBillingPage from './pages/MediatorBillingPage';
+import MediatorCreateInvoicePage from './pages/MediatorCreateInvoicePage';
 import ClientProfilePage from './pages/ClientProfilePage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminAccountsPage from './pages/AdminAccountsPage';
@@ -182,6 +183,16 @@ export default function App() {
             <ProtectedRoute>
               <RoleBasedRoute allowedRoles={['mediator', 'super_admin']}>
                 <MediatorBillingPage />
+              </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/billing/create-invoice"
+          element={
+            <ProtectedRoute>
+              <RoleBasedRoute allowedRoles={['mediator', 'super_admin']}>
+                <MediatorCreateInvoicePage />
               </RoleBasedRoute>
             </ProtectedRoute>
           }

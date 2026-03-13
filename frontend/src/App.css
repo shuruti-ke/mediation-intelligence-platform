@@ -1974,6 +1974,32 @@ body.lite-mode { --transition-fast: 0s; --transition-normal: 0s; }
 }
 
 .billing-section .section-desc { margin-bottom: 1rem; }
+.mediator-billing-section .btn-link.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #8b5cf6;
+  color: white;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.mediator-billing-section .btn-link.primary:hover {
+  background: #7c3aed;
+}
+.mediator-billing-section .empty-state {
+  padding: 2rem;
+  text-align: center;
+}
+.mediator-billing-section .empty-state .primary {
+  margin-top: 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  text-decoration: none;
+}
 .invoices-table-wrap { overflow-x: auto; }
 .btn-mpesa {
   display: inline-flex;
