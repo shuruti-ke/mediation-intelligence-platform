@@ -9,12 +9,13 @@ from app.core.database import Base
 
 
 class Service(Base):
-    """Platform services that can be billed (e.g. mediation session, consultation)."""
+    """Billable services. service_type: platform (platform charges mediator) or mediation (mediator charges client)."""
 
     __tablename__ = "billing_services"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    service_type: Mapped[str] = mapped_column(String(20), default="mediation")  # platform | mediation
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     price_minor: Mapped[int] = mapped_column(Integer, nullable=False)  # price in minor units (cents)
@@ -25,13 +26,15 @@ class Service(Base):
 
 
 class Invoice(Base):
-    """Invoice - request for payment."""
+    """Invoice - request for payment. invoice_type: platform (mediator pays platform) or client (client pays mediator)."""
 
     __tablename__ = "invoices"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # Client for client-scoped billing
+    invoice_type: Mapped[str] = mapped_column(String(20), default="client")  # platform | client
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # Bill-to: client or mediator
+    mediator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)  # For client invoices: earning mediator
     case_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=True)
     invoice_number: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
     amount_minor_units: Mapped[int] = mapped_column(BigInteger, nullable=False)

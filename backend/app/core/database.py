@@ -172,6 +172,33 @@ async def migrate_billing_services(conn):
             logger.warning("Migration billing_services: %s", e)
 
 
+async def migrate_billing_service_type(conn):
+    """Add service_type to billing_services (platform | mediation)."""
+    try:
+        await conn.execute(text(
+            "ALTER TABLE billing_services ADD COLUMN IF NOT EXISTS service_type VARCHAR(20) DEFAULT 'mediation'"
+        ))
+        logger.info("Migration: ensured column billing_services.service_type")
+    except Exception as e:
+        if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+            logger.warning("Migration billing_services.service_type: %s", e)
+
+
+async def migrate_invoice_type_mediator(conn):
+    """Add invoice_type and mediator_id to invoices for platform vs client reconciliation."""
+    try:
+        await conn.execute(text(
+            "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS invoice_type VARCHAR(20) DEFAULT 'client'"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS mediator_id UUID REFERENCES users(id)"
+        ))
+        logger.info("Migration: ensured columns invoices.invoice_type, invoices.mediator_id")
+    except Exception as e:
+        if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+            logger.warning("Migration invoices.invoice_type/mediator_id: %s", e)
+
+
 async def migrate_payment_receipts(conn):
     """Create payment_receipts table for manual receipting (M-Pesa code, cheque, cash, EFT)."""
     try:
@@ -237,6 +264,8 @@ async def init_db():
         await migrate_kb_fts_index(conn)
         await migrate_invoice_user_id(conn)
         await migrate_billing_services(conn)
+        await migrate_billing_service_type(conn)
+        await migrate_invoice_type_mediator(conn)
         await migrate_payment_receipts(conn)
         await migrate_settlement_agreements(conn)
         await migrate_kb_chunk_embedding(conn)

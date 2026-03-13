@@ -167,6 +167,8 @@ export const paymentsApi = {
   listInvoicePayments: (invoiceId) => api.get(`/payments/invoices/${invoiceId}/payments`),
   recordPayment: (invoiceId, formData) => api.post(`/payments/invoices/${invoiceId}/payments`, formData),
   getPaymentAttachment: (receiptId) => api.get(`/payments/receipts/${receiptId}/attachment`, { responseType: 'blob' }),
+  getReconciliation: (params) => api.get('/payments/reconciliation', { params }),
+  updatePlatformCommission: (pct) => api.patch('/payments/platform-commission', { platform_commission_pct: pct }),
 };
 
 export const settlementsApi = {

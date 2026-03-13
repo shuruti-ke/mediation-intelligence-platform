@@ -23,6 +23,7 @@ export default function AdminCreateInvoicePage() {
     user_id: '',
     user_display: '',
     user_details: null,
+    mediator_id: '',
     case_id: '',
     invoice_date: new Date().toISOString().slice(0, 10),
     due_date: '',
@@ -34,6 +35,8 @@ export default function AdminCreateInvoicePage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
+  const [mediators, setMediators] = useState([]);
+
   const loadServices = useCallback(() => {
     paymentsApi.listServices().then((r) => setServices(r.data || [])).catch(() => []);
   }, []);
@@ -41,6 +44,7 @@ export default function AdminCreateInvoicePage() {
   useEffect(() => {
     loadServices();
     cases.list({ limit: 200 }).then((r) => setCaseList(r.data || [])).catch(() => []);
+    paymentsApi.searchBillableUsers({ role: 'mediator', limit: 100 }).then((r) => setMediators(r.data || [])).catch(() => []);
   }, [loadServices]);
 
   useEffect(() => {
@@ -115,6 +119,7 @@ export default function AdminCreateInvoicePage() {
     const total = lineItems.reduce((s, li) => s + (parseFloat(li.quantity) || 1) * (parseFloat(li.unit_price) || 0), 0);
     setSubmitting(true);
     try {
+      const isPlatformInvoice = form.clientType === 'mediator';
       await paymentsApi.createInvoice({
         user_id: form.user_id,
         amount_minor_units: Math.round(total * 100),
@@ -123,6 +128,8 @@ export default function AdminCreateInvoicePage() {
         purpose: form.purpose || null,
         due_date: form.due_date || null,
         case_id: form.case_id || null,
+        invoice_type: isPlatformInvoice ? 'platform' : 'client',
+        mediator_id: !isPlatformInvoice && form.mediator_id ? form.mediator_id : null,
         line_items: lineItems.map((li) => ({
           description: li.description.trim(),
           quantity: parseFloat(li.quantity) || 1,
@@ -203,6 +210,20 @@ export default function AdminCreateInvoicePage() {
               </div>
             )}
           </div>
+          {form.clientType !== 'mediator' && mediators.length > 0 && (
+            <div className="form-group">
+              <label>Earning mediator (for reconciliation)</label>
+              <select
+                value={form.mediator_id}
+                onChange={(e) => setForm({ ...form, mediator_id: e.target.value })}
+              >
+                <option value="">— None —</option>
+                {mediators.map((m) => (
+                  <option key={m.id} value={m.id}>{m.display_name || m.email}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {form.user_details && (
             <div className="client-details-card">
               <h4>Client details</h4>

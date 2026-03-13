@@ -16,7 +16,7 @@ from sqlalchemy import select, or_, and_, func
 from app.api.deps import get_current_user, require_role
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.models.tenant import User
+from app.models.tenant import User, Tenant
 from app.models.payment import Service, Invoice, PaymentTransaction, PaymentReceipt
 from app.models.case import Case, CaseParty
 
@@ -59,8 +59,10 @@ class InvoiceCreate(BaseModel):
     purpose: str | None = None  # e.g. mediation_session, consultation, retainer
     due_date: str | None = None  # YYYY-MM-DD
     case_id: uuid.UUID | None = None
-    user_id: uuid.UUID | None = None  # Client to bill
+    user_id: uuid.UUID | None = None  # Client to bill (or mediator for platform invoices)
     line_items: list[LineItemCreate] | None = None  # itemized breakdown
+    invoice_type: str = "client"  # platform | client
+    mediator_id: uuid.UUID | None = None  # For client invoices: earning mediator
 
 
 class PaymentInitRequest(BaseModel):
@@ -74,6 +76,7 @@ class ServiceCreate(BaseModel):
     description: str | None = None
     price_minor: int
     currency: str = "KES"
+    service_type: str = "mediation"  # platform | mediation
 
 
 class ServiceUpdate(BaseModel):
@@ -82,6 +85,7 @@ class ServiceUpdate(BaseModel):
     price_minor: int | None = None
     currency: str | None = None
     is_active: bool | None = None
+    service_type: str | None = None
 
 
 # ─── Services CRUD (super_admin only) ────────────────────────────────────────
@@ -107,6 +111,7 @@ async def list_services(
             "price": s.price_minor / 100,
             "currency": s.currency,
             "is_active": s.is_active,
+            "service_type": getattr(s, "service_type", None) or "mediation",
         }
         for s in services
     ]
@@ -121,8 +126,12 @@ async def create_service(
     """Create a new service."""
     if not user.tenant_id:
         raise HTTPException(status_code=400, detail="Tenant required")
+    svc_type = (data.service_type or "mediation").lower()
+    if svc_type not in ("platform", "mediation"):
+        svc_type = "mediation"
     svc = Service(
         tenant_id=user.tenant_id,
+        service_type=svc_type,
         name=data.name,
         description=data.description,
         price_minor=data.price_minor,
@@ -168,6 +177,10 @@ async def update_service(
         svc.currency = data.currency
     if data.is_active is not None:
         svc.is_active = data.is_active
+    if data.service_type is not None:
+        st = data.service_type.lower()
+        if st in ("platform", "mediation"):
+            svc.service_type = st
     await db.flush()
     await db.refresh(svc)
     return {
@@ -272,8 +285,23 @@ async def create_invoice(
             })
     else:
         line_items_data = [{"description": data.description, "quantity": 1, "unit_price_minor": data.amount_minor_units, "amount_minor": data.amount_minor_units}]
+
+    # invoice_type: platform (mediator pays platform) | client (client pays mediator)
+    invoice_type = (data.invoice_type or "client").lower()
+    if invoice_type not in ("platform", "client"):
+        invoice_type = "client"
+    mediator_id_val = data.mediator_id
+    if user.role == "mediator":
+        # Mediator creating invoice for client: always client type, mediator earns
+        invoice_type = "client"
+        mediator_id_val = user.id
+    elif user.role == "super_admin" and invoice_type == "platform":
+        mediator_id_val = None  # Platform invoice: user_id is the mediator being billed
+
     invoice = Invoice(
         tenant_id=user.tenant_id,
+        invoice_type=invoice_type,
+        mediator_id=mediator_id_val,
         user_id=data.user_id,
         case_id=data.case_id,
         invoice_number=generate_invoice_number(user.tenant_id),
@@ -685,6 +713,7 @@ async def list_invoices(
         out.append({
             "id": str(i.id),
             "invoice_number": i.invoice_number,
+            "invoice_type": getattr(i, "invoice_type", None) or "client",
             "user_id": str(i.user_id) if i.user_id else None,
             "user_name": u.display_name if u else None,
             "user_email": u.email if u else None,
@@ -696,6 +725,123 @@ async def list_invoices(
             "created_at": i.created_at.isoformat(),
         })
     return out
+
+
+class PlatformCommissionUpdate(BaseModel):
+    platform_commission_pct: float = 0
+
+
+@router.patch("/platform-commission")
+async def update_platform_commission(
+    data: PlatformCommissionUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Update platform commission % in tenant commercial_config."""
+    if not user.tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant required")
+    pct = max(0, min(100, data.platform_commission_pct))
+    result = await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    commercial = dict(tenant.commercial_config or {})
+    commercial["platform_commission_pct"] = pct
+    tenant.commercial_config = commercial
+    await db.flush()
+    return {"platform_commission_pct": pct}
+
+
+@router.get("/reconciliation")
+async def get_reconciliation(
+    mediator_id: uuid.UUID | None = Query(None, description="Filter by mediator for per-mediator payout"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Two-tier reconciliation: funds from clients, funds from mediator (platform fees), mediator payout owed."""
+    if not user.tenant_id:
+        return {
+            "funds_from_clients": 0,
+            "funds_from_mediator": 0,
+            "platform_commission_pct": 0,
+            "platform_commission_amount": 0,
+            "mediator_payout_owed": 0,
+            "currency": "KES",
+            "by_mediator": [],
+        }
+    # Platform commission % from tenant commercial_config
+    tenant_result = await db.execute(select(Tenant).where(Tenant.id == user.tenant_id))
+    tenant = tenant_result.scalar_one_or_none()
+    commercial = (tenant.commercial_config or {}) if tenant else {}
+    commission_pct = float(commercial.get("platform_commission_pct", 0) or 0)
+
+    base_inv = and_(Invoice.tenant_id == user.tenant_id, Invoice.invoice_type == "client")
+    if mediator_id:
+        base_inv = and_(base_inv, Invoice.mediator_id == mediator_id)
+
+    # Funds from clients: total paid on client invoices (mediation fees)
+    client_paid_q = (
+        select(func.coalesce(func.sum(PaymentReceipt.amount_minor_units), 0))
+        .select_from(PaymentReceipt)
+        .join(Invoice, Invoice.id == PaymentReceipt.invoice_id)
+        .where(base_inv)
+    )
+    funds_from_clients_minor = (await db.execute(client_paid_q)).scalar() or 0
+
+    # Funds from mediator: total paid on platform invoices (platform access fees)
+    platform_base = and_(Invoice.tenant_id == user.tenant_id, Invoice.invoice_type == "platform")
+    if mediator_id:
+        platform_base = and_(platform_base, Invoice.user_id == mediator_id)
+    platform_paid_q = (
+        select(func.coalesce(func.sum(PaymentReceipt.amount_minor_units), 0))
+        .select_from(PaymentReceipt)
+        .join(Invoice, Invoice.id == PaymentReceipt.invoice_id)
+        .where(platform_base)
+    )
+    funds_from_mediator_minor = (await db.execute(platform_paid_q)).scalar() or 0
+
+    commission_minor = int(funds_from_clients_minor * commission_pct / 100)
+    mediator_payout_minor = funds_from_clients_minor - commission_minor
+
+    # Per-mediator breakdown (only when not filtering)
+    by_mediator = []
+    if not mediator_id:
+        mediator_totals_q = (
+            select(Invoice.mediator_id, func.sum(PaymentReceipt.amount_minor_units).label("total"))
+            .select_from(PaymentReceipt)
+            .join(Invoice, Invoice.id == PaymentReceipt.invoice_id)
+            .where(Invoice.tenant_id == user.tenant_id, Invoice.invoice_type == "client", Invoice.mediator_id.isnot(None))
+            .group_by(Invoice.mediator_id)
+        )
+        mediator_rows = (await db.execute(mediator_totals_q)).all()
+        mediator_ids = [r.mediator_id for r in mediator_rows]
+        users_map = {}
+        if mediator_ids:
+            u_res = await db.execute(select(User).where(User.id.in_(mediator_ids)))
+            for u in u_res.scalars().all():
+                users_map[u.id] = u
+        for r in mediator_rows:
+            u = users_map.get(r.mediator_id)
+            tot = r.total or 0
+            comm = int(tot * commission_pct / 100)
+            payout = tot - comm
+            by_mediator.append({
+                "mediator_id": str(r.mediator_id),
+                "mediator_name": (u.display_name or u.email) if u else "Unknown",
+                "funds_from_clients": tot / 100,
+                "platform_commission": comm / 100,
+                "payout_owed": payout / 100,
+            })
+
+    return {
+        "funds_from_clients": funds_from_clients_minor / 100,
+        "funds_from_mediator": funds_from_mediator_minor / 100,
+        "platform_commission_pct": commission_pct,
+        "platform_commission_amount": commission_minor / 100,
+        "mediator_payout_owed": mediator_payout_minor / 100,
+        "currency": "KES",
+        "by_mediator": by_mediator,
+    }
 
 
 @router.get("/account-summary")

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CreditCard, DollarSign, Package, Plus, ArrowLeft, Smartphone, RefreshCw, Receipt, FileText } from 'lucide-react';
+import { CreditCard, DollarSign, Package, Plus, ArrowLeft, Smartphone, RefreshCw, Receipt, FileText, Scale } from 'lucide-react';
 import GlobalSearch from '../components/GlobalSearch';
 import LanguageSelector from '../components/LanguageSelector';
 import { paymentsApi } from '../api/client';
@@ -26,6 +26,10 @@ export default function AdminAccountsPage() {
   const [recordPaymentInv, setRecordPaymentInv] = useState(null);
   const [paymentForm, setPaymentForm] = useState({ method: 'MPESA', amount: '', reference: '', attachment: null });
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
+  const [reconciliation, setReconciliation] = useState(null);
+  const [reconLoading, setReconLoading] = useState(false);
+  const [commissionEdit, setCommissionEdit] = useState(false);
+  const [commissionValue, setCommissionValue] = useState('');
 
   const load = () => {
     setLoading(true);
@@ -39,6 +43,34 @@ export default function AdminAccountsPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  };
+
+  const loadReconciliation = () => {
+    setReconLoading(true);
+    setCommissionEdit(false);
+    paymentsApi.getReconciliation()
+      .then((r) => r.data)
+      .then((d) => {
+        setReconciliation(d || {});
+        setCommissionValue(String(d?.platform_commission_pct ?? 0));
+      })
+      .catch(() => setReconciliation(null))
+      .finally(() => setReconLoading(false));
+  };
+
+  const saveCommission = async () => {
+    const pct = parseFloat(commissionValue);
+    if (isNaN(pct) || pct < 0 || pct > 100) {
+      alert('Enter a valid percentage (0–100)');
+      return;
+    }
+    try {
+      await paymentsApi.updatePlatformCommission(pct);
+      setCommissionEdit(false);
+      loadReconciliation();
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to update commission');
+    }
   };
 
   useEffect(load, []);
@@ -135,6 +167,9 @@ export default function AdminAccountsPage() {
         <button className={tab === 'services' ? 'active' : ''} onClick={() => setTab('services')}>
           <Package size={18} /> Services
         </button>
+        <button className={tab === 'reconciliation' ? 'active' : ''} onClick={() => { setTab('reconciliation'); loadReconciliation(); }}>
+          <Scale size={18} /> Reconciliation
+        </button>
       </nav>
 
       {tab === 'invoices' && (
@@ -156,6 +191,7 @@ export default function AdminAccountsPage() {
                 <thead>
                   <tr>
                     <th>Invoice #</th>
+                    <th>Type</th>
                     <th>Bill To</th>
                     <th>Amount</th>
                     <th>Status</th>
@@ -168,6 +204,7 @@ export default function AdminAccountsPage() {
                   {invoices.map((inv) => (
                     <tr key={inv.id}>
                       <td>{inv.invoice_number}</td>
+                      <td><span className={`accounts-badge accounts-badge-${inv.invoice_type === 'platform' ? 'platform' : 'client'}`}>{inv.invoice_type === 'platform' ? 'Platform' : 'Client'}</span></td>
                       <td>{inv.user_name || inv.user_email || inv.user_id || '—'}</td>
                       <td>{inv.currency} {(inv.amount ?? 0).toFixed(2)}</td>
                       <td>{statusBadge(inv.status)}</td>
@@ -208,6 +245,93 @@ export default function AdminAccountsPage() {
       {tab === 'services' && (
         <section className="admin-accounts-section">
           <ServicesTab services={services} onUpdate={load} />
+        </section>
+      )}
+
+      {tab === 'reconciliation' && (
+        <section className="admin-accounts-section">
+          <div className="section-toolbar">
+            <h2>Two-Tier Reconciliation</h2>
+            <button className="btn-ghost" onClick={loadReconciliation} disabled={reconLoading}>
+              <RefreshCw size={16} /> {reconLoading ? 'Loading…' : 'Refresh'}
+            </button>
+          </div>
+          {reconLoading && !reconciliation ? (
+            <p className="accounts-loading">Loading reconciliation…</p>
+          ) : reconciliation ? (
+            <div className="reconciliation-panel">
+              <div className="recon-summary-cards">
+                <div className="recon-card">
+                  <span className="recon-label">Funds from clients (mediation fees)</span>
+                  <span className="recon-value">{reconciliation.currency} {(reconciliation.funds_from_clients ?? 0).toFixed(2)}</span>
+                  <span className="recon-desc">Total paid on client invoices</span>
+                </div>
+                <div className="recon-card">
+                  <span className="recon-label">Funds from mediator (platform access)</span>
+                  <span className="recon-value">{reconciliation.currency} {(reconciliation.funds_from_mediator ?? 0).toFixed(2)}</span>
+                  <span className="recon-desc">Total paid on platform invoices</span>
+                </div>
+                <div className="recon-card recon-card-commission">
+                  <span className="recon-label">
+                    Platform commission
+                    {commissionEdit ? (
+                      <span className="recon-edit-inline">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          value={commissionValue}
+                          onChange={(e) => setCommissionValue(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && saveCommission()}
+                        />
+                        % <button type="button" className="btn-sm" onClick={saveCommission}>Save</button>
+                        <button type="button" className="btn-ghost" onClick={() => { setCommissionEdit(false); setCommissionValue(String(reconciliation.platform_commission_pct ?? 0)); }}>Cancel</button>
+                      </span>
+                    ) : (
+                      <button type="button" className="recon-edit-btn" onClick={() => { setCommissionEdit(true); setCommissionValue(String(reconciliation.platform_commission_pct ?? 0)); }} title="Edit">
+                        ({reconciliation.platform_commission_pct ?? 0}%) ✎
+                      </button>
+                    )}
+                  </span>
+                  <span className="recon-value">{reconciliation.currency} {(reconciliation.platform_commission_amount ?? 0).toFixed(2)}</span>
+                  <span className="recon-desc">Retained from client payments</span>
+                </div>
+                <div className="recon-card recon-card-payout">
+                  <span className="recon-label">Mediator payout owed</span>
+                  <span className="recon-value">{reconciliation.currency} {(reconciliation.mediator_payout_owed ?? 0).toFixed(2)}</span>
+                  <span className="recon-desc">Client payments minus commission</span>
+                </div>
+              </div>
+              {reconciliation.by_mediator && reconciliation.by_mediator.length > 0 && (
+                <div className="recon-by-mediator">
+                  <h3>Per-mediator breakdown</h3>
+                  <table className="accounts-table">
+                    <thead>
+                      <tr>
+                        <th>Mediator</th>
+                        <th>Funds from clients</th>
+                        <th>Platform commission</th>
+                        <th>Payout owed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reconciliation.by_mediator.map((m) => (
+                        <tr key={m.mediator_id}>
+                          <td>{m.mediator_name}</td>
+                          <td>{reconciliation.currency} {(m.funds_from_clients ?? 0).toFixed(2)}</td>
+                          <td>{reconciliation.currency} {(m.platform_commission ?? 0).toFixed(2)}</td>
+                          <td><strong>{reconciliation.currency} {(m.payout_owed ?? 0).toFixed(2)}</strong></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="accounts-loading">Unable to load reconciliation.</p>
+          )}
         </section>
       )}
 
