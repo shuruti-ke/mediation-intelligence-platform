@@ -890,7 +890,9 @@ export default function AdminTrainingAcademyPage() {
               <label>Description<textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={3} /></label>
               <label>Difficulty<select value={editForm.difficulty} onChange={(e) => setEditForm({ ...editForm, difficulty: e.target.value })}>{Object.entries(DIFFICULTY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
               <label className="checkbox-label"><input type="checkbox" checked={editForm.is_published} onChange={(e) => setEditForm({ ...editForm, is_published: e.target.checked })} /> Published</label>
-              <div className="wizard-lessons-section"><strong>Lessons</strong>{(editForm.lessons || []).map((l, i) => (
+              <div className="wizard-lessons-section">
+                <div className="wizard-lessons-header"><strong>Lessons</strong><button type="button" className="academy-btn academy-btn-sm" onClick={() => setEditForm({ ...editForm, lessons: [...(editForm.lessons || []), { id: null, title: '', content_type: 'text', content_html: '', video_url: '', file_url: '', order_index: (editForm.lessons || []).length, duration_minutes: '' }] })}><Plus size={14} /> Add Lesson</button></div>
+                {(editForm.lessons || []).map((l, i) => (
                 <div key={l.id || i} className="wizard-lesson-card">
                   <div className="wizard-lesson-header"><span>Lesson {i + 1}</span></div>
                   <label><span>Title</span><input value={l.title} onChange={(e) => { const lessons = [...editForm.lessons]; lessons[i] = { ...lessons[i], title: e.target.value }; setEditForm({ ...editForm, lessons }); }} /></label>
@@ -898,6 +900,7 @@ export default function AdminTrainingAcademyPage() {
                   {(l.content_type || 'text') === 'video' && <label><span>YouTube URL</span><input value={l.video_url || ''} onChange={(e) => { const lessons = [...editForm.lessons]; lessons[i] = { ...lessons[i], video_url: e.target.value }; setEditForm({ ...editForm, lessons }); }} /></label>}
                   {(l.content_type || 'text') === 'text' && <label><span>Content</span><textarea value={l.content_html || ''} onChange={(e) => { const lessons = [...editForm.lessons]; lessons[i] = { ...lessons[i], content_html: e.target.value }; setEditForm({ ...editForm, lessons }); }} rows={3} /></label>}
                   <label><span>Duration (min)</span><input type="number" value={l.duration_minutes || ''} onChange={(e) => { const lessons = [...editForm.lessons]; lessons[i] = { ...lessons[i], duration_minutes: e.target.value }; setEditForm({ ...editForm, lessons }); }} /></label>
+                  {l.id && <button type="button" className="btn-icon btn-danger" onClick={async () => { if (!confirm('Delete this lesson?')) return; try { await trainingAcademyApi.deleteLesson(l.id); setEditForm({ ...editForm, lessons: editForm.lessons.filter((_, j) => j !== i) }); } catch (e) { alert(e.response?.data?.detail || 'Failed'); } }}><Trash2 size={14} /> Remove</button>}
                 </div>
               ))}</div>
               <div className="modal-actions">
