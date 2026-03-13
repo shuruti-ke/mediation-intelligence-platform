@@ -4883,6 +4883,14 @@ a:hover {
 .legend-dot.avail { background: #a78bfa; }
 .legend-dot.booking { background: #c4b5fd; }
 
+.calendar-no-slots {
+  padding: 0.75rem;
+  background: var(--bg-orange-50);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
 .calendar-modal label {
   display: block;
   margin-top: 0.75rem;

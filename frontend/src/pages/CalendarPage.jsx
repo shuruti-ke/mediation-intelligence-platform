@@ -32,6 +32,7 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null); // 'add-slot' | 'book' | null
   const [form, setForm] = useState({ slot_date: '', start_time: '09:00', end_time: '10:00', mediator_id: '', meeting_type: 'consultation' });
+  const [mediatorSlots, setMediatorSlots] = useState([]); // available slots for selected mediator
 
   useEffect(() => {
     try {
@@ -83,6 +84,21 @@ export default function CalendarPage() {
     }
   };
 
+  // When mediator selected, load their free slots (availability minus scheduled bookings)
+  useEffect(() => {
+    if (modal !== 'book' || !form.mediator_id) {
+      setMediatorSlots([]);
+      return;
+    }
+    const from = new Date(current.year, current.month, 1);
+    const to = new Date(current.year, current.month + 1, 0);
+    calendarApi.listFreeSlots({
+      mediator_id: form.mediator_id,
+      from_date: formatDate(from),
+      to_date: formatDate(to),
+    }).then(r => setMediatorSlots(r.data || [])).catch(() => setMediatorSlots([]));
+  }, [modal, form.mediator_id, current.year, current.month]);
+
   const handleBook = async (e) => {
     e.preventDefault();
     if (!form.slot_date || !form.start_time || !form.end_time || !form.mediator_id) return;
@@ -100,7 +116,9 @@ export default function CalendarPage() {
       const to = new Date(current.year, current.month + 1, 0);
       calendarApi.listBookings({ from_date: formatDate(from), to_date: formatDate(to) }).then(r => setBookings(r.data));
     } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to book');
+      const d = err.response?.data?.detail;
+      const msg = Array.isArray(d) ? d.map(e => e.msg || e.loc?.join('.')).join('; ') : (typeof d === 'string' ? d : 'Failed to book');
+      alert(msg);
     }
   };
 
@@ -220,16 +238,35 @@ export default function CalendarPage() {
             <h3>Book a session</h3>
             <form onSubmit={handleBook}>
               <label>Mediator</label>
-              <select value={form.mediator_id} onChange={e => setForm({ ...form, mediator_id: e.target.value })} required>
+              <select value={form.mediator_id} onChange={e => setForm({ ...form, mediator_id: e.target.value, slot_date: '', start_time: '', end_time: '' })} required>
                 <option value="">Select mediator</option>
                 {mediators.map(m => <option key={m.id} value={m.id}>{m.display_name || m.email}</option>)}
               </select>
-              <label>Date</label>
-              <input type="date" value={form.slot_date} onChange={e => setForm({ ...form, slot_date: e.target.value })} required />
-              <label>Start</label>
-              <input type="time" value={form.start_time} onChange={e => setForm({ ...form, start_time: e.target.value })} required />
-              <label>End</label>
-              <input type="time" value={form.end_time} onChange={e => setForm({ ...form, end_time: e.target.value })} required />
+              <label>Available slot</label>
+              {mediatorSlots.length === 0 ? (
+                <p className="calendar-no-slots">
+                  {form.mediator_id ? 'No available slots this month. Ask the mediator to add availability.' : 'Select a mediator first.'}
+                </p>
+              ) : (
+                <select
+                  value={form.slot_date && form.start_time && form.end_time ? `${form.slot_date}|${form.start_time}|${form.end_time}` : ''}
+                  onChange={e => {
+                    const v = e.target.value;
+                    if (v) {
+                      const [sd, st, et] = v.split('|');
+                      setForm({ ...form, slot_date: sd, start_time: st, end_time: et });
+                    }
+                  }}
+                  required
+                >
+                  <option value="">Choose a slot</option>
+                  {mediatorSlots.map(a => (
+                    <option key={a.id} value={`${a.slot_date}|${a.start_time}|${a.end_time}`}>
+                      {a.slot_date} {a.start_time}–{a.end_time}
+                    </option>
+                  ))}
+                </select>
+              )}
               <label>Type</label>
               <select value={form.meeting_type} onChange={e => setForm({ ...form, meeting_type: e.target.value })}>
                 <option value="consultation">Consultation</option>
@@ -238,7 +275,7 @@ export default function CalendarPage() {
               </select>
               <div className="modal-actions">
                 <button type="button" onClick={() => setModal(null)}>Cancel</button>
-                <button type="submit" className="primary">Book</button>
+                <button type="submit" className="primary" disabled={mediatorSlots.length === 0}>Book</button>
               </div>
             </form>
           </div>

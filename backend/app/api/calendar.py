@@ -32,8 +32,19 @@ class BookingCreate(BaseModel):
 
 
 def _parse_time(s: str) -> time:
-    parts = s.split(":")
-    return time(int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
+    """Parse HH:MM or HH:MM:SS to time. Raises ValueError on invalid format."""
+    if not s or not isinstance(s, str):
+        raise ValueError("Time is required")
+    parts = s.strip().split(":")
+    if len(parts) < 2:
+        raise ValueError("Time must be HH:MM format (e.g. 09:00)")
+    try:
+        h, m = int(parts[0]), int(parts[1])
+        if not (0 <= h <= 23 and 0 <= m <= 59):
+            raise ValueError("Invalid time")
+        return time(h, m)
+    except (ValueError, TypeError) as e:
+        raise ValueError("Time must be HH:MM format (e.g. 09:00)") from e
 
 
 # --- Availability (mediators set their slots) ---
@@ -118,6 +129,52 @@ async def delete_availability(
     return {"deleted": True}
 
 
+# --- Free slots (for booking UI: availability minus scheduled bookings) ---
+
+@router.get("/free-slots")
+async def list_free_slots(
+    mediator_id: uuid.UUID = Query(...),
+    from_date: date = Query(...),
+    to_date: date = Query(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list:
+    """List available slots that are not yet booked. For clients/mediators to pick when booking."""
+    avail_q = select(MediatorAvailability).where(
+        and_(
+            MediatorAvailability.mediator_id == mediator_id,
+            MediatorAvailability.slot_date >= from_date,
+            MediatorAvailability.slot_date <= to_date,
+        )
+    )
+    avail_result = await db.execute(avail_q)
+    slots = avail_result.scalars().all()
+    if not slots:
+        return []
+    booked_q = select(CalendarBooking).where(
+        and_(
+            CalendarBooking.mediator_id == mediator_id,
+            CalendarBooking.slot_date >= from_date,
+            CalendarBooking.slot_date <= to_date,
+            CalendarBooking.status == "scheduled",
+        )
+    )
+    booked_result = await db.execute(booked_q)
+    booked = booked_result.scalars().all()
+    booked_set = {(b.slot_date, b.start_time, b.end_time) for b in booked}
+    free = [
+        {
+            "id": str(s.id),
+            "slot_date": s.slot_date.isoformat(),
+            "start_time": s.start_time.strftime("%H:%M"),
+            "end_time": s.end_time.strftime("%H:%M"),
+        }
+        for s in slots
+        if (s.slot_date, s.start_time, s.end_time) not in booked_set
+    ]
+    return free
+
+
 # --- Bookings (clients book slots) ---
 
 @router.get("/bookings")
@@ -167,8 +224,11 @@ async def create_calendar_booking(
     user: User = Depends(get_current_user),
 ) -> dict:
     """Book a slot. Client books for self; mediator can book on behalf."""
-    start = _parse_time(data.start_time)
-    end = _parse_time(data.end_time)
+    try:
+        start = _parse_time(data.start_time)
+        end = _parse_time(data.end_time)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if end <= start:
         raise HTTPException(status_code=400, detail="End time must be after start time")
 
@@ -185,7 +245,10 @@ async def create_calendar_booking(
     )
     slot = avail.scalar_one_or_none()
     if not slot:
-        raise HTTPException(status_code=400, detail="That slot is not available")
+        raise HTTPException(
+            status_code=400,
+            detail="That slot is not available. Please select from the available slots shown for your chosen mediator.",
+        )
 
     existing = await db.execute(
         select(CalendarBooking).where(
