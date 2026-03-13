@@ -22,6 +22,7 @@ class AcademyModule(Base):
     difficulty: Mapped[str] = mapped_column(String(20), default="beginner")  # beginner, intermediate, advanced
     tags: Mapped[list] = mapped_column(JSONB, default=list)  # ["mediation", "ethics", ...]
     visibility: Mapped[str] = mapped_column(String(20), default="public")  # public, private
+    target_audience: Mapped[str] = mapped_column(String(20), default="trainee")  # trainee, mediator
     order_index: Mapped[int] = mapped_column(Integer, default=0)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)  # soft delete

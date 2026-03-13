@@ -138,7 +138,9 @@ export const paymentsApi = {
 
 export const trainingAcademyApi = {
   aiGenerate: (data) => api.post('/training/academy-admin/ai-generate', data),
-  listModules: (includeArchived) => api.get('/training/academy-admin/modules', { params: { include_archived: includeArchived } }),
+  listModules: (includeArchived) => api.get('/training/academy-admin/modules', { params: { include_archived: !!includeArchived } }),
+  listCuratedModules: () => api.get('/training/academy-admin/curated-modules'),
+  unarchiveModule: (id) => api.patch(`/training/academy-admin/modules/${id}/unarchive`),
   createModule: (data) => api.post('/training/academy-admin/modules', data),
   getModule: (id) => api.get(`/training/academy-admin/modules/${id}`),
   updateModule: (id, data) => api.patch(`/training/academy-admin/modules/${id}`, data),

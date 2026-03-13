@@ -22,6 +22,9 @@ from app.models.academy import (
 )
 from app.models.training import TraineeAcademyProgress
 
+# Import curated modules for admin view (read-only, trainees see these)
+from app.api.training import TRAINEE_MODULES
+
 router = APIRouter(prefix="/training/academy-admin", tags=["academy-admin"])
 
 
@@ -40,6 +43,7 @@ class ModuleCreate(BaseModel):
     difficulty: str = "beginner"
     tags: list[str] = []
     visibility: str = "public"
+    target_audience: str = "trainee"  # trainee, mediator
 
 
 class ModuleUpdate(BaseModel):
@@ -49,6 +53,7 @@ class ModuleUpdate(BaseModel):
     difficulty: str | None = None
     tags: list[str] | None = None
     visibility: str | None = None
+    target_audience: str | None = None
     is_published: bool | None = None
     order_index: int | None = None
 
@@ -165,6 +170,36 @@ async def ai_generate_module(
     return result
 
 
+# --- Curated modules (read-only, shown to admin so they see what trainees see) ---
+@router.get("/curated-modules")
+async def list_curated_modules(
+    user: User = Depends(require_role("super_admin")),
+) -> list:
+    """List curated trainee modules (read-only). Admin sees these alongside academy modules."""
+    out = []
+    for m in TRAINEE_MODULES:
+        lessons = m.get("lessons_data", [])
+        out.append({
+            "id": m.get("id", ""),
+            "slug": m.get("title", "").lower().replace(" ", "-")[:50],
+            "title": m.get("title", ""),
+            "description": m.get("description", ""),
+            "thumbnail_url": None,
+            "difficulty": "beginner",
+            "tags": [],
+            "visibility": "public",
+            "target_audience": "trainee",
+            "order_index": 0,
+            "is_published": True,
+            "archived_at": None,
+            "lesson_count": len(lessons),
+            "quiz_count": 1 if m.get("module_exam") else 0,
+            "created_at": None,
+            "is_curated": True,
+        })
+    return out
+
+
 # --- Module CRUD ---
 @router.get("/modules")
 async def list_academy_modules(
@@ -192,6 +227,7 @@ async def list_academy_modules(
             "difficulty": m.difficulty,
             "tags": m.tags or [],
             "visibility": m.visibility,
+            "target_audience": getattr(m, "target_audience", None) or "trainee",
             "order_index": m.order_index,
             "is_published": m.is_published,
             "archived_at": m.archived_at.isoformat() if m.archived_at else None,
@@ -199,6 +235,7 @@ async def list_academy_modules(
             "lesson_count": lesson_count.scalar() or 0,
             "quiz_count": quiz_count.scalar() or 0,
             "created_at": m.created_at.isoformat(),
+            "is_curated": False,
         })
     return out
 
@@ -221,6 +258,7 @@ async def create_academy_module(
         difficulty=data.difficulty,
         tags=data.tags,
         visibility=data.visibility,
+        target_audience=getattr(data, "target_audience", "trainee") or "trainee",
         tenant_id=user.tenant_id,
     )
     db.add(mod)
@@ -260,6 +298,7 @@ async def get_academy_module(
         "is_published": mod.is_published,
         "archived_at": mod.archived_at.isoformat() if mod.archived_at else None,
         "version": mod.version,
+        "target_audience": getattr(mod, "target_audience", None) or "trainee",
         "lessons": [
             {
                 "id": str(l.id),
@@ -327,6 +366,22 @@ async def archive_academy_module(
     mod.is_published = False
     await db.flush()
     return {"id": str(mod.id), "archived": True}
+
+
+@router.patch("/modules/{module_id}/unarchive")
+async def unarchive_academy_module(
+    module_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Restore an archived module."""
+    result = await db.execute(select(AcademyModule).where(AcademyModule.id == module_id))
+    mod = result.scalar_one_or_none()
+    if not mod:
+        raise HTTPException(status_code=404, detail="Module not found")
+    mod.archived_at = None
+    await db.flush()
+    return {"id": str(mod.id), "archived": False}
 
 
 # --- Lesson CRUD ---

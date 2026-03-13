@@ -33,6 +33,9 @@ import {
   ArrowLeft,
   Youtube,
   Link as LinkIcon,
+  RotateCcw,
+  Briefcase,
+  GraduationCap as CapIcon,
 } from 'lucide-react';
 import { trainingAcademyApi, documents } from '../api/client';
 import './AdminTrainingAcademyPage.css';
@@ -65,6 +68,8 @@ export default function AdminTrainingAcademyPage() {
   const [quizModuleId, setQuizModuleId] = useState(null);
   const [quizForm, setQuizForm] = useState({ title: '', passing_score_pct: 70, questions: [] });
   const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const [audienceFilter, setAudienceFilter] = useState('all'); // all, mediator, trainee
 
   useEffect(() => {
     document.documentElement.classList.toggle('academy-dark', darkMode);
@@ -74,13 +79,16 @@ export default function AdminTrainingAcademyPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [modRes, anaRes, riskRes, studRes] = await Promise.allSettled([
-        trainingAcademyApi.listModules(),
+      const [modRes, curatedRes, anaRes, riskRes, studRes] = await Promise.allSettled([
+        trainingAcademyApi.listModules(includeArchived),
+        trainingAcademyApi.listCuratedModules(),
         trainingAcademyApi.getAnalytics(),
         trainingAcademyApi.getRiskAlert(),
         trainingAcademyApi.listStudents(),
       ]);
-      setModules(modRes.status === 'fulfilled' ? modRes.value.data : []);
+      const academyMods = modRes.status === 'fulfilled' ? modRes.value.data : [];
+      const curatedMods = curatedRes.status === 'fulfilled' ? curatedRes.value.data : [];
+      setModules([...curatedMods, ...academyMods]);
       setAnalytics(anaRes.status === 'fulfilled' ? anaRes.value.data : null);
       setRiskAlert(riskRes.status === 'fulfilled' ? riskRes.value.data : []);
       setStudents(studRes.status === 'fulfilled' ? studRes.value.data : []);
@@ -93,7 +101,7 @@ export default function AdminTrainingAcademyPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [includeArchived]);
 
   const handleAiGenerate = async () => {
     if (!aiInput.topic?.trim()) return;
@@ -109,6 +117,7 @@ export default function AdminTrainingAcademyPage() {
         difficulty: 'beginner',
         tags: [],
         visibility: 'public',
+        target_audience: aiInput.target_audience === 'mediators' ? 'mediator' : 'trainee',
         lessons: data.lessons || [],
         quiz_questions: data.quiz_questions || [],
       });
@@ -130,6 +139,7 @@ export default function AdminTrainingAcademyPage() {
         difficulty: createForm.difficulty,
         tags: createForm.tags,
         visibility: createForm.visibility,
+        target_audience: createForm.target_audience || 'trainee',
       });
       const modId = createRes?.id;
       if (modId && createForm.lessons?.length) {
@@ -186,6 +196,15 @@ export default function AdminTrainingAcademyPage() {
     }
   };
 
+  const handleUnarchiveModule = async (id) => {
+    try {
+      await trainingAcademyApi.unarchiveModule(id);
+      loadData();
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Unarchive failed');
+    }
+  };
+
   const openStudentModal = async (student) => {
     setStudentModal(student);
     setAssignModalOpen(false);
@@ -208,6 +227,7 @@ export default function AdminTrainingAcademyPage() {
         difficulty: data.difficulty || 'beginner',
         tags: data.tags || [],
         visibility: data.visibility || 'public',
+        target_audience: data.target_audience || 'trainee',
         is_published: data.is_published ?? false,
         lessons: (data.lessons || []).map((l) => ({
           id: l.id,
@@ -236,6 +256,7 @@ export default function AdminTrainingAcademyPage() {
         difficulty: editForm.difficulty,
         tags: editForm.tags,
         visibility: editForm.visibility,
+        target_audience: editForm.target_audience,
         is_published: editForm.is_published,
       });
       for (let i = 0; i < editForm.lessons.length; i++) {
@@ -372,6 +393,7 @@ export default function AdminTrainingAcademyPage() {
                 difficulty: 'beginner',
                 tags: [],
                 visibility: 'public',
+                target_audience: 'trainee',
                 lessons: [{ title: '', content_type: 'text', content_html: '', video_url: '', file_url: '', duration_minutes: '' }],
                 quiz_questions: [],
               });
@@ -495,49 +517,133 @@ export default function AdminTrainingAcademyPage() {
             <h2>
               <BookOpen size={22} /> Training Modules
             </h2>
+
+            {/* Purpose/Focus Dashboard - Mediator vs Trainee */}
+            <div className="audience-dashboard">
+              <div
+                className={`audience-box ${audienceFilter === 'mediator' ? 'active' : ''}`}
+                onClick={() => setAudienceFilter(audienceFilter === 'mediator' ? 'all' : 'mediator')}
+              >
+                <Briefcase size={28} />
+                <h3>Mediator Modules</h3>
+                <p>CPD, advanced skills, professional development for practising mediators</p>
+                <span className="audience-count">
+                  {modules.filter((m) => (m.target_audience || 'trainee') === 'mediator').length} modules
+                </span>
+              </div>
+              <div
+                className={`audience-box ${audienceFilter === 'trainee' ? 'active' : ''}`}
+                onClick={() => setAudienceFilter(audienceFilter === 'trainee' ? 'all' : 'trainee')}
+              >
+                <CapIcon size={28} />
+                <h3>Trainee Modules</h3>
+                <p>Induction, fundamentals, certification path for new trainees</p>
+                <span className="audience-count">
+                  {modules.filter((m) => (m.target_audience || 'trainee') === 'trainee').length} modules
+                </span>
+              </div>
+            </div>
+
+            <div className="module-toolbar">
+              <label className="academy-checkbox">
+                <input
+                  type="checkbox"
+                  checked={includeArchived}
+                  onChange={(e) => setIncludeArchived(e.target.checked)}
+                />
+                Include archived
+              </label>
+              <div className="audience-tabs">
+                <button
+                  className={audienceFilter === 'all' ? 'active' : ''}
+                  onClick={() => setAudienceFilter('all')}
+                >
+                  All
+                </button>
+                <button
+                  className={audienceFilter === 'mediator' ? 'active' : ''}
+                  onClick={() => setAudienceFilter('mediator')}
+                >
+                  Mediators
+                </button>
+                <button
+                  className={audienceFilter === 'trainee' ? 'active' : ''}
+                  onClick={() => setAudienceFilter('trainee')}
+                >
+                  Trainees
+                </button>
+              </div>
+            </div>
+
             <div className="module-grid">
-              {modules.map((m) => (
-                <div key={m.id} className="module-card">
-                  <div className="module-card-thumb">
-                    {m.thumbnail_url ? (
-                      <img src={m.thumbnail_url} alt="" />
-                    ) : (
-                      <div className="module-card-placeholder">
-                        <BookOpen size={40} />
+              {modules
+                .filter((m) => {
+                  if (audienceFilter === 'all') return true;
+                  const aud = m.target_audience || 'trainee';
+                  return aud === audienceFilter;
+                })
+                .map((m) => (
+                  <div key={m.id} className={`module-card ${m.is_curated ? 'curated' : ''} ${m.archived_at ? 'archived' : ''}`}>
+                    <div className="module-card-thumb">
+                      {m.thumbnail_url ? (
+                        <img src={m.thumbnail_url} alt="" />
+                      ) : (
+                        <div className="module-card-placeholder">
+                          <BookOpen size={40} />
+                        </div>
+                      )}
+                      <span className={`module-badge difficulty-${m.difficulty}`}>
+                        {DIFFICULTY_LABELS[m.difficulty] || m.difficulty}
+                      </span>
+                      {m.is_curated && <span className="module-badge curated-badge">Curated</span>}
+                      {m.archived_at && <span className="module-badge archived-badge">Archived</span>}
+                    </div>
+                    <div className="module-card-body">
+                      <h3>{m.title}</h3>
+                      <p className="module-desc">{m.description || 'No description'}</p>
+                      <div className="module-meta">
+                        <span>{m.lesson_count} lessons</span>
+                        <span>{m.quiz_count} quizzes</span>
+                        <span className="audience-tag">{(m.target_audience || 'trainee') === 'mediator' ? 'Mediator' : 'Trainee'}</span>
+                        {m.is_published && <span className="badge-pub">Published</span>}
                       </div>
-                    )}
-                    <span className={`module-badge difficulty-${m.difficulty}`}>
-                      {DIFFICULTY_LABELS[m.difficulty] || m.difficulty}
-                    </span>
-                  </div>
-                  <div className="module-card-body">
-                    <h3>{m.title}</h3>
-                    <p className="module-desc">{m.description || 'No description'}</p>
-                    <div className="module-meta">
-                      <span>{m.lesson_count} lessons</span>
-                      <span>{m.quiz_count} quizzes</span>
-                      {m.is_published && <span className="badge-pub">Published</span>}
+                    </div>
+                    <div className="module-card-actions">
+                      {!m.is_curated && (
+                        <>
+                          <button className="btn-icon" title="Edit" onClick={() => openEditModule(m)}>
+                            <Pencil size={16} />
+                          </button>
+                          <button className="btn-icon" title="Add Quiz" onClick={() => openQuizModal(m)}>
+                            <FileText size={16} />
+                          </button>
+                          {m.archived_at ? (
+                            <button className="btn-icon" title="Unarchive" onClick={() => handleUnarchiveModule(m.id)}>
+                              <RotateCcw size={16} />
+                            </button>
+                          ) : (
+                            <button
+                              className="btn-icon btn-danger"
+                              title="Archive"
+                              onClick={() => handleArchiveModule(m.id)}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {m.is_curated && (
+                        <span className="curated-hint" title="Curated modules are read-only">Read-only</span>
+                      )}
                     </div>
                   </div>
-                  <div className="module-card-actions">
-                    <button className="btn-icon" title="Edit" onClick={() => openEditModule(m)}>
-                      <Pencil size={16} />
-                    </button>
-                    <button className="btn-icon" title="Add Quiz" onClick={() => openQuizModal(m)}>
-                      <FileText size={16} />
-                    </button>
-                    <button
-                      className="btn-icon btn-danger"
-                      title="Archive"
-                      onClick={() => handleArchiveModule(m.id)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
-            {modules.length === 0 && (
+            {modules.filter((m) => {
+              if (audienceFilter === 'all') return true;
+              const aud = m.target_audience || 'trainee';
+              return aud === audienceFilter;
+            }).length === 0 && (
               <p className="academy-empty">
                 No modules yet. Use <strong>AI Create Module</strong> or <strong>Manual Upload</strong> to add one.
               </p>
@@ -683,6 +789,16 @@ export default function AdminTrainingAcademyPage() {
                       {Object.entries(DIFFICULTY_LABELS).map(([k, v]) => (
                         <option key={k} value={k}>{v}</option>
                       ))}
+                    </select>
+                  </label>
+                  <label>
+                    Target Audience
+                    <select
+                      value={createForm.target_audience || 'trainee'}
+                      onChange={(e) => setCreateForm({ ...createForm, target_audience: e.target.value })}
+                    >
+                      <option value="trainee">Trainees</option>
+                      <option value="mediator">Mediators</option>
                     </select>
                   </label>
 
@@ -889,6 +1005,7 @@ export default function AdminTrainingAcademyPage() {
               <label>Title<input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} /></label>
               <label>Description<textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} rows={3} /></label>
               <label>Difficulty<select value={editForm.difficulty} onChange={(e) => setEditForm({ ...editForm, difficulty: e.target.value })}>{Object.entries(DIFFICULTY_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+              <label>Target Audience<select value={editForm.target_audience || 'trainee'} onChange={(e) => setEditForm({ ...editForm, target_audience: e.target.value })}><option value="trainee">Trainees</option><option value="mediator">Mediators</option></select></label>
               <label className="checkbox-label"><input type="checkbox" checked={editForm.is_published} onChange={(e) => setEditForm({ ...editForm, is_published: e.target.checked })} /> Published</label>
               <div className="wizard-lessons-section">
                 <div className="wizard-lessons-header"><strong>Lessons</strong><button type="button" className="academy-btn academy-btn-sm" onClick={() => setEditForm({ ...editForm, lessons: [...(editForm.lessons || []), { id: null, title: '', content_type: 'text', content_html: '', video_url: '', file_url: '', order_index: (editForm.lessons || []).length, duration_minutes: '' }] })}><Plus size={14} /> Add Lesson</button></div>
