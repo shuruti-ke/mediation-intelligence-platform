@@ -4,7 +4,7 @@ import { CreditCard, DollarSign, Package, Plus, ArrowLeft, Smartphone, RefreshCw
 import GlobalSearch from '../components/GlobalSearch';
 import LanguageSelector from '../components/LanguageSelector';
 import { paymentsApi } from '../api/client';
-import { PrintInvoice, PrintReceipt, PrintReconciliation } from '../components/PrintView';
+import { PrintInvoice, PrintReceipt, PrintReconciliation, PrintMediatorStatement, PrintClientStatement } from '../components/PrintView';
 import './AdminAccountsPage.css';
 
 const PAYMENT_METHODS = [
@@ -129,6 +129,20 @@ export default function AdminAccountsPage() {
 
   const handlePrintReconciliation = () => {
     setPrintView({ type: 'reconciliation', data: reconciliation });
+  };
+
+  const handlePrintMediatorStatement = (m) => {
+    paymentsApi.getReconciliation({ mediator_id: m.mediator_id })
+      .then((r) => r.data)
+      .then((data) => setPrintView({ type: 'mediator_statement', data, mediatorName: m.mediator_name }))
+      .catch(() => alert('Failed to load mediator statement'));
+  };
+
+  const handlePrintClientStatement = (client) => {
+    paymentsApi.getClientStatement({ user_id: client.user_id })
+      .then((r) => r.data)
+      .then((data) => setPrintView({ type: 'client_statement', data }))
+      .catch(() => alert('Failed to load client statement'));
   };
 
   const openRecordPayment = (inv) => {
@@ -357,6 +371,29 @@ export default function AdminAccountsPage() {
                   <span className="recon-desc">Client payments minus commission minus unpaid platform invoices</span>
                 </div>
               </div>
+              {(() => {
+                const clientsWithInvoices = [];
+                const seen = new Set();
+                (invoices || []).forEach((inv) => {
+                  if (inv.invoice_type === 'client' && inv.user_id && !seen.has(inv.user_id)) {
+                    seen.add(inv.user_id);
+                    clientsWithInvoices.push({ user_id: inv.user_id, user_name: inv.user_name || inv.user_email || 'Client' });
+                  }
+                });
+                return clientsWithInvoices.length > 0 && (
+                  <div className="recon-by-client">
+                    <h3>Client statements</h3>
+                    <p className="recon-desc">Print individual statements for clients.</p>
+                    <div className="client-statement-buttons">
+                      {clientsWithInvoices.map((c) => (
+                        <button key={c.user_id} type="button" className="btn-sm" onClick={() => handlePrintClientStatement(c)}>
+                          <Printer size={12} /> {c.user_name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               {reconciliation.by_mediator && reconciliation.by_mediator.length > 0 && (
                 <div className="recon-by-mediator">
                   <h3>Per-mediator breakdown</h3>
@@ -368,6 +405,7 @@ export default function AdminAccountsPage() {
                         <th>Platform commission</th>
                         <th>Unpaid platform invoices</th>
                         <th>Payout owed</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -378,6 +416,11 @@ export default function AdminAccountsPage() {
                           <td>{reconciliation.currency} {(m.platform_commission ?? 0).toFixed(2)}</td>
                           <td>{reconciliation.currency} {(m.unpaid_platform_invoices ?? 0).toFixed(2)}</td>
                           <td><strong>{reconciliation.currency} {(m.payout_owed ?? 0).toFixed(2)}</strong></td>
+                          <td>
+                            <button type="button" className="btn-sm" onClick={() => handlePrintMediatorStatement(m)} title="Print mediator statement">
+                              <Printer size={12} /> Print
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -519,6 +562,12 @@ export default function AdminAccountsPage() {
       )}
       {printView?.type === 'reconciliation' && (
         <PrintReconciliation data={printView.data} onDone={() => setPrintView(null)} />
+      )}
+      {printView?.type === 'mediator_statement' && (
+        <PrintMediatorStatement data={printView.data} mediatorName={printView.mediatorName} onDone={() => setPrintView(null)} />
+      )}
+      {printView?.type === 'client_statement' && (
+        <PrintClientStatement data={printView.data} onDone={() => setPrintView(null)} />
       )}
 
       {recordPaymentInv && (

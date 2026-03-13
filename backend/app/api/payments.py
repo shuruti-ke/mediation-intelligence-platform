@@ -927,6 +927,69 @@ async def get_reconciliation(
     }
 
 
+@router.get("/client-statement")
+async def get_client_statement(
+    user_id: uuid.UUID = Query(..., description="Client user ID"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Client statement: invoices, balance due, total paid. Super-admin only."""
+    if not user.tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant required")
+    # Client invoices: invoice_type=client, user_id=client
+    client_cases = select(CaseParty.case_id).where(CaseParty.user_id == user_id)
+    q = select(Invoice).where(
+        Invoice.tenant_id == user.tenant_id,
+        Invoice.invoice_type == "client",
+        or_(
+            Invoice.user_id == user_id,
+            and_(Invoice.case_id.isnot(None), Invoice.case_id.in_(client_cases)),
+        ),
+    )
+    q = q.order_by(Invoice.created_at.desc())
+    result = await db.execute(q)
+    invoices = result.scalars().all()
+    client_user = None
+    if user_id:
+        u_res = await db.execute(select(User).where(User.id == user_id))
+        client_user = u_res.scalar_one_or_none()
+    invoice_ids = [i.id for i in invoices]
+    paid_map = {}
+    if invoice_ids:
+        paid_q = (
+            select(PaymentReceipt.invoice_id, func.sum(PaymentReceipt.amount_minor_units).label("total"))
+            .where(PaymentReceipt.invoice_id.in_(invoice_ids))
+            .group_by(PaymentReceipt.invoice_id)
+        )
+        paid_result = await db.execute(paid_q)
+        paid_map = {r.invoice_id: (r.total or 0) / 100 for r in paid_result.all()}
+    inv_list = []
+    balance_due = 0
+    total_paid = 0
+    for i in invoices:
+        amt = i.amount_minor_units / 100
+        paid = paid_map.get(i.id, 0)
+        inv_list.append({
+            "id": str(i.id),
+            "invoice_number": i.invoice_number,
+            "amount": amt,
+            "total_paid": paid,
+            "status": i.status,
+            "created_at": i.created_at.isoformat() if i.created_at else None,
+        })
+        total_paid += paid
+        if i.status == "PENDING":
+            balance_due += max(0, amt - paid)
+    return {
+        "client_name": (client_user.display_name or client_user.email) if client_user else "Client",
+        "user_name": (client_user.display_name or client_user.email) if client_user else "Client",
+        "invoices": inv_list,
+        "balance_due": balance_due,
+        "total_paid": total_paid,
+        "currency": "KES",
+    }
+
+
 @router.get("/account-summary")
 async def get_account_summary(
     db: AsyncSession = Depends(get_db),

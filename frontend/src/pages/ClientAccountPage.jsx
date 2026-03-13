@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { CreditCard, Smartphone, Bell, ArrowLeft, FileText, CheckCircle } from 'lucide-react';
+import { CreditCard, Smartphone, Bell, ArrowLeft, FileText, CheckCircle, Printer } from 'lucide-react';
 import { paymentsApi, notificationsApi } from '../api/client';
+import { PrintClientStatement } from '../components/PrintView';
 
 export default function ClientAccountPage() {
   const [invoices, setInvoices] = useState([]);
@@ -10,6 +11,7 @@ export default function ClientAccountPage() {
   const [loading, setLoading] = useState(true);
   const [payModal, setPayModal] = useState(null);
   const [payPhone, setPayPhone] = useState('');
+  const [printStatement, setPrintStatement] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -86,7 +88,19 @@ export default function ClientAccountPage() {
             )}
 
             <div className="client-invoices-section">
-              <h3><FileText size={18} /> My Invoices</h3>
+              <div className="client-invoices-header">
+                <h3><FileText size={18} /> My Invoices</h3>
+                <button type="button" className="btn-sm" onClick={() => setPrintStatement({
+                  client_name: invoices[0]?.user_name || invoices[0]?.user_email || 'My Account',
+                  user_name: invoices[0]?.user_name || invoices[0]?.user_email || 'My Account',
+                  invoices,
+                  balance_due: summary?.balance_due ?? 0,
+                  total_paid: summary?.total_paid ?? 0,
+                  currency: 'KES',
+                })}>
+                  <Printer size={14} /> Print Statement
+                </button>
+              </div>
               {invoices.length === 0 ? (
                 <p className="empty-msg">No invoices yet.</p>
               ) : (
@@ -159,6 +173,10 @@ export default function ClientAccountPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {printStatement && (
+        <PrintClientStatement data={printStatement} onDone={() => setPrintStatement(null)} />
       )}
     </div>
   );

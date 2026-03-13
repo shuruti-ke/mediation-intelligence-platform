@@ -2036,6 +2036,15 @@ body.lite-mode { --transition-fast: 0s; --transition-normal: 0s; }
 .account-value { display: block; font-size: 1.5rem; font-weight: 700; color: var(--text-gray-900); }
 .account-label { font-size: 0.85rem; color: var(--text-slate-600); }
 .client-invoices-section, .client-notifications-section { margin-top: 2rem; }
+.client-invoices-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.client-invoices-header h3 { margin: 0; }
 .client-invoice-list, .client-notif-list { list-style: none; padding: 0; margin: 0; }
 .client-invoice-item {
   display: flex;

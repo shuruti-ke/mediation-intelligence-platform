@@ -91,6 +91,98 @@ export function PrintReceipt({ invoice, receipt, onDone }) {
   );
 }
 
+export function PrintMediatorStatement({ data, mediatorName, onDone }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const handler = () => onDone?.();
+    window.addEventListener('afterprint', handler);
+    const t = setTimeout(() => window.print(), 100);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('afterprint', handler);
+    };
+  }, [onDone]);
+
+  return (
+    <div ref={ref} id="print-area" className="print-view print-reconciliation">
+      <div className="print-header">
+        <h1>Mediator Statement</h1>
+        <p className="print-mediator-name"><strong>{mediatorName || 'Mediator'}</strong></p>
+        <p>{new Date().toLocaleDateString()}</p>
+      </div>
+      <div className="print-body">
+        <table>
+          <tbody>
+            <tr><td>Funds from clients (mediation fees)</td><td>{data?.currency} {(data?.funds_from_clients ?? 0).toFixed(2)}</td></tr>
+            <tr><td>Funds paid to platform (platform access)</td><td>{data?.currency} {(data?.funds_from_mediator ?? 0).toFixed(2)}</td></tr>
+            <tr><td>Platform commission ({data?.platform_commission_pct ?? 0}%)</td><td>{data?.currency} {(data?.platform_commission_amount ?? 0).toFixed(2)}</td></tr>
+            <tr><td>Unpaid platform invoices</td><td>{data?.currency} {(data?.unpaid_platform_invoices ?? 0).toFixed(2)}</td></tr>
+            <tr><td><strong>Payout owed to mediator</strong></td><td><strong>{data?.currency} {(data?.mediator_payout_owed ?? 0).toFixed(2)}</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="print-footer">
+        <p>Mediation Intelligence Platform</p>
+      </div>
+    </div>
+  );
+}
+
+export function PrintClientStatement({ data, onDone }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const handler = () => onDone?.();
+    window.addEventListener('afterprint', handler);
+    const t = setTimeout(() => window.print(), 100);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('afterprint', handler);
+    };
+  }, [onDone]);
+
+  const clientName = data?.client_name || data?.user_name || 'Client';
+  const invoices = data?.invoices || [];
+  const currency = data?.currency || 'KES';
+
+  return (
+    <div ref={ref} id="print-area" className="print-view print-reconciliation">
+      <div className="print-header">
+        <h1>Client Statement</h1>
+        <p className="print-mediator-name"><strong>{clientName}</strong></p>
+        <p>{new Date().toLocaleDateString()}</p>
+      </div>
+      <div className="print-body">
+        <p><strong>Balance due:</strong> {currency} {(data?.balance_due ?? 0).toFixed(2)}</p>
+        <p><strong>Total paid:</strong> {currency} {(data?.total_paid ?? 0).toFixed(2)}</p>
+        {invoices.length > 0 && (
+          <>
+            <h3>Invoices</h3>
+            <table>
+              <thead>
+                <tr><th>Invoice #</th><th>Amount</th><th>Paid</th><th>Status</th><th>Date</th></tr>
+              </thead>
+              <tbody>
+                {invoices.map((inv) => (
+                  <tr key={inv.id}>
+                    <td>{inv.invoice_number}</td>
+                    <td>{currency} {(inv.amount ?? 0).toFixed(2)}</td>
+                    <td>{currency} {(inv.total_paid ?? 0).toFixed(2)}</td>
+                    <td>{inv.status}</td>
+                    <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+      <div className="print-footer">
+        <p>Mediation Intelligence Platform</p>
+      </div>
+    </div>
+  );
+}
+
 export function PrintReconciliation({ data, onDone }) {
   const ref = useRef(null);
   useEffect(() => {

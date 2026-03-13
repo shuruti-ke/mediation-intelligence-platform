@@ -493,6 +493,34 @@
   margin-top: 0.25rem;
 }
 
+.recon-by-client {
+  padding: 0 1.5rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.recon-by-client h3 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.recon-by-client .recon-desc {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin: 0 0 0.75rem 0;
+}
+
+.client-statement-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.client-statement-buttons .btn-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .recon-by-mediator {
   padding: 0 1.5rem 1.5rem;
 }
