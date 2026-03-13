@@ -17,6 +17,7 @@ import {
   BarChart,
 } from 'recharts';
 import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus, FolderOpen, Search, Plus, MoreVertical, ArrowLeft } from 'lucide-react';
+import GlobalSearch from '../components/GlobalSearch';
 import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi, cases, auditApi } from '../api/client';
 
 const STATUS_BADGES = {
@@ -417,6 +418,9 @@ export default function AdminDashboardPage() {
         </div>
       </aside>
       <main className="admin-main">
+      <div className="admin-main-search">
+        <GlobalSearch className="admin-global-search" />
+      </div>
       {tab === 'dashboard' && (
         <section className="admin-dashboard-section">
           <div className="dashboard-controls">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, BookOpen, Scale, GraduationCap, Calendar, FolderOpen, LogOut, UserPlus, Search, Users, RefreshCw, Bell } from 'lucide-react';
+import GlobalSearch from '../components/GlobalSearch';
 import { cases, usersApi, notificationsApi } from '../api/client';
 
 const COUNTRIES = [
@@ -90,6 +91,7 @@ export default function DashboardPage() {
           <img src="/logo.png" alt="Mediation Intelligence Platform" className="dashboard-logo" />
           <h1>Mediation Dashboard</h1>
         </div>
+        <GlobalSearch className="mediator-header-search" />
         <nav>
           <Link to="/cases/new"><Plus size={16} /> New Case</Link>
           <button type="button" className="primary" onClick={() => setOnboardOpen(true)}><UserPlus size={16} /> Onboard Client</button>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { HelpCircle, Calendar, LogOut, FileText, User, Mail } from 'lucide-react';
 import { usersApi } from '../api/client';
+import GlobalSearch from '../components/GlobalSearch';
 
 export default function ClientDashboardPage() {
   const [dashboard, setDashboard] = useState(null);
@@ -21,6 +22,7 @@ export default function ClientDashboardPage() {
           <img src="/logo.png" alt="Mediation Intelligence Platform" className="dashboard-logo" />
           <h1>Client Portal</h1>
         </div>
+        <GlobalSearch className="client-header-search" />
         <nav>
           <Link to="/client">My Dashboard</Link>
           <Link to="/should-i-mediate">Should I Mediate?</Link>

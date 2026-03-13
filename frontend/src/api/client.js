@@ -218,6 +218,10 @@ export const analyticsApi = {
   getCaseDistribution: (params) => api.get('/analytics/drill-down/case-distribution', { params }),
 };
 
+export const searchApi = {
+  unified: (params) => api.get('/search', { params }),
+};
+
 export const notificationsApi = {
   list: (params) => api.get('/notifications', { params }),
   markRead: (ids) => api.patch('/notifications/read', { ids: ids || null }),
