@@ -1,0 +1,45 @@
+{
+  "common": {
+    "back": "رجوع",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "loading": "جاري التحميل...",
+    "submit": "إرسال",
+    "download": "تحميل",
+    "upload": "رفع"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "cases": "القضايا",
+    "training": "التدريب",
+    "library": "المكتبة",
+    "calendar": "التقويم",
+    "admin": "المسؤول"
+  },
+  "case": {
+    "newCase": "قضية جديدة",
+    "caseDetails": "تفاصيل القضية",
+    "documents": "المستندات",
+    "settlementAgreements": "اتفاقيات التسوية",
+    "sessionHistory": "سجل الجلسات والتسجيلات",
+    "startSession": "بدء جلسة الوساطة"
+  },
+  "training": {
+    "title": "التدريب",
+    "practiceScenario": "سيناريو التدريب",
+    "markComplete": "تحديد كمكتمل",
+    "overview": "نظرة عامة",
+    "keyChallenges": "التحديات الرئيسية",
+    "strategies": "الاستراتيجيات"
+  },
+  "analytics": {
+    "dashboard": "التحليلات",
+    "exportPdf": "تصدير PDF",
+    "thresholdAlerts": "تنبيهات العتبة",
+    "activityHeatmap": "خريطة النشاط"
+  },
+  "settings": {
+    "language": "اللغة",
+    "lowBandwidthMode": "وضع خفيف (نطاق ترددي منخفض)"
+  }
+}

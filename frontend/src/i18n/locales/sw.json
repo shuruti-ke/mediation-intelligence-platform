@@ -1,0 +1,45 @@
+{
+  "common": {
+    "back": "Rudi",
+    "save": "Hifadhi",
+    "cancel": "Ghairi",
+    "loading": "Inapakia...",
+    "submit": "Wasilisha",
+    "download": "Pakua",
+    "upload": "Pakia"
+  },
+  "nav": {
+    "dashboard": "Dashibodi",
+    "cases": "Kesi",
+    "training": "Mafunzo",
+    "library": "Maktaba",
+    "calendar": "Kalenda",
+    "admin": "Msimamizi"
+  },
+  "case": {
+    "newCase": "Kesi Mpya",
+    "caseDetails": "Maelezo ya Kesi",
+    "documents": "Nyaraka",
+    "settlementAgreements": "Mikataba ya Makubaliano",
+    "sessionHistory": "Historia ya mikutano na rekodi",
+    "startSession": "Anza Mikutano ya Upatanishi"
+  },
+  "training": {
+    "title": "Mafunzo",
+    "practiceScenario": "Mazingira ya mazoezi",
+    "markComplete": "Alama imekamilika",
+    "overview": "Muhtasari",
+    "keyChallenges": "Changamoto kuu",
+    "strategies": "Mbinu"
+  },
+  "analytics": {
+    "dashboard": "Uchambuzi",
+    "exportPdf": "Sindika PDF",
+    "thresholdAlerts": "Arifa za Kizingiti",
+    "activityHeatmap": "Ramani ya Shughuli"
+  },
+  "settings": {
+    "language": "Lugha",
+    "lowBandwidthMode": "Hali nyepesi (bandwidth chini)"
+  }
+}

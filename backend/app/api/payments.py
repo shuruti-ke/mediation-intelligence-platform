@@ -1,18 +1,38 @@
 """Payment orchestrator - Phase 4. Stripe, M-Pesa Daraja."""
+import asyncio
+import base64
+import re
 import uuid
 from datetime import datetime
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.tenant import User
 from app.models.payment import Invoice, PaymentTransaction
 
 router = APIRouter(prefix="/payments", tags=["payments"])
+
+MPESA_SANDBOX_AUTH = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+MPESA_SANDBOX_STK = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
+MPESA_LIVE_AUTH = "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
+MPESA_LIVE_STK = "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
+
+
+def _normalize_phone(phone: str) -> str:
+    """Normalize to 254XXXXXXXXX format."""
+    digits = re.sub(r"\D", "", phone)
+    if digits.startswith("0"):
+        digits = "254" + digits[1:]
+    elif not digits.startswith("254"):
+        digits = "254" + digits
+    return digits[:12]
 
 
 def generate_invoice_number(tenant_id: uuid.UUID) -> str:
@@ -91,22 +111,162 @@ async def init_payment(
     db.add(txn)
     await db.flush()
 
-    # TODO: Call M-Pesa Daraja STK Push or Stripe Checkout
+    settings = get_settings()
+
+    # M-Pesa STK Push when mpesa + phone provided and credentials present
     if data.provider == "mpesa" and data.phone:
+        if settings.m_pesa_consumer_key and settings.m_pesa_consumer_secret and settings.m_pesa_passkey:
+            try:
+                stk_result = await _mpesa_stk_push(
+                    phone=data.phone,
+                    amount_kes=invoice.amount_minor_units // 100,
+                    account_ref=invoice.invoice_number[:12],
+                    txn_id=str(txn.id),
+                )
+                if stk_result:
+                    txn.provider_response_json = stk_result
+                    txn.status = "PENDING_USER_PIN"
+                    await db.flush()
+                    return {
+                        "transaction_id": str(txn.id),
+                        "status": "PENDING_USER_PIN",
+                        "message": "Enter PIN on your phone to complete payment.",
+                        "provider": "mpesa",
+                    }
+            except Exception as e:
+                txn.status = "FAILED"
+                txn.failure_reason = str(e)
+                await db.flush()
+                raise HTTPException(status_code=502, detail=f"M-Pesa STK Push failed: {e}")
+        # Stub when credentials missing
         return {
             "transaction_id": str(txn.id),
             "status": "PENDING_USER_PIN",
             "message": "Enter PIN on your phone to complete payment.",
             "provider": "mpesa",
         }
+
+    # Stripe Checkout when stripe and credentials present
     if data.provider == "stripe":
+        if settings.stripe_secret_key:
+            try:
+                checkout_url = await _stripe_checkout_session(
+                    invoice=invoice,
+                    txn_id=str(txn.id),
+                )
+                if checkout_url:
+                    txn.status = "PENDING"
+                    await db.flush()
+                    return {
+                        "transaction_id": str(txn.id),
+                        "status": "PENDING",
+                        "checkout_url": checkout_url,
+                        "provider": "stripe",
+                    }
+            except Exception as e:
+                txn.status = "FAILED"
+                txn.failure_reason = str(e)
+                await db.flush()
+                raise HTTPException(status_code=502, detail=f"Stripe checkout failed: {e}")
+        # Stub when credentials missing
         return {
             "transaction_id": str(txn.id),
             "status": "PENDING",
-            "checkout_url": f"/pay/checkout/{txn.id}",  # Frontend would redirect to Stripe
+            "checkout_url": f"/pay/checkout/{txn.id}",
             "provider": "stripe",
         }
+
     return {"transaction_id": str(txn.id), "status": "INITIATED", "provider": data.provider}
+
+
+async def _mpesa_stk_push(
+    phone: str,
+    amount_kes: int,
+    account_ref: str,
+    txn_id: str,
+) -> dict | None:
+    """Call M-Pesa Daraja STK Push. Returns response JSON or None."""
+    settings = get_settings()
+    auth_url = MPESA_SANDBOX_AUTH
+    stk_url = MPESA_SANDBOX_STK
+    if not settings.m_pesa_callback_url:
+        return None
+    # Get OAuth token
+    auth_str = base64.b64encode(
+        f"{settings.m_pesa_consumer_key}:{settings.m_pesa_consumer_secret}".encode()
+    ).decode()
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            auth_url,
+            headers={"Authorization": f"Basic {auth_str}"},
+        )
+        resp.raise_for_status()
+        token_data = resp.json()
+        access_token = token_data.get("access_token")
+        if not access_token:
+            return None
+        # Build STK Push payload
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        password_str = f"{settings.m_pesa_shortcode}{settings.m_pesa_passkey}{timestamp}"
+        password_b64 = base64.b64encode(password_str.encode()).decode()
+        payload = {
+            "BusinessShortCode": settings.m_pesa_shortcode,
+            "Password": password_b64,
+            "Timestamp": timestamp,
+            "TransactionType": "CustomerPayBillOnline",
+            "Amount": amount_kes,
+            "PartyA": _normalize_phone(phone),
+            "PartyB": settings.m_pesa_shortcode,
+            "PhoneNumber": _normalize_phone(phone),
+            "CallBackURL": settings.m_pesa_callback_url,
+            "AccountReference": account_ref[:12],
+            "TransactionDesc": "Mediation",
+        }
+        stk_resp = await client.post(
+            stk_url,
+            headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+            json=payload,
+        )
+        stk_resp.raise_for_status()
+        return stk_resp.json()
+
+
+async def _stripe_checkout_session(invoice: Invoice, txn_id: str) -> str | None:
+    """Create Stripe Checkout session. Returns checkout URL or None."""
+    import stripe
+    settings = get_settings()
+    stripe.api_key = settings.stripe_secret_key
+    base = settings.frontend_base_url.rstrip("/")
+    desc = "Mediation services"
+    if invoice.description_json and isinstance(invoice.description_json, dict):
+        items = invoice.description_json.get("line_items") or []
+        if items and isinstance(items[0], dict):
+            desc = items[0].get("description") or desc
+
+    def _create():
+        return stripe.checkout.Session.create(
+        payment_method_types=["card"],
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": invoice.currency_code.lower(),
+                        "product_data": {
+                            "name": f"Invoice {invoice.invoice_number}",
+                            "description": desc,
+                        },
+                        "unit_amount": invoice.amount_minor_units,
+                    },
+                    "quantity": 1,
+                }
+            ],
+            mode="payment",
+            success_url=f"{base}/payments/success?session_id={{CHECKOUT_SESSION_ID}}&txn_id={txn_id}",
+            cancel_url=f"{base}/payments/cancel?txn_id={txn_id}",
+            metadata={"invoice_id": str(invoice.id), "txn_id": txn_id},
+        )
+
+    session = await asyncio.to_thread(_create)
+    return session.url if session else None
 
 
 @router.post("/webhooks/mpesa")

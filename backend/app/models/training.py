@@ -144,3 +144,15 @@ class UserModuleResponse(Base):
     response_type: Mapped[str] = mapped_column(String(20), nullable=False)  # choice, text
     response_value: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # {choice_idx} or {text}
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class PracticeScenarioCompletion(Base):
+    """Practice scenario completion tracking - Phase 6d.3. Syncs with frontend localStorage."""
+
+    __tablename__ = "practice_scenario_completions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    scenario_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)  # e.g. "power-imbalance"
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    metadata_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

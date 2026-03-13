@@ -6,7 +6,7 @@ import { trainingApi } from '../api/client';
 
 const COMPLETION_KEY = 'practiceScenarioCompleted';
 
-function markCompleted(id) {
+function markCompletedLocal(id) {
   const ids = getCompletedIds();
   if (!ids.includes(id)) {
     localStorage.setItem(COMPLETION_KEY, JSON.stringify([...ids, id]));
@@ -21,7 +21,21 @@ export default function PracticeScenarioPage() {
   const [completed, setCompleted] = useState(false);
 
   useEffect(() => {
-    setCompleted(getCompletedIds().includes(scenarioId));
+    const checkCompleted = async () => {
+      const localDone = getCompletedIds().includes(scenarioId);
+      if (localDone) {
+        setCompleted(true);
+        return;
+      }
+      try {
+        const { data } = await trainingApi.getPracticeCompletions(scenarioId);
+        const serverDone = (data || []).some((c) => c.scenario_id === scenarioId);
+        setCompleted(serverDone);
+      } catch {
+        setCompleted(localDone);
+      }
+    };
+    checkCompleted();
   }, [scenarioId]);
 
   const toggleSection = (key) => {
@@ -40,9 +54,14 @@ export default function PracticeScenarioPage() {
     }
   };
 
-  const handleMarkComplete = () => {
-    markCompleted(scenarioId);
+  const handleMarkComplete = async () => {
+    markCompletedLocal(scenarioId);
     setCompleted(true);
+    try {
+      await trainingApi.completePracticeScenario(scenarioId, { completed_at: new Date().toISOString() });
+    } catch {
+      // Local state already updated; backend sync is best-effort
+    }
   };
 
   if (!scenario) {

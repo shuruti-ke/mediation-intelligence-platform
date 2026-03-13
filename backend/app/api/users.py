@@ -318,7 +318,7 @@ async def list_pending_approvals(
     return [_user_to_response(u) for u in users]
 
 
-@router.get("", response_model=list[UserResponse])
+@router.get("")
 async def list_users(
     role: str | None = Query(None, description="Filter by role: mediator, client_individual, client_corporate, trainee"),
     status: str | None = Query(None, description="Filter by status: pending, active, inactive"),
@@ -326,13 +326,16 @@ async def list_users(
     sort: str | None = Query("created_at", description="Sort: name_asc, name_desc, created_at, last_active"),
     date_from: str | None = Query(None, description="Filter created_at >= YYYY-MM-DD"),
     date_to: str | None = Query(None, description="Filter created_at <= YYYY-MM-DD"),
+    assigned_mediator_id: uuid.UUID | None = Query(None, description="Filter by assigned mediator (clients only)"),
     include_deleted: bool = Query(False, description="Include soft-deleted users"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    cursor: str | None = Query(None, description="Cursor for keyset pagination (from previous response next_cursor)"),
+    paginated: bool = Query(False, description="Return {items, next_cursor, has_more} instead of flat list"),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin")),
 ):
-    """List users. Super-admin sees all; others filtered by tenant. Pagination 50 per page."""
+    """List users. Super-admin sees all; others filtered by tenant. Supports limit=50, offset (skip) and cursor pagination. date_from/date_to filter created_at. assigned_mediator_id filters clients only. Use paginated=true for {items, next_cursor, has_more}."""
     q = select(User).where(User.role != "super_admin")
     if user.role != "super_admin" and user.tenant_id:
         q = q.where(User.tenant_id == user.tenant_id)
@@ -342,6 +345,9 @@ async def list_users(
         q = q.where(User.role == role)
     if status:
         q = q.where(User.status == status)
+    if assigned_mediator_id is not None:
+        q = q.where(User.role.in_(["client_individual", "client_corporate"]))
+        q = q.where(User.assigned_mediator_id == assigned_mediator_id)
     if search and len(search.strip()) >= 2:
         term = f"%{search.strip()}%"
         conds = [User.email.ilike(term), User.display_name.ilike(term)]
@@ -352,30 +358,75 @@ async def list_users(
         q = q.where(or_(*conds))
     if date_from:
         try:
-            from datetime import datetime
             dt = datetime.strptime(date_from, "%Y-%m-%d")
             q = q.where(User.created_at >= dt)
         except ValueError:
             pass
     if date_to:
         try:
-            from datetime import datetime
-            dt = datetime.strptime(date_to, "%Y-%m-%d")
-            q = q.where(User.created_at <= dt)
+            dt = datetime.strptime(date_to, "%Y-%m-%d") + timedelta(days=1)
+            q = q.where(User.created_at < dt)
         except ValueError:
             pass
     if sort == "name_asc":
-        q = q.order_by(User.display_name.asc().nullslast(), User.email.asc())
+        q = q.order_by(User.display_name.asc().nullslast(), User.email.asc(), User.id.asc())
     elif sort == "name_desc":
-        q = q.order_by(User.display_name.desc().nullslast(), User.email.desc())
+        q = q.order_by(User.display_name.desc().nullslast(), User.email.desc(), User.id.desc())
     elif sort == "last_active":
-        q = q.order_by(User.last_login_at.desc().nullslast(), User.created_at.desc())
+        q = q.order_by(User.last_login_at.desc().nullslast(), User.created_at.desc(), User.id.desc())
     else:
-        q = q.order_by(User.created_at.desc())
-    q = q.offset(skip).limit(limit)
+        q = q.order_by(User.created_at.desc(), User.id.desc())
+
+    if cursor:
+        try:
+            parts = cursor.split("|")
+            cursor_uuid = uuid.UUID(parts[-1]) if parts else None
+            if cursor_uuid:
+                cursor_user = (await db.execute(select(User).where(User.id == cursor_uuid))).scalar_one_or_none()
+                if cursor_user:
+                    if sort == "name_asc":
+                        q = q.where(
+                            or_(
+                                User.display_name > cursor_user.display_name,
+                                and_(User.display_name == cursor_user.display_name, User.email > cursor_user.email),
+                                and_(User.display_name == cursor_user.display_name, User.email == cursor_user.email, User.id > cursor_user.id),
+                            )
+                        )
+                    elif sort == "name_desc":
+                        q = q.where(
+                            or_(
+                                User.display_name < cursor_user.display_name,
+                                and_(User.display_name == cursor_user.display_name, User.email < cursor_user.email),
+                                and_(User.display_name == cursor_user.display_name, User.email == cursor_user.email, User.id < cursor_user.id),
+                            )
+                        )
+                    else:
+                        cursor_ts = cursor_user.created_at
+                        q = q.where(
+                            or_(
+                                User.created_at < cursor_ts,
+                                and_(User.created_at == cursor_ts, User.id < cursor_uuid),
+                            )
+                        )
+        except (ValueError, TypeError):
+            pass
+
+    q = q.limit(limit + 1)
+    if not cursor:
+        q = q.offset(skip)
     result = await db.execute(q)
     users = result.scalars().all()
-    return [_user_to_response(u) for u in users]
+    has_more = len(users) > limit
+    if has_more:
+        users = users[:limit]
+    items = [_user_to_response(u) for u in users]
+    if paginated:
+        next_cursor = None
+        if has_more and users:
+            last = users[-1]
+            next_cursor = f"{last.created_at.isoformat()}|{last.id}" if sort not in ("name_asc", "name_desc") else str(last.id)
+        return {"items": items, "next_cursor": next_cursor, "has_more": has_more}
+    return items
 
 
 @router.get("/{user_id}", response_model=UserResponse)

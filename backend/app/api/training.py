@@ -11,7 +11,7 @@ from sqlalchemy import select, and_
 from app.api.deps import get_current_user, require_role
 from app.core.database import get_db
 from app.models.tenant import User
-from app.models.training import TrainingModule, TrainingProgress, CPDProgress, Quiz, QuizAttempt, RolePlayScenario, RolePlaySession, TraineeAcademyProgress, TrainingModuleConfig, UserModuleResponse
+from app.models.training import TrainingModule, TrainingProgress, CPDProgress, Quiz, QuizAttempt, RolePlayScenario, RolePlaySession, TraineeAcademyProgress, TrainingModuleConfig, UserModuleResponse, PracticeScenarioCompletion
 from app.models.academy import AcademyModule, AcademyLesson, AcademyQuiz
 
 router = APIRouter(prefix="/training", tags=["training"])
@@ -747,6 +747,53 @@ async def end_role_play_session(
     }
 
 
+@router.post("/practice-scenarios/{scenario_id}/complete")
+async def complete_practice_scenario(
+    scenario_id: str,
+    data: PracticeScenarioCompleteBody | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Record completion of a practice scenario (e.g. power-imbalance). Syncs with frontend localStorage."""
+    completion = PracticeScenarioCompletion(
+        user_id=user.id,
+        scenario_id=scenario_id,
+        metadata_json=data.metadata if data else None,
+    )
+    db.add(completion)
+    await db.flush()
+    return {
+        "id": str(completion.id),
+        "scenario_id": scenario_id,
+        "completed_at": completion.completed_at.isoformat(),
+    }
+
+
+@router.get("/practice-scenarios/completions")
+async def list_practice_scenario_completions(
+    scenario_id: str | None = None,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list:
+    """List current user's practice scenario completions. Optional filter by scenario_id."""
+    q = select(PracticeScenarioCompletion).where(PracticeScenarioCompletion.user_id == user.id)
+    if scenario_id:
+        q = q.where(PracticeScenarioCompletion.scenario_id == scenario_id)
+    q = q.order_by(PracticeScenarioCompletion.completed_at.desc()).limit(limit)
+    result = await db.execute(q)
+    completions = result.scalars().all()
+    return [
+        {
+            "id": str(c.id),
+            "scenario_id": c.scenario_id,
+            "completed_at": c.completed_at.isoformat(),
+            "metadata": c.metadata_json,
+        }
+        for c in completions
+    ]
+
+
 # Trainee Academy: curated modules with real YouTube videos
 TRAINEE_MODULES = [
     {
@@ -845,6 +892,10 @@ class TraineeProgressUpdate(BaseModel):
     exam_passed: bool | None = None
     exam_score: int | None = None
     final_passed: bool | None = None
+
+
+class PracticeScenarioCompleteBody(BaseModel):
+    metadata: dict | None = None
 
 
 def _get_full_article(lesson_id: str) -> dict | None:

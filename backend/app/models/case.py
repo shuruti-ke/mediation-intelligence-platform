@@ -50,6 +50,7 @@ class Case(Base):
     timeline_events = relationship("CaseTimelineEvent", back_populates="case", order_by="CaseTimelineEvent.sort_order")
     parties = relationship("CaseParty", back_populates="case", order_by="CaseParty.sort_order")
     external_links = relationship("CaseExternalLink", back_populates="case")
+    settlement_agreements = relationship("SettlementAgreement", back_populates="case")
 
 
 class CaseTimelineEvent(Base):
@@ -150,3 +151,18 @@ class SessionRecording(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
     session = relationship("MediationSession", back_populates="recordings")
+    transcripts = relationship("SessionTranscript", back_populates="recording")
+
+
+class SessionTranscript(Base):
+    """AI transcript of a session recording."""
+
+    __tablename__ = "session_transcripts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    recording_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("session_recordings.id"), nullable=False)
+    content_text: Mapped[str] = mapped_column(Text, nullable=False)
+    segments_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+    recording = relationship("SessionRecording", back_populates="transcripts")

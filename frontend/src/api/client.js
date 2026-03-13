@@ -78,6 +78,13 @@ export const recordings = {
   start: (sessionId, consentConfirmed) =>
     api.post(`/sessions/${sessionId}/recording/start`, { consent_confirmed: consentConfirmed }),
   stop: (sessionId) => api.post(`/sessions/${sessionId}/recording/stop`),
+  list: (sessionId) => api.get(`/sessions/${sessionId}/recordings`),
+  download: (recordingId) => api.get(`/recordings/${recordingId}/download`, { responseType: 'blob' }),
+  transcribe: (recordingId, file) => {
+    const fd = new FormData();
+    if (file) fd.append('file', file);
+    return api.post(`/recordings/${recordingId}/transcribe`, fd);
+  },
 };
 
 export const caucus = {
@@ -153,6 +160,15 @@ export const paymentsApi = {
   listInvoices: (params) => api.get('/payments/invoices', { params }),
 };
 
+export const settlementsApi = {
+  list: (caseId) => api.get('/settlements', { params: caseId ? { case_id: caseId } : {} }),
+  get: (id) => api.get(`/settlements/${id}`),
+  create: (data) => api.post('/settlements', data),
+  update: (id, data) => api.patch(`/settlements/${id}`, data),
+  requestSignature: (id, partyIds) => api.post(`/settlements/${id}/request-signature`, { party_ids: partyIds }),
+  sign: (id, partyId, signerName) => api.post(`/settlements/${id}/sign`, { party_id: partyId, signer_name: signerName }),
+};
+
 export const trainingAcademyApi = {
   aiGenerate: (data) => api.post('/training/academy-admin/ai-generate', data),
   listModules: (includeArchived) => api.get('/training/academy-admin/modules', { params: { include_archived: !!includeArchived } }),
@@ -179,6 +195,10 @@ export const trainingAcademyApi = {
 };
 
 export const trainingApi = {
+  completePracticeScenario: (scenarioId, metadata) =>
+    api.post(`/training/practice-scenarios/${scenarioId}/complete`, metadata ? { metadata } : {}),
+  getPracticeCompletions: (scenarioId) =>
+    api.get('/training/practice-scenarios/completions', { params: scenarioId ? { scenario_id: scenarioId } : {} }),
   listModules: () => api.get('/training/modules'),
   getModule: (id) => api.get(`/training/modules/${id}`),
   updateProgress: (id, data) => api.put(`/training/modules/${id}/progress`, data),
@@ -244,6 +264,9 @@ export const analyticsApi = {
   getNewUsers: (params) => api.get('/analytics/drill-down/new-users', { params }),
   getActiveTrainees: () => api.get('/analytics/drill-down/active-trainees'),
   getCaseDistribution: (params) => api.get('/analytics/drill-down/case-distribution', { params }),
+  exportPdf: (days = 30) => api.get('/analytics/export-pdf', { params: { days }, responseType: 'blob' }),
+  getThresholdAlerts: (days = 30) => api.get('/analytics/threshold-alerts', { params: { days } }),
+  getActivityHeatmap: (days = 30) => api.get('/analytics/activity-heatmap', { params: { days } }),
 };
 
 export const searchApi = {

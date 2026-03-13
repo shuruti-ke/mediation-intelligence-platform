@@ -1,8 +1,10 @@
 """Analytics dashboard - charts, metrics for admin."""
 from datetime import datetime, timedelta
 from collections import defaultdict
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, extract
 
@@ -12,6 +14,7 @@ from app.models.tenant import User
 from app.models.case import Case, MediationSession
 from app.models.training import TrainingProgress
 from app.models.payment import Invoice
+from app.models.audit import AuditLog
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -409,6 +412,152 @@ async def get_case_distribution(
     result = await db.execute(q)
     rows = result.all()
     return [{"name": row[0] or "other", "value": row[1]} for row in rows]
+
+
+@router.get("/export-pdf")
+async def export_analytics_pdf(
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin", "mediator")),
+):
+    """Export analytics summary as PDF. Uses reportlab."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib import colors
+
+    tenant_filter = user.tenant_id
+    now = datetime.utcnow()
+    period_start = now - timedelta(days=days)
+
+    # Gather metrics
+    cases_q = select(func.count(Case.id)).where(Case.created_at >= period_start)
+    if tenant_filter:
+        cases_q = cases_q.where(Case.tenant_id == tenant_filter)
+    new_cases = (await db.execute(cases_q)).scalar() or 0
+
+    users_q = select(func.count(User.id)).where(User.created_at >= period_start, User.role != "super_admin")
+    if tenant_filter:
+        users_q = users_q.where(User.tenant_id == tenant_filter)
+    new_users = (await db.execute(users_q)).scalar() or 0
+
+    resolved_q = select(func.count(Case.id)).where(
+        Case.updated_at >= period_start,
+        Case.status.in_(["resolved", "closed", "settled", "CLOSED", "SETTLED"]),
+    )
+    if tenant_filter:
+        resolved_q = resolved_q.where(Case.tenant_id == tenant_filter)
+    resolved = (await db.execute(resolved_q)).scalar() or 0
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=inch, leftMargin=inch, topMargin=inch, bottomMargin=inch)
+    styles = getSampleStyleSheet()
+    story = []
+    story.append(Paragraph("Analytics Report", styles["Title"]))
+    story.append(Spacer(1, 0.2 * inch))
+    story.append(Paragraph(f"Period: Last {days} days (generated {now.strftime('%Y-%m-%d %H:%M')} UTC)", styles["Normal"]))
+    story.append(Spacer(1, 0.3 * inch))
+    data = [
+        ["Metric", "Value"],
+        ["New Cases", str(new_cases)],
+        ["New Users", str(new_users)],
+        ["Cases Resolved", str(resolved)],
+    ]
+    t = Table(data)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.grey),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("FONTSIZE", (0, 0), (-1, 0), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 12),
+        ("BACKGROUND", (0, 1), (-1, -1), colors.beige),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+    ]))
+    story.append(t)
+    doc.build(story)
+    buffer.seek(0)
+    return Response(content=buffer.getvalue(), media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=analytics-report.pdf"})
+
+
+@router.get("/threshold-alerts")
+async def get_threshold_alerts(
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin", "mediator")),
+):
+    """Return anomalies: sudden drop in cases, spike in new users, etc."""
+    tenant_filter = user.tenant_id
+    now = datetime.utcnow()
+    period_start = now - timedelta(days=days)
+    half_period = now - timedelta(days=days // 2)
+
+    alerts = []
+
+    # New cases: first half vs second half
+    cases_first = select(func.count(Case.id)).where(Case.created_at >= period_start, Case.created_at < half_period)
+    cases_second = select(func.count(Case.id)).where(Case.created_at >= half_period)
+    if tenant_filter:
+        cases_first = cases_first.where(Case.tenant_id == tenant_filter)
+        cases_second = cases_second.where(Case.tenant_id == tenant_filter)
+    c1 = (await db.execute(cases_first)).scalar() or 0
+    c2 = (await db.execute(cases_second)).scalar() or 0
+    if c1 > 0 and c2 < c1 * 0.5:
+        alerts.append({"type": "case_drop", "severity": "high", "message": f"Cases dropped ~50%+ in second half of period ({c1} -> {c2})"})
+    elif c1 > 0 and c2 > c1 * 2:
+        alerts.append({"type": "case_spike", "severity": "medium", "message": f"Cases doubled in second half ({c1} -> {c2})"})
+
+    # New users: first half vs second half
+    users_first = select(func.count(User.id)).where(User.created_at >= period_start, User.created_at < half_period, User.role != "super_admin")
+    users_second = select(func.count(User.id)).where(User.created_at >= half_period, User.role != "super_admin")
+    if tenant_filter:
+        users_first = users_first.where(User.tenant_id == tenant_filter)
+        users_second = users_second.where(User.tenant_id == tenant_filter)
+    u1 = (await db.execute(users_first)).scalar() or 0
+    u2 = (await db.execute(users_second)).scalar() or 0
+    if u1 > 0 and u2 > u1 * 2:
+        alerts.append({"type": "user_spike", "severity": "medium", "message": f"New users doubled in second half ({u1} -> {u2})"})
+    elif u2 == 0 and u1 > 2:
+        alerts.append({"type": "user_drop", "severity": "low", "message": f"No new users in second half (was {u1} in first half)"})
+
+    return {"alerts": alerts, "period_days": days}
+
+
+@router.get("/activity-heatmap")
+async def get_activity_heatmap(
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin", "mediator")),
+):
+    """User activity heatmap: {hour: 0-23, dayOfWeek: 0-6, count} for user logins/actions (from AuditLog)."""
+    tenant_filter = user.tenant_id
+    period_start = datetime.utcnow() - timedelta(days=days)
+
+    hour_expr = extract("hour", AuditLog.created_at)
+    dow_expr = extract("dow", AuditLog.created_at)
+    q = select(
+        hour_expr.label("hour"),
+        dow_expr.label("dow"),
+        func.count(AuditLog.id).label("cnt"),
+    ).where(
+        AuditLog.created_at >= period_start,
+        AuditLog.user_id.isnot(None),
+    )
+    if tenant_filter:
+        q = q.where(AuditLog.tenant_id == tenant_filter)
+    q = q.group_by(hour_expr, dow_expr)
+
+    result = await db.execute(q)
+    rows = result.all()
+
+    heatmap = defaultdict(int)
+    for row in rows:
+        hour = int(row.hour) if row.hour is not None else 0
+        dow = int(row.dow) if row.dow is not None else 0
+        heatmap[(hour, dow)] += row.cnt or 0
+
+    out = [{"hour": h, "dayOfWeek": d, "count": c} for (h, d), c in heatmap.items()]
+    return {"data": out, "period_days": days}
 
 
 @router.get("/africa")

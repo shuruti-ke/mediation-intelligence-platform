@@ -42,6 +42,15 @@ class Settings(BaseSettings):
     laws_africa_api_key: str | None = None
     tausi_api_key: str | None = None
 
+    # Phase 6a: Payments - M-Pesa Daraja & Stripe
+    m_pesa_consumer_key: str | None = None
+    m_pesa_consumer_secret: str | None = None
+    m_pesa_shortcode: str = "174379"  # Sandbox default
+    m_pesa_passkey: str | None = None
+    m_pesa_callback_url: str | None = None
+    stripe_secret_key: str | None = None
+    frontend_base_url: str = "http://localhost:5173"  # For Stripe success/cancel redirects
+
     def database_url_sync(self) -> str:
         """Sync URL for Alembic (replace asyncpg with psycopg2)."""
         return self.database_url.replace("+asyncpg", "")

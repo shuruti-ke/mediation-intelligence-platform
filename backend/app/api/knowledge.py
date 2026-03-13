@@ -21,6 +21,7 @@ from app.models.tenant import User
 from app.models.document import KnowledgeBaseDocument, KnowledgeBaseChunk, KnowledgeBaseFeedback
 from app.services.document_parser import extract_text
 from app.services.chunker import chunk_text
+from app.services.embeddings import get_embedding, cosine_similarity
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 settings = get_settings()
@@ -240,6 +241,9 @@ async def ingest_document(
             chunk_index=i,
             content=chunk_content,
         )
+        emb = get_embedding(chunk_content)
+        if emb:
+            chunk.embedding_vector = emb
         db.add(chunk)
 
     await db.flush()
@@ -294,6 +298,9 @@ async def ingest_org_document(
             chunk_index=i,
             content=chunk_content,
         )
+        emb = get_embedding(chunk_content)
+        if emb:
+            chunk.embedding_vector = emb
         db.add(chunk)
 
     await db.flush()
@@ -466,23 +473,11 @@ async def delete_document(
 
 # --- Search ---
 
-@router.get("/search")
-async def search_knowledge(
-    q: str,
-    scope: str = Query("all", pattern="^(org|personal|all)$"),
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-    limit: int = 10,
-) -> dict:
-    """Keyword search. scope: org, personal, or all."""
-    if not q or len(q.strip()) < 2:
-        return {"results": []}
-
-    q_filter = f"%{q.strip()}%"
+def _scope_base(scope: str, user):
+    """Build base query for chunk+doc with scope filter."""
     base = select(KnowledgeBaseChunk, KnowledgeBaseDocument).join(
         KnowledgeBaseDocument, KnowledgeBaseChunk.document_id == KnowledgeBaseDocument.id
-    ).where(KnowledgeBaseChunk.content.ilike(q_filter))
-
+    )
     if scope == "org":
         base = base.where(_org_or_public_filter(), _tenant_filter(user.tenant_id))
     elif scope == "personal":
@@ -494,10 +489,56 @@ async def search_knowledge(
                 KnowledgeBaseDocument.owner_id == user.id,
             ),
         )
+    return base
 
+
+@router.get("/search")
+async def search_knowledge(
+    q: str,
+    scope: str = Query("all", pattern="^(org|personal|all)$"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    limit: int = 10,
+) -> dict:
+    """Keyword or vector search. Uses vector similarity when OPENAI_API_KEY set and embeddings available."""
+    if not q or len(q.strip()) < 2:
+        return {"results": []}
+
+    q_stripped = q.strip()
+
+    # Vector search when API key and embeddings available
+    if settings.openai_api_key:
+        query_emb = get_embedding(q_stripped)
+        if query_emb:
+            base = _scope_base(scope, user)
+            base = base.where(KnowledgeBaseChunk.embedding_vector.isnot(None))
+            result = await db.execute(base.limit(200))  # fetch more for scoring
+            rows = result.all()
+            if rows:
+                scored = []
+                for chunk, doc in rows:
+                    emb = chunk.embedding_vector
+                    if isinstance(emb, list):
+                        sim = cosine_similarity(query_emb, emb)
+                        scored.append((sim, chunk, doc))
+                scored.sort(key=lambda x: -x[0])
+                results = []
+                for sim, chunk, doc in scored[:limit]:
+                    results.append({
+                        "chunk_id": str(chunk.id),
+                        "document_id": str(doc.id),
+                        "document_title": doc.title,
+                        "content": chunk.content[:300] + ("..." if len(chunk.content) > 300 else ""),
+                        "is_org": doc.owner_id is None,
+                        "score": round(sim, 4),
+                    })
+                return {"results": results}
+
+    # Fallback: keyword search
+    q_filter = f"%{q_stripped}%"
+    base = _scope_base(scope, user).where(KnowledgeBaseChunk.content.ilike(q_filter))
     result = await db.execute(base.limit(limit))
     rows = result.all()
-
     results = []
     for chunk, doc in rows:
         results.append({
@@ -535,31 +576,50 @@ async def query_knowledge(
         )
 
     q_stripped = data.query.strip()
-    words = _search_words(q_stripped)
-    base = (
-        select(KnowledgeBaseChunk, KnowledgeBaseDocument)
-        .join(KnowledgeBaseDocument, KnowledgeBaseChunk.document_id == KnowledgeBaseDocument.id)
-        .where(scope_filter)
-    )
-    fts_query = re.sub(r"[^\w\s]", " ", q_stripped).strip()[:200]
-    use_fts = len(fts_query) >= 2
-    if use_fts:
-        try:
-            base = base.where(
-                text("to_tsvector('english', knowledge_base_chunks.content) @@ plainto_tsquery('english', :q)").bindparams(q=fts_query)
-            )
-        except Exception:
-            use_fts = False
-    if not use_fts:
-        if words:
-            phrase_filter = KnowledgeBaseChunk.content.ilike(f"%{q_stripped}%")
-            word_filters = [KnowledgeBaseChunk.content.ilike(f"%{w}%") for w in words]
-            base = base.where(or_(phrase_filter, *word_filters))
-        else:
-            base = base.where(KnowledgeBaseChunk.content.ilike(f"%{q_stripped}%"))
+    rows: list = []
 
-    result = await db.execute(base.limit(10))
-    rows = result.all()
+    # Vector search when API key and embeddings available
+    if settings.openai_api_key:
+        query_emb = get_embedding(q_stripped)
+        if query_emb:
+            base = (
+                select(KnowledgeBaseChunk, KnowledgeBaseDocument)
+                .join(KnowledgeBaseDocument, KnowledgeBaseChunk.document_id == KnowledgeBaseDocument.id)
+                .where(scope_filter, KnowledgeBaseChunk.embedding_vector.isnot(None))
+            )
+            result = await db.execute(base.limit(100))
+            all_rows = result.all()
+            if all_rows:
+                scored = [(cosine_similarity(query_emb, c.embedding_vector or []), c, d) for c, d in all_rows if isinstance(c.embedding_vector, list)]
+                scored.sort(key=lambda x: -x[0])
+                rows = [(c, d) for _, c, d in scored[:10]]
+
+    # Fallback: keyword/FTS search
+    if not rows:
+        words = _search_words(q_stripped)
+        base = (
+            select(KnowledgeBaseChunk, KnowledgeBaseDocument)
+            .join(KnowledgeBaseDocument, KnowledgeBaseChunk.document_id == KnowledgeBaseDocument.id)
+            .where(scope_filter)
+        )
+        fts_query = re.sub(r"[^\w\s]", " ", q_stripped).strip()[:200]
+        use_fts = len(fts_query) >= 2
+        if use_fts:
+            try:
+                base = base.where(
+                    text("to_tsvector('english', knowledge_base_chunks.content) @@ plainto_tsquery('english', :q)").bindparams(q=fts_query)
+                )
+            except Exception:
+                use_fts = False
+        if not use_fts:
+            if words:
+                phrase_filter = KnowledgeBaseChunk.content.ilike(f"%{q_stripped}%")
+                word_filters = [KnowledgeBaseChunk.content.ilike(f"%{w}%") for w in words]
+                base = base.where(or_(phrase_filter, *word_filters))
+            else:
+                base = base.where(KnowledgeBaseChunk.content.ilike(f"%{q_stripped}%"))
+        result = await db.execute(base.limit(10))
+        rows = result.all()
 
     citations = []
     context_parts = []

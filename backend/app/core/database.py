@@ -80,6 +80,40 @@ async def migrate_kb_fts_index(conn):
             logger.warning("Migration kb_fts: %s", e)
 
 
+async def migrate_kb_chunk_embedding(conn):
+    """Add embedding_vector JSONB to knowledge_base_chunks for vector RAG."""
+    try:
+        await conn.execute(text(
+            "ALTER TABLE knowledge_base_chunks ADD COLUMN IF NOT EXISTS embedding_vector JSONB"
+        ))
+        logger.info("Migration: ensured embedding_vector on knowledge_base_chunks")
+    except Exception as e:
+        if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+            logger.warning("Migration kb_chunk_embedding: %s", e)
+
+
+async def migrate_session_transcripts(conn):
+    """Create session_transcripts table for Phase 6b."""
+    try:
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS session_transcripts (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                recording_id UUID NOT NULL REFERENCES session_recordings(id) ON DELETE CASCADE,
+                content_text TEXT NOT NULL,
+                segments_json JSONB,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_session_transcripts_recording_id "
+            "ON session_transcripts (recording_id)"
+        ))
+        logger.info("Migration: ensured session_transcripts table")
+    except Exception as e:
+        if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+            logger.warning("Migration session_transcripts: %s", e)
+
+
 async def migrate_user_id_columns(conn):
     """Add user_id, approval_status, approval_rejection_reason, submitted_by_id, must_change_password to users if missing."""
     for col, sql in [
@@ -100,6 +134,31 @@ async def migrate_user_id_columns(conn):
                 logger.warning("Migration users.%s: %s", col, e)
 
 
+async def migrate_settlement_agreements(conn):
+    """Create settlement_agreements table for Phase 6a."""
+    try:
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS settlement_agreements (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                case_id UUID NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+                template_type VARCHAR(50) NOT NULL,
+                status VARCHAR(50) DEFAULT 'draft',
+                content_json JSONB,
+                signatures_json JSONB,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                signed_at TIMESTAMPTZ
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_settlement_agreements_case_id "
+            "ON settlement_agreements (case_id)"
+        ))
+        logger.info("Migration: ensured settlement_agreements table")
+    except Exception as e:
+        if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+            logger.warning("Migration settlement_agreements: %s", e)
+
+
 async def init_db():
     """Create all tables and run migrations."""
     async with engine.begin() as conn:
@@ -108,3 +167,6 @@ async def init_db():
         await migrate_training_module_archived(conn)
         await migrate_academy_target_audience(conn)
         await migrate_kb_fts_index(conn)
+        await migrate_settlement_agreements(conn)
+        await migrate_kb_chunk_embedding(conn)
+        await migrate_session_transcripts(conn)

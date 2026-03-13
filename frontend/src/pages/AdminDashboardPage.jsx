@@ -19,6 +19,7 @@ import {
 import { FixedSizeList } from 'react-window';
 import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus, FolderOpen, Search, Plus, MoreVertical, ArrowLeft, UserCircle } from 'lucide-react';
 import GlobalSearch from '../components/GlobalSearch';
+import LanguageSelector from '../components/LanguageSelector';
 import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi, cases, auditApi, auth } from '../api/client';
 
 const STATUS_BADGES = {
@@ -131,6 +132,9 @@ export default function AdminDashboardPage() {
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditResourceFilter, setAuditResourceFilter] = useState('');
   const [securityStatus, setSecurityStatus] = useState(null);
+  const [thresholdAlerts, setThresholdAlerts] = useState([]);
+  const [activityHeatmap, setActivityHeatmap] = useState({ data: [], period_days: 30 });
+  const [liteMode, setLiteMode] = useState(() => localStorage.getItem('liteMode') === 'true');
   const navigate = useNavigate();
 
   const DATE_RANGES = [
@@ -155,13 +159,17 @@ export default function AdminDashboardPage() {
       analyticsApi.getGeographic().then(({ data }) => data),
       analyticsApi.getUnresolvedCases(dateRange).then(({ data }) => data),
       analyticsApi.getCaseDistribution(filterParams).then(({ data }) => data),
-    ]).then(([a, ts, m, g, u, cd]) => {
+      analyticsApi.getThresholdAlerts(dateRange).then(({ data }) => data),
+      analyticsApi.getActivityHeatmap(dateRange).then(({ data }) => data),
+    ]).then(([a, ts, m, g, u, cd, ta, ah]) => {
       setAnalytics(a.status === 'fulfilled' ? a.value : null);
       setTimeseries(ts.status === 'fulfilled' ? ts.value || [] : []);
       setMediatorPerformance(m.status === 'fulfilled' ? m.value || [] : []);
       setGeographic(g.status === 'fulfilled' ? g.value || [] : []);
       setUnresolved(u.status === 'fulfilled' ? u.value || [] : []);
       setCaseDistribution(cd.status === 'fulfilled' ? cd.value || [] : []);
+      setThresholdAlerts(ta.status === 'fulfilled' ? (ta.value?.alerts || ta.value || []) : []);
+      setActivityHeatmap(ah.status === 'fulfilled' ? (ah.value || { data: [], period_days: dateRange }) : { data: [], period_days: dateRange });
       setLastUpdated(new Date());
     }).catch(() => {}).finally(() => setLoading(false));
   }, [dateRange, analyticsFilterRegion, analyticsFilterMediator]);
@@ -309,6 +317,34 @@ export default function AdminDashboardPage() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const exportToPdf = async () => {
+    try {
+      const { data } = await analyticsApi.exportPdf(dateRange);
+      const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dashboard-export-${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'PDF export failed');
+    }
+  };
+
+  const toggleLiteMode = () => {
+    const next = !liteMode;
+    setLiteMode(next);
+    localStorage.setItem('liteMode', String(next));
+    if (next) document.body.classList.add('lite-mode');
+    else document.body.classList.remove('lite-mode');
+  };
+
+  useEffect(() => {
+    if (liteMode) document.body.classList.add('lite-mode');
+    else document.body.classList.remove('lite-mode');
+  }, [liteMode]);
 
   const TrendPill = ({ value, label }) => {
     if (value == null || value === 0) return <span className="trend-pill neutral"><Minus size={12} /> —</span>;
@@ -555,6 +591,7 @@ export default function AdminDashboardPage() {
       <main className="admin-main">
       <div className="admin-main-search">
         <GlobalSearch className="admin-global-search" />
+        <LanguageSelector />
       </div>
       {tab === 'dashboard' && (
         <section className="admin-dashboard-section">
@@ -607,9 +644,18 @@ export default function AdminDashboardPage() {
                   <span className="last-updated">Updated {lastUpdated.toLocaleTimeString()}</span>
                 )}
               </div>
-              <button className="btn-export" onClick={exportToCsv} disabled={!analytics}>
-                <Download size={16} /> Export CSV
-              </button>
+              <div className="export-buttons">
+                <button className="btn-export" onClick={exportToCsv} disabled={!analytics}>
+                  <Download size={16} /> Export CSV
+                </button>
+                <button className="btn-export" onClick={exportToPdf} disabled={!analytics}>
+                  <Download size={16} /> Export PDF
+                </button>
+              </div>
+              <label className="lite-mode-toggle" title="Reduce animations and auto-refresh for low bandwidth">
+                <input type="checkbox" checked={liteMode} onChange={toggleLiteMode} />
+                Lite mode
+              </label>
             </div>
           </div>
           {loading ? <p>Loading...</p> : analytics ? (
@@ -750,6 +796,46 @@ export default function AdminDashboardPage() {
                       </Link>
                     ))}
                     {unresolved.length > 10 && <p className="unresolved-more">+{unresolved.length - 10} more</p>}
+                  </div>
+                </div>
+              )}
+
+              {thresholdAlerts?.length > 0 && (
+                <div className="analytics-chart-card">
+                  <h3 className="analytics-chart-title">Threshold Alerts</h3>
+                  <ul className="threshold-alerts-list">
+                    {thresholdAlerts.map((a, i) => (
+                      <li key={i} className={`alert-severity-${a.severity}`}>
+                        {a.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {activityHeatmap?.data?.length > 0 && !liteMode && (
+                <div className="analytics-chart-card">
+                  <h3 className="analytics-chart-title">Activity Heatmap (last {activityHeatmap.period_days}d)</h3>
+                  <div className="heatmap-grid">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, dow) => (
+                      <div key={d} className="heatmap-col">
+                        <span className="heatmap-day">{d}</span>
+                        {Array.from({ length: 24 }, (_, h) => {
+                          const cell = activityHeatmap.data.find((x) => x.dayOfWeek === dow && x.hour === h);
+                          const cnt = cell?.count || 0;
+                          const maxCnt = Math.max(...activityHeatmap.data.map((x) => x.count || 0), 1);
+                          const opacity = Math.min(1, 0.2 + (cnt / maxCnt) * 0.8);
+                          return (
+                            <div
+                              key={h}
+                              className="heatmap-cell"
+                              style={{ backgroundColor: `rgba(139, 92, 246, ${opacity})` }}
+                              title={`${h}:00 ${d}: ${cnt} activity`}
+                            />
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

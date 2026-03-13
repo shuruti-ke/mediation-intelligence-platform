@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { FileText, Download, Upload } from 'lucide-react';
-import { cases, sessions, recordings, caucus, documents } from '../api/client';
+import { FileText, Download, Upload, FileSignature, Video } from 'lucide-react';
+import { cases, sessions, recordings, caucus, documents, settlementsApi } from '../api/client';
 import JitsiEmbed from '../components/JitsiEmbed';
 
 const PREFERRED_FORMAT_LABELS = { in_person: 'In-person', video: 'Video', phone: 'Phone', hybrid: 'Hybrid' };
@@ -32,19 +32,36 @@ export default function CaseDetailPage() {
   const [caucusRoom, setCaucusRoom] = useState(null);
   const [caseDocuments, setCaseDocuments] = useState([]);
   const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [sessionRecordings, setSessionRecordings] = useState({});
+  const [settlements, setSettlements] = useState([]);
+  const [showNewSettlement, setShowNewSettlement] = useState(false);
+  const [expandedSessionId, setExpandedSessionId] = useState(null);
 
   const loadCase = () => cases.get(id).then(({ data }) => {
     setCaseData(data);
     setCaseDocuments(data.documents || []);
   }).catch(() => setCaseData(null));
   const loadSessions = () => sessions.listForCase(id).then(({ data }) => setSessionList(data)).catch(() => setSessionList([]));
+  const loadSettlements = () => settlementsApi.list(id).then(({ data }) => setSettlements(data || [])).catch(() => setSettlements([]));
+  const loadRecordingsForSession = (sessionId) => {
+    recordings.list(sessionId).then(({ data }) =>
+      setSessionRecordings((prev) => ({ ...prev, [sessionId]: data || [] }))
+    ).catch(() => setSessionRecordings((prev) => ({ ...prev, [sessionId]: [] })));
+  };
 
   useEffect(() => {
     if (!id) return;
     loadCase();
     loadSessions();
+    loadSettlements();
     setLoading(false);
   }, [id]);
+
+  useEffect(() => {
+    if (expandedSessionId && !sessionRecordings[expandedSessionId]) {
+      loadRecordingsForSession(expandedSessionId);
+    }
+  }, [expandedSessionId]);
 
   useEffect(() => {
     if (!currentSession || currentSession.status !== 'ACTIVE') return;
@@ -139,6 +156,34 @@ export default function CaseDetailPage() {
       setShowCaucusModal(true);
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to get caucus room');
+    }
+  };
+
+  const handleDownloadRecording = async (rec) => {
+    try {
+      if (rec.storage_path?.startsWith('http')) {
+        window.open(rec.storage_path, '_blank');
+      } else {
+        const { data } = await recordings.download(rec.id);
+        const url = URL.createObjectURL(data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `recording-${rec.id}.mp4`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Recording not available for download');
+    }
+  };
+
+  const handleCreateSettlement = async (templateType) => {
+    try {
+      await settlementsApi.create({ case_id: id, template_type: templateType });
+      loadSettlements();
+      setShowNewSettlement(false);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to create settlement');
     }
   };
 
@@ -359,17 +404,83 @@ export default function CaseDetailPage() {
 
             {sessionList.length > 0 && (
               <section className="case-info-section">
-                <h3>Session history</h3>
+                <h3>Session history & recordings</h3>
                 <ul className="session-list">
                   {sessionList.map((s) => (
                     <li key={s.id}>
-                      <span>{new Date(s.created_at).toLocaleString()}</span>
-                      <span className={`status-badge ${s.status?.toLowerCase()}`}>{s.status}</span>
+                      <button
+                        type="button"
+                        className="session-expand-btn"
+                        onClick={() => setExpandedSessionId(expandedSessionId === s.id ? null : s.id)}
+                      >
+                        <Video size={16} />
+                        <span>{new Date(s.created_at).toLocaleString()}</span>
+                        <span className={`status-badge ${s.status?.toLowerCase()}`}>{s.status}</span>
+                      </button>
+                      {expandedSessionId === s.id && (
+                        <div className="recordings-list">
+                          {(sessionRecordings[s.id] || []).length > 0 ? (
+                            (sessionRecordings[s.id] || []).map((r) => (
+                              <div key={r.id} className="recording-item">
+                                <span>{r.duration_seconds ? formatDuration(r.duration_seconds) : '—'}</span>
+                                <span>{r.started_at ? new Date(r.started_at).toLocaleString() : ''}</span>
+                                <button
+                                  type="button"
+                                  className="btn-download-recording"
+                                  onClick={() => handleDownloadRecording(r)}
+                                  disabled={!r.storage_path}
+                                  title={r.storage_path ? 'Download' : 'File not yet available'}
+                                >
+                                  <Download size={14} /> Download
+                                </button>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="recordings-empty">No recordings for this session</p>
+                          )}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
               </section>
             )}
+
+            <section className="case-info-section">
+              <h3><FileSignature size={18} /> Settlement agreements</h3>
+              {settlements.length > 0 ? (
+                <ul className="settlement-list">
+                  {settlements.map((s) => (
+                    <li key={s.id} className={`settlement-item status-${s.status}`}>
+                      <span className="settlement-type">{s.template_type}</span>
+                      <span className={`status-badge ${s.status}`}>{s.status}</span>
+                      <span className="settlement-date">{s.signed_at ? new Date(s.signed_at).toLocaleDateString() : new Date(s.created_at).toLocaleDateString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="settlements-empty">No settlement agreements yet</p>
+              )}
+              <button
+                type="button"
+                className="btn-create-settlement"
+                onClick={() => setShowNewSettlement(!showNewSettlement)}
+              >
+                {showNewSettlement ? 'Cancel' : '+ New settlement'}
+              </button>
+              {showNewSettlement && (
+                <div className="settlement-templates">
+                  <p>Choose template:</p>
+                  <div className="template-btns">
+                    {['family', 'commercial', 'employment'].map((t) => (
+                      <button key={t} type="button" onClick={() => handleCreateSettlement(t)}>
+                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
 
             <section className="case-actions">
               <button onClick={startSession} className="primary btn-start-session">Start Mediation Session</button>

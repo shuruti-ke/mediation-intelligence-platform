@@ -1,0 +1,45 @@
+{
+  "common": {
+    "back": "Retour",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "loading": "Chargement...",
+    "submit": "Soumettre",
+    "download": "Télécharger",
+    "upload": "Téléverser"
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "cases": "Dossiers",
+    "training": "Formation",
+    "library": "Bibliothèque",
+    "calendar": "Calendrier",
+    "admin": "Admin"
+  },
+  "case": {
+    "newCase": "Nouveau dossier",
+    "caseDetails": "Détails du dossier",
+    "documents": "Documents",
+    "settlementAgreements": "Accords de règlement",
+    "sessionHistory": "Historique des sessions et enregistrements",
+    "startSession": "Démarrer une session de médiation"
+  },
+  "training": {
+    "title": "Formation",
+    "practiceScenario": "Scénario de pratique",
+    "markComplete": "Marquer comme terminé",
+    "overview": "Aperçu",
+    "keyChallenges": "Défis clés",
+    "strategies": "Stratégies"
+  },
+  "analytics": {
+    "dashboard": "Analytiques",
+    "exportPdf": "Exporter PDF",
+    "thresholdAlerts": "Alertes de seuil",
+    "activityHeatmap": "Carte thermique d'activité"
+  },
+  "settings": {
+    "language": "Langue",
+    "lowBandwidthMode": "Mode léger (faible bande passante)"
+  }
+}

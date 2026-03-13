@@ -1,0 +1,45 @@
+{
+  "common": {
+    "back": "Back",
+    "save": "Save",
+    "cancel": "Cancel",
+    "loading": "Loading...",
+    "submit": "Submit",
+    "download": "Download",
+    "upload": "Upload"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "cases": "Cases",
+    "training": "Training",
+    "library": "Library",
+    "calendar": "Calendar",
+    "admin": "Admin"
+  },
+  "case": {
+    "newCase": "New Case",
+    "caseDetails": "Case Details",
+    "documents": "Documents",
+    "settlementAgreements": "Settlement Agreements",
+    "sessionHistory": "Session history & recordings",
+    "startSession": "Start Mediation Session"
+  },
+  "training": {
+    "title": "Training",
+    "practiceScenario": "Practice scenario",
+    "markComplete": "Mark complete",
+    "overview": "Overview",
+    "keyChallenges": "Key challenges",
+    "strategies": "Strategies"
+  },
+  "analytics": {
+    "dashboard": "Analytics",
+    "exportPdf": "Export PDF",
+    "thresholdAlerts": "Threshold Alerts",
+    "activityHeatmap": "Activity Heatmap"
+  },
+  "settings": {
+    "language": "Language",
+    "lowBandwidthMode": "Lite mode (low bandwidth)"
+  }
+}
