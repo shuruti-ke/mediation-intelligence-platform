@@ -32,7 +32,7 @@ import {
   GraduationCap,
   ArrowLeft,
   Youtube,
-  Link,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { trainingAcademyApi, documents } from '../api/client';
 import './AdminTrainingAcademyPage.css';
@@ -611,7 +611,7 @@ export default function AdminTrainingAcademyPage() {
                         {(l.content_type || 'text') === 'file' && (
                           <>
                             <label>
-                              <span><Link size={14} /> Document URL (optional)</span>
+                              <span><LinkIcon size={14} /> Document URL (optional)</span>
                               <input
                                 type="url"
                                 value={l.file_url || ''}
