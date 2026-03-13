@@ -472,6 +472,29 @@
   border-color: #10b981;
 }
 
+.recon-card-clients {
+  background: #dbeafe;
+  border-color: #60a5fa;
+}
+
+.recon-card-platform {
+  background: #e0e7ff;
+  border-color: #818cf8;
+}
+
+.statement-mediator-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.statement-role-badge {
+  font-size: 0.85rem;
+  font-weight: normal;
+  color: #64748b;
+}
+
 .recon-label {
   display: block;
   font-size: 0.8rem;
@@ -561,6 +584,12 @@
 .client-search-email {
   font-size: 0.85rem;
   color: #64748b;
+}
+
+.client-search-role {
+  font-size: 0.85rem;
+  color: #64748b;
+  text-transform: capitalize;
 }
 
 .client-search-msg {

@@ -40,6 +40,7 @@ export default function AdminAccountsPage() {
   const [clientSearching, setClientSearching] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   const [clientStatement, setClientStatement] = useState(null);
+  const [statementType, setStatementType] = useState(null); // 'client' | 'mediator'
   const [clientStatementLoading, setClientStatementLoading] = useState(false);
 
   const load = () => {
@@ -167,21 +168,49 @@ export default function AdminAccountsPage() {
   const handleSelectClient = (client) => {
     setSelectedClient(client);
     setClientStatement(null);
+    setStatementType(null);
     setClientSearch('');
     setClientSearchResults([]);
     setClientStatementLoading(true);
-    paymentsApi.getClientStatement({ user_id: client.id })
-      .then((r) => r.data)
-      .then((data) => setClientStatement(data))
-      .catch(() => {
-        alert('Failed to load client statement');
-        setSelectedClient(null);
-      })
-      .finally(() => setClientStatementLoading(false));
+    const isMediator = client.role === 'mediator';
+    if (isMediator) {
+      paymentsApi.getReconciliation({ mediator_id: client.id })
+        .then((r) => r.data)
+        .then((data) => {
+          setClientStatement(data);
+          setStatementType('mediator');
+        })
+        .catch(() => {
+          alert('Failed to load mediator statement');
+          setSelectedClient(null);
+        })
+        .finally(() => setClientStatementLoading(false));
+    } else {
+      paymentsApi.getClientStatement({ user_id: client.id })
+        .then((r) => r.data)
+        .then((data) => {
+          setClientStatement(data);
+          setStatementType('client');
+        })
+        .catch(() => {
+          alert('Failed to load client statement');
+          setSelectedClient(null);
+        })
+        .finally(() => setClientStatementLoading(false));
+    }
   };
 
-  const handlePrintClientStatement = () => {
-    if (clientStatement) setPrintView({ type: 'client_statement', data: clientStatement });
+  const handlePrintStatement = () => {
+    if (!clientStatement) return;
+    if (statementType === 'mediator') {
+      setPrintView({
+        type: 'mediator_statement',
+        data: clientStatement,
+        mediatorName: selectedClient?.display_name || selectedClient?.email,
+      });
+    } else {
+      setPrintView({ type: 'client_statement', data: clientStatement });
+    }
   };
 
   const openRecordPayment = (inv) => {
@@ -411,8 +440,8 @@ export default function AdminAccountsPage() {
                 </div>
               </div>
               <div className="recon-by-client">
-                <h3>Client statements</h3>
-                <p className="recon-desc">Search for a client, select from the dropdown, view their statement, then print.</p>
+                <h3>Client & mediator statements</h3>
+                <p className="recon-desc">Search for a client or mediator, select from the dropdown, view their statement, then print.</p>
                 <div className="client-statement-search">
                   <input
                     type="text"
@@ -435,7 +464,9 @@ export default function AdminAccountsPage() {
                             className="client-search-option"
                             onClick={() => handleSelectClient(c)}
                           >
-                            {c.display_name || c.email} {c.email && <span className="client-search-email">({c.email})</span>}
+                            {c.display_name || c.email}
+                            {c.role && <span className="client-search-role"> — {c.role.replace('_', ' ')}</span>}
+                            {c.email && c.display_name && <span className="client-search-email"> ({c.email})</span>}
                           </button>
                         ))
                       )}
@@ -445,8 +476,8 @@ export default function AdminAccountsPage() {
                 {selectedClient && (
                   <div className="client-statement-view">
                     <div className="client-statement-view-header">
-                      <h4>Statement for {clientStatement?.client_name || selectedClient.display_name || selectedClient.email}</h4>
-                      <button type="button" className="btn-sm btn-primary" onClick={handlePrintClientStatement} disabled={!clientStatement}>
+                      <h4>Statement for {selectedClient.display_name || selectedClient.email} {selectedClient.role && <span className="statement-role-badge">({selectedClient.role})</span>}</h4>
+                      <button type="button" className="btn-sm btn-primary" onClick={handlePrintStatement} disabled={!clientStatement}>
                         <Printer size={14} /> Print
                       </button>
                     </div>
@@ -454,32 +485,69 @@ export default function AdminAccountsPage() {
                       <p className="client-statement-loading">Loading statement...</p>
                     ) : clientStatement ? (
                       <div className="client-statement-content">
-                        <p><strong>Balance due:</strong> {clientStatement.currency} {Number(clientStatement.balance_due ?? 0).toFixed(2)}</p>
-                        <p><strong>Total paid:</strong> {clientStatement.currency} {Number(clientStatement.total_paid ?? 0).toFixed(2)}</p>
-                        {clientStatement.invoices?.length > 0 && (
+                        {statementType === 'mediator' ? (
                           <>
-                            <h4>Invoices</h4>
-                            <table className="accounts-table">
-                              <thead>
-                                <tr><th>Invoice #</th><th>Amount</th><th>Paid</th><th>Status</th><th>Date</th></tr>
-                              </thead>
-                              <tbody>
-                                {clientStatement.invoices.map((inv) => (
-                                  <tr key={inv.id}>
-                                    <td>{inv.invoice_number}</td>
-                                    <td>{clientStatement.currency} {Number(inv.amount ?? 0).toFixed(2)}</td>
-                                    <td>{clientStatement.currency} {Number(inv.total_paid ?? 0).toFixed(2)}</td>
-                                    <td>{inv.status}</td>
-                                    <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : '—'}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                            <div className="statement-mediator-cards">
+                              <div className="recon-card recon-card-clients">
+                                <span className="recon-label">Funds from clients (mediation fees)</span>
+                                <span className="recon-value">{clientStatement.currency} {Number(clientStatement.funds_from_clients ?? 0).toFixed(2)}</span>
+                                <span className="recon-desc">Payments received from clients for mediation services</span>
+                              </div>
+                              <div className="recon-card recon-card-platform">
+                                <span className="recon-label">Funds paid to platform</span>
+                                <span className="recon-value">{clientStatement.currency} {Number(clientStatement.funds_from_mediator ?? 0).toFixed(2)}</span>
+                                <span className="recon-desc">Platform access fees paid by mediator</span>
+                              </div>
+                              <div className="recon-card recon-card-commission">
+                                <span className="recon-label">Platform commission ({Number(clientStatement.platform_commission_pct ?? 0)}%)</span>
+                                <span className="recon-value">{clientStatement.currency} {Number(clientStatement.platform_commission_amount ?? 0).toFixed(2)}</span>
+                                <span className="recon-desc">Retained from client payments</span>
+                              </div>
+                              <div className="recon-card recon-card-unpaid">
+                                <span className="recon-label">Unpaid platform invoices</span>
+                                <span className="recon-value">{clientStatement.currency} {Number(clientStatement.unpaid_platform_invoices ?? 0).toFixed(2)}</span>
+                                <span className="recon-desc">Offset from payout</span>
+                              </div>
+                              <div className="recon-card recon-card-payout">
+                                <span className="recon-label">Payout owed to mediator</span>
+                                <span className="recon-value">{clientStatement.currency} {Number(clientStatement.mediator_payout_owed ?? 0).toFixed(2)}</span>
+                                <span className="recon-desc">Client payments minus commission minus unpaid platform invoices</span>
+                              </div>
+                            </div>
+                            <button type="button" className="btn-ghost btn-clear-client" onClick={() => { setSelectedClient(null); setClientStatement(null); setStatementType(null); }}>
+                              Clear / Select different mediator
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <p><strong>Balance due:</strong> {clientStatement.currency} {Number(clientStatement.balance_due ?? 0).toFixed(2)}</p>
+                            <p><strong>Total paid:</strong> {clientStatement.currency} {Number(clientStatement.total_paid ?? 0).toFixed(2)}</p>
+                            {clientStatement.invoices?.length > 0 && (
+                              <>
+                                <h4>Invoices</h4>
+                                <table className="accounts-table">
+                                  <thead>
+                                    <tr><th>Invoice #</th><th>Amount</th><th>Paid</th><th>Status</th><th>Date</th></tr>
+                                  </thead>
+                                  <tbody>
+                                    {clientStatement.invoices.map((inv) => (
+                                      <tr key={inv.id}>
+                                        <td>{inv.invoice_number}</td>
+                                        <td>{clientStatement.currency} {Number(inv.amount ?? 0).toFixed(2)}</td>
+                                        <td>{clientStatement.currency} {Number(inv.total_paid ?? 0).toFixed(2)}</td>
+                                        <td>{inv.status}</td>
+                                        <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : '—'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </>
+                            )}
+                            <button type="button" className="btn-ghost btn-clear-client" onClick={() => { setSelectedClient(null); setClientStatement(null); setStatementType(null); }}>
+                              Clear / Select different client
+                            </button>
                           </>
                         )}
-                        <button type="button" className="btn-ghost btn-clear-client" onClick={() => { setSelectedClient(null); setClientStatement(null); }}>
-                          Clear / Select different client
-                        </button>
                       </div>
                     ) : null}
                   </div>
