@@ -17,10 +17,10 @@ import {
   BarChart,
 } from 'recharts';
 import { FixedSizeList } from 'react-window';
-import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus, FolderOpen, Search, Plus, MoreVertical, ArrowLeft, UserCircle } from 'lucide-react';
+import { LayoutDashboard, Users, Building2, BookOpen, Calendar, LogOut, BarChart3, UserPlus, Upload, Trash2, UserCog, MapPin, FileText, Download, X, GraduationCap, Sparkles, RefreshCw, TrendingUp, TrendingDown, Minus, FolderOpen, Search, Plus, MoreVertical, ArrowLeft, UserCircle, CreditCard, Smartphone } from 'lucide-react';
 import GlobalSearch from '../components/GlobalSearch';
 import LanguageSelector from '../components/LanguageSelector';
-import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi, cases, auditApi, auth } from '../api/client';
+import { tenantsApi, usersApi, analyticsApi, knowledge, calendarApi, cases, auditApi, auth, paymentsApi } from '../api/client';
 
 const STATUS_BADGES = {
   active: { label: 'Active', class: 'badge-active' },
@@ -135,6 +135,11 @@ export default function AdminDashboardPage() {
   const [thresholdAlerts, setThresholdAlerts] = useState([]);
   const [activityHeatmap, setActivityHeatmap] = useState({ data: [], period_days: 30 });
   const [liteMode, setLiteMode] = useState(() => localStorage.getItem('liteMode') === 'true');
+  const [invoices, setInvoices] = useState([]);
+  const [billingCreateOpen, setBillingCreateOpen] = useState(false);
+  const [billingPayOpen, setBillingPayOpen] = useState(null);
+  const [billingForm, setBillingForm] = useState({ amount: '', currency: 'KES', description: '', case_id: '' });
+  const [payForm, setPayForm] = useState({ provider: 'mpesa', phone: '' });
   const navigate = useNavigate();
 
   const DATE_RANGES = [
@@ -239,6 +244,12 @@ export default function AdminDashboardPage() {
           setSecurityStatus(statusRes.status === 'fulfilled' ? statusRes.value?.data : null);
         })
         .catch(() => setAuditLogs([]))
+        .finally(() => setLoading(false));
+    } else if (tab === 'billing') {
+      setLoading(true);
+      paymentsApi.listInvoices()
+        .then(({ data }) => setInvoices(data || []))
+        .catch(() => setInvoices([]))
         .finally(() => setLoading(false));
     } else {
       refreshDashboard();
@@ -582,6 +593,7 @@ export default function AdminDashboardPage() {
             <button className={tab === 'orgkb' ? 'nav-active' : ''} onClick={() => setTab('orgkb')}><BookOpen size={16} /> Org KB</button>
             <button className={tab === 'trainees' ? 'nav-active' : ''} onClick={() => setTab('trainees')}><GraduationCap size={16} /> Trainees</button>
             <button className={tab === 'audit' ? 'nav-active' : ''} onClick={() => setTab('audit')}><FileText size={16} /> Audit Log</button>
+            <button className={tab === 'billing' ? 'nav-active' : ''} onClick={() => setTab('billing')}><CreditCard size={16} /> Billing & M-Pesa</button>
             <Link to="/admin/training-academy" className="nav-training-academy"><Sparkles size={16} /> Training Academy</Link>
             <Link to="/calendar"><Calendar size={16} /> Calendar</Link>
             <Link to="/login" onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('user'); }}><LogOut size={16} /> Sign out</Link>
@@ -1520,7 +1532,128 @@ export default function AdminDashboardPage() {
         </section>
       )}
 
+      {tab === 'billing' && (
+        <section className="admin-dashboard-section billing-section">
+          <div className="section-header">
+            <h2 className="icon-text"><CreditCard size={22} /> Billing & Payments</h2>
+            <button className="primary" onClick={() => { setBillingCreateOpen(true); setBillingForm({ amount: '', currency: 'KES', description: '', case_id: '' }); }}>
+              <Plus size={16} /> Create Invoice
+            </button>
+          </div>
+          <p className="section-desc">Manage invoices. Pay via <strong>M-Pesa</strong> (Kenya) or Stripe (cards).</p>
+          {loading ? <p>Loading...</p> : invoices.length === 0 ? (
+            <p className="empty-msg">No invoices yet. Create one to get started.</p>
+          ) : (
+            <div className="invoices-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Invoice #</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((inv) => (
+                    <tr key={inv.id}>
+                      <td><code>{inv.invoice_number}</code></td>
+                      <td>{inv.amount} {inv.currency}</td>
+                      <td><span className={`badge ${inv.status === 'PAID' ? 'badge-active' : 'badge-pending'}`}>{inv.status}</span></td>
+                      <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : '—'}</td>
+                      <td>
+                        {inv.status !== 'PAID' && (
+                          <button
+                            className="btn-sm btn-mpesa"
+                            onClick={() => { setBillingPayOpen(inv); setPayForm({ provider: 'mpesa', phone: '' }); }}
+                            title="Pay with M-Pesa"
+                          >
+                            <Smartphone size={14} /> M-Pesa
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
       </main>
+
+      {billingCreateOpen && (
+        <div className="modal-overlay" onClick={() => setBillingCreateOpen(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <h3>Create Invoice</h3>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const amount = parseFloat(billingForm.amount);
+              if (isNaN(amount) || amount <= 0 || !billingForm.description) {
+                alert('Enter valid amount and description');
+                return;
+              }
+              try {
+                await paymentsApi.createInvoice({
+                  amount_minor_units: Math.round(amount * 100),
+                  currency: billingForm.currency,
+                  description: billingForm.description,
+                  case_id: billingForm.case_id || null,
+                });
+                setBillingCreateOpen(false);
+                if (tab === 'billing') paymentsApi.listInvoices().then(({ data }) => setInvoices(data || []));
+              } catch (err) {
+                alert(err.response?.data?.detail || 'Failed to create invoice');
+              }
+            }}>
+              <label>Amount <input type="number" step="0.01" min="0" placeholder="e.g. 5000" value={billingForm.amount} onChange={e => setBillingForm({ ...billingForm, amount: e.target.value })} required /></label>
+              <label>Currency <select value={billingForm.currency} onChange={e => setBillingForm({ ...billingForm, currency: e.target.value })}><option value="KES">KES</option><option value="USD">USD</option></select></label>
+              <label>Description <input type="text" placeholder="e.g. Mediation session fee" value={billingForm.description} onChange={e => setBillingForm({ ...billingForm, description: e.target.value })} required /></label>
+              <div className="modal-actions">
+                <button type="button" onClick={() => setBillingCreateOpen(false)}>Cancel</button>
+                <button type="submit" className="primary">Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {billingPayOpen && (
+        <div className="modal-overlay" onClick={() => setBillingPayOpen(null)}>
+          <div className="modal-card modal-mpesa" onClick={e => e.stopPropagation()}>
+            <h3><Smartphone size={20} /> Pay with M-Pesa</h3>
+            <p className="mpesa-desc">Enter your M-Pesa phone number. You will receive an STK push to complete payment.</p>
+            <p className="mpesa-amount"><strong>{billingPayOpen.amount} {billingPayOpen.currency}</strong> – {billingPayOpen.invoice_number}</p>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!payForm.phone || payForm.phone.replace(/\D/g, '').length < 9) {
+                alert('Enter a valid phone number (e.g. 0712345678 or +254712345678)');
+                return;
+              }
+              try {
+                const { data } = await paymentsApi.initPayment({
+                  invoice_id: billingPayOpen.id,
+                  provider: 'mpesa',
+                  phone: payForm.phone,
+                });
+                alert(data.message || 'Check your phone for M-Pesa prompt. Enter PIN to complete.');
+                setBillingPayOpen(null);
+                if (tab === 'billing') paymentsApi.listInvoices().then(({ data: inv }) => setInvoices(inv || []));
+              } catch (err) {
+                alert(err.response?.data?.detail || 'Payment initiation failed');
+              }
+            }}>
+              <label>Phone number <input type="tel" placeholder="0712345678 or +254712345678" value={payForm.phone} onChange={e => setPayForm({ ...payForm, phone: e.target.value })} /></label>
+              <div className="modal-actions">
+                <button type="button" onClick={() => setBillingPayOpen(null)}>Cancel</button>
+                <button type="submit" className="primary">Send M-Pesa Prompt</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {onboardOpen && (
         <div className="modal-overlay" onClick={() => setOnboardOpen(false)}>

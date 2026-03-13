@@ -1973,6 +1973,24 @@ body.lite-mode { --transition-fast: 0s; --transition-normal: 0s; }
   margin-left: 0.5rem;
 }
 
+.billing-section .section-desc { margin-bottom: 1rem; }
+.invoices-table-wrap { overflow-x: auto; }
+.btn-mpesa {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.6rem;
+  background: #00a651 !important;
+  color: white !important;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.btn-mpesa:hover { opacity: 0.9; }
+.modal-mpesa .mpesa-desc { margin-bottom: 0.75rem; color: var(--text-slate-600); }
+.modal-mpesa .mpesa-amount { margin-bottom: 1rem; }
+
 .user-table-wrapper {
   overflow-x: auto;
   background: white;
