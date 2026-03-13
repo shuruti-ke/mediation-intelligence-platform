@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, CheckCircle, Clock, Award, Play, Menu, X, Brain, Zap, AlertCircle, Lightbulb, ExternalLink, GraduationCap, Sparkles } from 'lucide-react';
-import { trainingApi } from '../api/client';
+import { trainingApi, api } from '../api/client';
 import '../styles/TraineeAcademy.css';
 
 export default function TraineeTrainingPage() {
@@ -269,12 +269,22 @@ export default function TraineeTrainingPage() {
     const done = isLessonComplete(module.id, lesson.id);
     const isArticle = lesson.type === 'article';
     const isSummary = lesson.type === 'summary';
+    const isFile = lesson.type === 'file';
+    const isEmbed = lesson.type === 'embed';
 
     return (
       <div className="trainee-lesson-content">
         <div className="trainee-lesson-card">
           <h2>{lesson.title}</h2>
           <p className="trainee-lesson-meta">{lesson.type} • {lesson.duration}</p>
+          {isEmbed && lesson.content_html && (() => {
+            const raw = lesson.content_html.trim();
+            const isSafeUrl = /^https?:\/\/\S+$/.test(raw);
+            const html = isSafeUrl
+              ? `<iframe src="${raw.replace(/"/g, '&quot;')}" title="${(lesson.title || '').replace(/"/g, '&quot;')}" allowfullscreen></iframe>`
+              : lesson.content_html;
+            return <div className="trainee-lesson-embed" dangerouslySetInnerHTML={{ __html: html }} />;
+          })()}
           {lesson.video_id && (
             <div className="trainee-lesson-video">
               <iframe
@@ -303,6 +313,34 @@ export default function TraineeTrainingPage() {
           )}
           {isSummary && lesson.content && (
             <div className="trainee-lesson-summary">{lesson.content}</div>
+          )}
+          {isFile && lesson.file_url && (
+            <div className="trainee-lesson-file">
+              <p>Download the attached document.</p>
+              <button
+                className="btn-trainee btn-primary"
+                onClick={async () => {
+                  const match = lesson.file_url.match(/\/documents\/([a-f0-9-]+)\/download/);
+                  if (match) {
+                    try {
+                      const { data } = await api.get(`/documents/${match[1]}/download`, { responseType: 'blob' });
+                      const url = URL.createObjectURL(data);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'document';
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch (e) {
+                      window.open(lesson.file_url, '_blank');
+                    }
+                  } else {
+                    window.open(lesson.file_url, '_blank');
+                  }
+                }}
+              >
+                <ExternalLink size={16} /> Download Document
+              </button>
+            </div>
           )}
           <button onClick={() => markLessonComplete(module.id, lesson.id)} disabled={done} className={`btn-trainee ${done ? 'btn-completed' : 'btn-primary'}`}>
             {done ? '✓ Completed' : 'Mark as complete'}

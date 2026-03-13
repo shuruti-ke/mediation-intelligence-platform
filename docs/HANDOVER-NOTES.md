@@ -38,14 +38,55 @@ A mediation platform with AI features, Jitsi video, knowledge base, judiciary se
 |------|------|
 | Backend API | `backend/app/api/` |
 | Models | `backend/app/models/` |
+| Case API | `backend/app/api/cases.py` |
+| Documents API | `backend/app/api/documents.py` |
+| Users API (clients, cases) | `backend/app/api/users.py` |
 | Training API | `backend/app/api/training.py` |
 | Academy Admin API | `backend/app/api/academy_admin.py` |
 | Analytics API | `backend/app/api/analytics_dashboard.py` |
+| Case schemas | `backend/app/schemas/case.py` |
 | Frontend pages | `frontend/src/pages/` |
+| Mediator dashboard | `frontend/src/pages/DashboardPage.jsx` |
+| Case detail | `frontend/src/pages/CaseDetailPage.jsx` |
+| New Case form | `frontend/src/pages/NewCasePage.jsx` |
+| Client profile/edit | `frontend/src/pages/ClientProfilePage.jsx` |
 | Admin dashboard | `frontend/src/pages/AdminDashboardPage.jsx` |
 | Training Academy admin | `frontend/src/pages/AdminTrainingAcademyPage.jsx` |
 | API client | `frontend/src/api/client.js` |
 | App routes | `frontend/src/App.jsx` |
+
+---
+
+## Recently Implemented (March 2026)
+
+### 1. Case Management & Document Upload ✅
+- **New Case** (`/cases/new`): Rich form with Case Identification, Details, Parties, Documents
+- **Case Detail** (`/cases/:id`): Two-column layout — Documents sidebar (left), full case info (right)
+- **Document upload:** PDF, DOCX, TXT, XLSX, PPTX, images, CSV — clickable and downloadable
+- **Internal reference:** Used to link cases to clients (e.g. `USR-KE-2026-0001`)
+
+### 2. Case–Client Linking ✅
+- Cases linked via `Case.internal_reference` = client User ID or `CaseParty.user_id`
+- **GET** `/users/{id}/cases` returns cases for a client
+- **New Case** from client detail pre-fills internal reference
+
+### 3. Client Management (Mediator Dashboard) ✅
+- **Assign to Case** button removed
+- **Edit Client** → direct to edit page (`/users/:id`)
+- Client view shows **Cases assigned** (always visible)
+- **New Case** button from client detail pre-fills internal reference
+
+### 4. Client Profile Page (`/users/:id`) ✅
+- Direct edit form (no separate view mode)
+- Fields: Contact name, Contact email, Contact number, Country
+- Backend: `GET/PATCH /users/{id}/profile`
+
+### 5. Onboard Client ✅
+- Labels updated: **Contact name**, **Contact email**, **Contact number**
+
+### 6. Validation Fix (Backend) ✅
+- `desired_outcome_structured` and `preferred_format` stored as `{"items": [...]}` and `{"formats": [...]}` in DB
+- `CaseResponse` in `backend/app/schemas/case.py` normalizes these to lists
 
 ---
 
@@ -143,11 +184,29 @@ A mediation platform with AI features, Jitsi video, knowledge base, judiciary se
 
 ---
 
+## New API Endpoints (Case/Client)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/users/{id}/cases` | Cases linked to client (internal_ref or party) |
+| GET | `/users/{id}/profile` | Client profile (mediator) |
+| PATCH | `/users/{id}/profile` | Update client (mediator) |
+| GET | `/documents?case_id=` | List documents by case |
+| POST | `/documents/upload` | Upload (FormData: file, case_id) |
+| GET | `/documents/{id}/download` | Download document |
+
+---
+
 ## Files to Read First
 
 - `docs/CURRENT STATE & PROBLEMS.md` – implementation & deployment guide (core gaps)
+- `HANDOVER.md` – full handover (case/client features, deployment)
+- `backend/app/api/cases.py` – case CRUD, documents
+- `backend/app/api/users.py` – clients, cases, profile
 - `backend/app/api/academy_admin.py` – academy CRUD, AI, analytics
 - `backend/app/api/analytics_dashboard.py` – dashboard + drill-down
+- `frontend/src/pages/DashboardPage.jsx` – mediator dashboard
+- `frontend/src/pages/ClientProfilePage.jsx` – client edit
 - `frontend/src/pages/AdminDashboardPage.jsx` – main admin + analytics
 - `frontend/src/pages/AdminTrainingAcademyPage.jsx` – training academy
 - `frontend/src/api/client.js` – API client (analyticsApi, trainingAcademyApi)
@@ -173,7 +232,9 @@ A mediation platform with AI features, Jitsi video, knowledge base, judiciary se
 - No threshold alerts or anomaly detection
 
 **Core Platform (see `CURRENT STATE & PROBLEMS.md` for full spec):**
-- Cases in mediation dashboard are static (not clickable/editable)
+- ~~Cases in mediation dashboard are static~~ — Case detail, documents, New Case, Edit Case implemented
+- ~~No client–case linking~~ — Linked via internal_reference and CaseParty.user_id
+- ~~No Edit Client flow~~ — ClientProfilePage at `/users/:id` with GET/PATCH profile
 - No approval process for new user onboarding
 - No searchable internal reference system (User ID, Client ID, name, email)
 - User management lacks scalability for 1000+ users

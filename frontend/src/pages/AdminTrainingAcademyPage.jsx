@@ -31,8 +31,10 @@ import {
   Loader2,
   GraduationCap,
   ArrowLeft,
+  Youtube,
+  Link,
 } from 'lucide-react';
-import { trainingAcademyApi } from '../api/client';
+import { trainingAcademyApi, documents } from '../api/client';
 import './AdminTrainingAcademyPage.css';
 
 const DIFFICULTY_LABELS = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' };
@@ -55,6 +57,7 @@ export default function AdminTrainingAcademyPage() {
   const [saving, setSaving] = useState(false);
   const [studentModal, setStudentModal] = useState(null);
   const [studentDetail, setStudentDetail] = useState(null);
+  const [lessonUploading, setLessonUploading] = useState(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle('academy-dark', darkMode);
@@ -128,8 +131,11 @@ export default function AdminTrainingAcademyPage() {
           await trainingAcademyApi.createLesson(modId, {
             title: l.title,
             content_type: l.content_type || 'text',
-            content_html: l.suggested_content || '',
+            content_html: l.content_html || l.suggested_content || '',
+            video_url: l.video_url || null,
+            file_url: l.file_url || null,
             order_index: i,
+            duration_minutes: l.duration_minutes ? parseInt(l.duration_minutes, 10) : null,
           });
         }
       }
@@ -489,13 +495,16 @@ export default function AdminTrainingAcademyPage() {
                 </div>
               )}
               {wizardStep === 2 && createForm && (
-                <div className="wizard-step">
-                  <p className="wizard-desc">Review AI output. Edit as needed, then publish.</p>
+                <div className="wizard-step wizard-step-dynamic">
+                  <p className="wizard-desc">
+                    {createForm.lessons?.length ? 'Review AI output. Edit as needed, then publish.' : 'Add module details and lessons. Include YouTube links, documents, or text content.'}
+                  </p>
                   <label>
                     Slug
                     <input
                       value={createForm.slug}
                       onChange={(e) => setCreateForm({ ...createForm, slug: e.target.value })}
+                      placeholder="url-friendly-id"
                     />
                   </label>
                   <label>
@@ -503,6 +512,7 @@ export default function AdminTrainingAcademyPage() {
                     <input
                       value={createForm.title}
                       onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+                      placeholder="Module title"
                     />
                   </label>
                   <label>
@@ -511,6 +521,7 @@ export default function AdminTrainingAcademyPage() {
                       value={createForm.description}
                       onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
                       rows={3}
+                      placeholder="Module description"
                     />
                   </label>
                   <label>
@@ -524,16 +535,173 @@ export default function AdminTrainingAcademyPage() {
                       ))}
                     </select>
                   </label>
-                  {createForm.lessons?.length > 0 && (
-                    <div className="wizard-preview">
-                      <strong>Lessons ({createForm.lessons.length})</strong>
-                      <ul>
-                        {createForm.lessons.map((l, i) => (
-                          <li key={i}>{l.title}</li>
-                        ))}
-                      </ul>
+
+                  <div className="wizard-lessons-section">
+                    <div className="wizard-lessons-header">
+                      <strong>Lessons</strong>
+                      <button
+                        type="button"
+                        className="academy-btn academy-btn-sm"
+                        onClick={() => setCreateForm({
+                          ...createForm,
+                          lessons: [...(createForm.lessons || []), { title: '', content_type: 'text', content_html: '', video_url: '', file_url: '', duration_minutes: '' }],
+                        })}
+                      >
+                        <Plus size={14} /> Add Lesson
+                      </button>
                     </div>
-                  )}
+                    {(createForm.lessons || []).map((l, i) => (
+                      <div key={i} className="wizard-lesson-card">
+                        <div className="wizard-lesson-header">
+                          <span>Lesson {i + 1}</span>
+                          <button
+                            type="button"
+                            className="btn-icon btn-danger"
+                            onClick={() => setCreateForm({
+                              ...createForm,
+                              lessons: createForm.lessons.filter((_, j) => j !== i),
+                            })}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        <label>
+                          <span>Title</span>
+                          <input
+                            value={l.title}
+                            onChange={(e) => {
+                              const lessons = [...createForm.lessons];
+                              lessons[i] = { ...lessons[i], title: e.target.value };
+                              setCreateForm({ ...createForm, lessons });
+                            }}
+                            placeholder="Lesson title"
+                          />
+                        </label>
+                        <label>
+                          <span>Content type</span>
+                          <select
+                            value={l.content_type || 'text'}
+                            onChange={(e) => {
+                              const lessons = [...createForm.lessons];
+                              lessons[i] = { ...lessons[i], content_type: e.target.value };
+                              setCreateForm({ ...createForm, lessons });
+                            }}
+                          >
+                            <option value="text">Text / Article</option>
+                            <option value="video">YouTube video</option>
+                            <option value="file">Document (PDF, etc.)</option>
+                            <option value="embed">Embed</option>
+                          </select>
+                        </label>
+                        {(l.content_type || 'text') === 'video' && (
+                          <label>
+                            <span><Youtube size={14} /> YouTube URL</span>
+                            <input
+                              type="url"
+                              value={l.video_url || ''}
+                              onChange={(e) => {
+                                const lessons = [...createForm.lessons];
+                                lessons[i] = { ...lessons[i], video_url: e.target.value };
+                                setCreateForm({ ...createForm, lessons });
+                              }}
+                              placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                            />
+                          </label>
+                        )}
+                        {(l.content_type || 'text') === 'file' && (
+                          <>
+                            <label>
+                              <span><Link size={14} /> Document URL (optional)</span>
+                              <input
+                                type="url"
+                                value={l.file_url || ''}
+                                onChange={(e) => {
+                                  const lessons = [...createForm.lessons];
+                                  lessons[i] = { ...lessons[i], file_url: e.target.value };
+                                  setCreateForm({ ...createForm, lessons });
+                                }}
+                                placeholder="https://... or leave empty to upload"
+                              />
+                            </label>
+                            <label>
+                              <span>Or upload file</span>
+                              <input
+                                type="file"
+                                accept=".pdf,.docx,.doc,.txt"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  setLessonUploading(i);
+                                  try {
+                                    const fd = new FormData();
+                                    fd.append('file', file);
+                                    const { data } = await documents.upload(fd);
+                                    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+                                    const url = `${apiBase}/documents/${data.id}/download`;
+                                    const lessons = [...createForm.lessons];
+                                    lessons[i] = { ...lessons[i], file_url: url };
+                                    setCreateForm({ ...createForm, lessons });
+                                  } catch (err) {
+                                    alert(err.response?.data?.detail || 'Upload failed');
+                                  } finally {
+                                    setLessonUploading(null);
+                                    e.target.value = '';
+                                  }
+                                }}
+                                disabled={!!lessonUploading}
+                              />
+                              {lessonUploading === i && <span className="uploading-text">Uploading...</span>}
+                            </label>
+                          </>
+                        )}
+                        {(l.content_type || 'text') === 'text' && (
+                          <label>
+                            <span>Content</span>
+                            <textarea
+                              value={l.content_html || l.suggested_content || ''}
+                              onChange={(e) => {
+                                const lessons = [...createForm.lessons];
+                                lessons[i] = { ...lessons[i], content_html: e.target.value };
+                                setCreateForm({ ...createForm, lessons });
+                              }}
+                              rows={4}
+                              placeholder="Lesson content (HTML or plain text)"
+                            />
+                          </label>
+                        )}
+                        {(l.content_type || 'text') === 'embed' && (
+                          <label>
+                            <span>Embed URL or iframe code</span>
+                            <textarea
+                              value={l.content_html || ''}
+                              onChange={(e) => {
+                                const lessons = [...createForm.lessons];
+                                lessons[i] = { ...lessons[i], content_html: e.target.value };
+                                setCreateForm({ ...createForm, lessons });
+                              }}
+                              rows={4}
+                              placeholder="Paste embed URL (e.g. https://...) or full iframe HTML"
+                            />
+                          </label>
+                        )}
+                        <label>
+                          <span>Duration (min)</span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={l.duration_minutes || ''}
+                            onChange={(e) => {
+                              const lessons = [...createForm.lessons];
+                              lessons[i] = { ...lessons[i], duration_minutes: e.target.value };
+                              setCreateForm({ ...createForm, lessons });
+                            }}
+                            placeholder="e.g. 15"
+                          />
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+
                   {createForm.quiz_questions?.length > 0 && (
                     <div className="wizard-preview">
                       <strong>Quiz ({createForm.quiz_questions.length} questions)</strong>

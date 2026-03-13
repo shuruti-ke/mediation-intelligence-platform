@@ -906,16 +906,32 @@ async def _get_published_academy_modules(db: AsyncSession) -> list:
         lessons_data = []
         for i, l in enumerate(lessons):
             vid = _extract_youtube_id(l.video_url) if l.video_url else None
-            lesson_type = "video" if vid else ("article" if l.content_html else "summary")
+            if vid:
+                lesson_type = "video"
+            elif l.content_type == "file" and l.file_url:
+                lesson_type = "file"
+            elif l.content_type == "embed" and l.content_html:
+                lesson_type = "embed"
+            elif l.content_html:
+                lesson_type = "article"
+            else:
+                lesson_type = "summary"
             content = (l.content_html or "").replace("<p>", "\n").replace("</p>", "\n").replace("<br>", "\n").strip() if l.content_html else ""
-            lessons_data.append({
+            lesson_data = {
                 "id": str(l.id),
                 "title": l.title,
                 "type": lesson_type,
                 "duration": f"{l.duration_minutes or 10} min",
                 "content": content,
                 "video_id": vid,
-            })
+            }
+            if l.file_url:
+                lesson_data["file_url"] = l.file_url
+            if lesson_type == "embed" and l.content_html:
+                lesson_data["content_html"] = l.content_html
+            elif lesson_type == "article" and l.content_html:
+                lesson_data["content_html"] = l.content_html
+            lessons_data.append(lesson_data)
         module_exam = None
         if quizzes:
             q = quizzes[0]

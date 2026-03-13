@@ -522,6 +522,17 @@
   border: 1px solid var(--light-gray);
 }
 
+.trainee-lesson-embed {
+  margin-bottom: 1.5rem;
+}
+
+.trainee-lesson-embed iframe {
+  width: 100%;
+  min-height: 360px;
+  border-radius: var(--radius);
+  border: 1px solid var(--light-gray);
+}
+
 .trainee-lesson-article article {
   padding: 1rem;
   background: var(--off-white);

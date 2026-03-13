@@ -652,6 +652,61 @@
   padding: 0;
 }
 
+.wizard-step-dynamic .academy-modal {
+  max-width: 640px;
+}
+
+.wizard-lessons-section {
+  margin: 1.5rem 0;
+  padding: 1rem 0;
+  border-top: 1px solid var(--academy-border);
+}
+
+.wizard-lessons-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.academy-btn-sm {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.85rem;
+}
+
+.wizard-lesson-card {
+  background: rgba(139, 92, 246, 0.06);
+  border: 1px solid var(--academy-border);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.wizard-lesson-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.wizard-lesson-card label {
+  margin-bottom: 0.75rem;
+}
+
+.wizard-lesson-card label span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.25rem;
+}
+
+.uploading-text {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-left: 0.5rem;
+}
+
 .modal-actions {
   display: flex;
   gap: 0.5rem;
