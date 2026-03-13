@@ -750,8 +750,8 @@ async def onboard_user(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin")),
 ):
-    """Onboard a new mediator or client."""
-    if data.role not in ("mediator", "trainee", "client_individual", "client_corporate"):
+    """Onboard a new mediator, client, trainee, or staff."""
+    if data.role not in ("mediator", "trainee", "client_individual", "client_corporate", "staff"):
         raise HTTPException(status_code=400, detail="Invalid role")
     result = await db.execute(select(User).where(User.email == data.email))
     if result.scalar_one_or_none():

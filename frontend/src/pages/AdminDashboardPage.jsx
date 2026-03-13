@@ -32,6 +32,7 @@ const USER_TYPE_BADGES = {
   client_individual: { label: 'Individual', class: 'badge-teal' },
   client_corporate: { label: 'Corporate', class: 'badge-indigo' },
   mediator: { label: 'Mediator', class: 'badge-purple' },
+  staff: { label: 'Staff', class: 'badge-slate' },
   trainee: { label: 'Trainee', class: 'badge-pending' },
 };
 
@@ -97,6 +98,8 @@ export default function AdminDashboardPage() {
   const [viewDocContent, setViewDocContent] = useState(null);
   const [addTraineeOpen, setAddTraineeOpen] = useState(false);
   const [traineeForm, setTraineeForm] = useState({ email: '', password: '', display_name: '' });
+  const [addStaffOpen, setAddStaffOpen] = useState(false);
+  const [staffForm, setStaffForm] = useState({ email: '', password: '', display_name: '' });
   // Dashboard controls
   const [dateRange, setDateRange] = useState(30);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -433,6 +436,27 @@ export default function AdminDashboardPage() {
       if (tab === 'trainees') usersApi.list({ role: 'trainee' }).then(({ data }) => setUsers(data || []));
     } catch (err) {
       alert(err.response?.data?.detail || 'Failed to create trainee');
+    }
+  };
+
+  const handleAddStaff = async (e) => {
+    e.preventDefault();
+    if (!staffForm.email || !staffForm.password || !staffForm.display_name) {
+      alert('Please fill in all fields');
+      return;
+    }
+    try {
+      await usersApi.onboard({
+        email: staffForm.email,
+        password: staffForm.password,
+        display_name: staffForm.display_name,
+        role: 'staff',
+      });
+      setAddStaffOpen(false);
+      setStaffForm({ email: '', password: '', display_name: '' });
+      if (tab === 'users') usersApi.list().then(({ data }) => setUsers(data || []));
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to create staff');
     }
   };
 
@@ -1044,7 +1068,10 @@ export default function AdminDashboardPage() {
         <section className="admin-dashboard-section split-view-section">
           <div className="section-header">
             <h2 className="icon-text"><Users size={22} /> User Management</h2>
-            <button className="primary" onClick={() => setOnboardOpen(true)}><UserPlus size={16} /> New User</button>
+            <div className="section-header-actions">
+              <button className="primary" onClick={() => setOnboardOpen(true)}><UserPlus size={16} /> New User</button>
+              <button className="btn-secondary" onClick={() => setAddStaffOpen(true)}><UserPlus size={16} /> Add Staff</button>
+            </div>
           </div>
           <div className="split-view">
             <aside className="split-view-left">
@@ -1064,6 +1091,7 @@ export default function AdminDashboardPage() {
                   <option value="client_corporate">Corporate</option>
                   <option value="mediator">Mediator</option>
                   <option value="trainee">Trainee</option>
+                  <option value="staff">Staff</option>
                 </select>
                 <select value={userStatusFilter} onChange={(e) => setUserStatusFilter(e.target.value)}>
                   <option value="">Status</option>
@@ -1662,6 +1690,53 @@ export default function AdminDashboardPage() {
               <div className="modal-actions">
                 <button type="button" onClick={() => setAddTraineeOpen(false)}>Cancel</button>
                 <button type="submit" className="primary">Create Trainee</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {addStaffOpen && (
+        <div className="modal-overlay" onClick={() => setAddStaffOpen(false)}>
+          <div className="modal-card modal-intake" onClick={e => e.stopPropagation()}>
+            <h3>Add Staff</h3>
+            <p className="section-desc" style={{ marginBottom: '1rem' }}>Create a new staff account. Staff are internal users and cannot receive invoices or payments.</p>
+            <form onSubmit={handleAddStaff} className="intake-form">
+              <label>
+                Full name <span className="required">*</span>
+                <input
+                  type="text"
+                  placeholder="Full name"
+                  value={staffForm.display_name}
+                  onChange={e => setStaffForm({ ...staffForm, display_name: e.target.value })}
+                  required
+                  minLength={2}
+                />
+              </label>
+              <label>
+                Email <span className="required">*</span>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={staffForm.email}
+                  onChange={e => setStaffForm({ ...staffForm, email: e.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                Password <span className="required">*</span>
+                <input
+                  type="password"
+                  placeholder="Set password"
+                  value={staffForm.password}
+                  onChange={e => setStaffForm({ ...staffForm, password: e.target.value })}
+                  required
+                  minLength={6}
+                />
+              </label>
+              <div className="modal-actions">
+                <button type="button" onClick={() => setAddStaffOpen(false)}>Cancel</button>
+                <button type="submit" className="primary">Create Staff</button>
               </div>
             </form>
           </div>

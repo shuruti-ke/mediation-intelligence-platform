@@ -224,10 +224,10 @@ async def search_billable_users(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin", "mediator")),
 ) -> list:
-    """Search users for invoicing: mediators, clients, trainees."""
+    """Search users for invoicing: mediators, clients, trainees. Excludes staff (internal, no payments)."""
     if not user.tenant_id:
         return []
-    roles = ["mediator", "client_individual", "client_corporate", "trainee"]
+    roles = ["mediator", "client_individual", "client_corporate", "trainee"]  # staff excluded
     if role and role in roles:
         roles = [role]
     qry = select(User).where(User.tenant_id == user.tenant_id, User.is_active == True)

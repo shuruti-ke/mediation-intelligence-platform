@@ -1727,6 +1727,11 @@ a:hover {
   align-items: center;
   margin-bottom: 1.5rem;
 }
+.section-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
 
 .analytics-widgets {
   display: grid;
@@ -2117,6 +2122,7 @@ body.lite-mode { --transition-fast: 0s; --transition-normal: 0s; }
 .badge-pending { background: #feebc8; color: #c05621; }
 .badge-inactive { background: #fed7d7; color: #c53030; }
 .badge-teal { background: #ccfbf1; color: #0f766e; }
+.badge-slate { background: #f1f5f9; color: #475569; }
 .badge-indigo { background: #e0e7ff; color: #3730a3; }
 .badge-purple { background: #ede9fe; color: #6d28d9; }
 
