@@ -254,8 +254,8 @@ export default function AdminAccountsPage() {
               <p><strong>Bill to:</strong> {detailInv.user_name || detailInv.user_email || '—'}</p>
               <p><strong>Amount:</strong> {detailInv.currency} {(detailInv.amount ?? 0).toFixed(2)}</p>
               <p><strong>Status:</strong> {statusBadge(detailInv.status)}</p>
-              {detailInv.total_paid != null && detailInv.total_paid > 0 && (
-                <p><strong>Paid:</strong> {detailInv.currency} {detailInv.total_paid.toFixed(2)}</p>
+              {detailInv.total_paid != null && Number(detailInv.total_paid) > 0 && (
+                <p><strong>Paid:</strong> {detailInv.currency} {Number(detailInv.total_paid).toFixed(2)}</p>
               )}
               {detailInv.status === 'PENDING' && (
                 <button type="button" className="btn-primary" style={{ marginTop: '0.5rem' }} onClick={() => { setDetailInv(null); openRecordPayment(detailInv); }}>
