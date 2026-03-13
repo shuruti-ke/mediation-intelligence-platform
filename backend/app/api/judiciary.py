@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 import hashlib
 import logging
+import re
 from typing import Any
 from urllib.parse import quote_plus, unquote, parse_qs, urlparse
 
@@ -25,6 +26,8 @@ settings = get_settings()
 
 # User-Agent for scraping (identify as a bot, be respectful)
 SCRAPE_UA = "Mozilla/5.0 (compatible; MediationPlatform/1.0; +https://mediation-intelligence-platform.vercel.app)"
+PRIMARY_SOURCES = {"Laws.Africa", "Tausi"}
+_CITATION_YEAR_RE = re.compile(r"(19|20)\d{2}")
 
 
 def _provider_enabled(provider: str) -> bool:
@@ -43,11 +46,60 @@ def _with_result_metadata(items: list[dict], default_confidence: float) -> list[
     enriched: list[dict[str, Any]] = []
     for item in items:
         row = dict(item)
+        source = row.get("source", "")
         row["source_url"] = row.get("url", "")
         row["confidence"] = row.get("confidence", default_confidence)
         row["fetched_at"] = row.get("fetched_at", fetched_at)
+        if source in PRIMARY_SOURCES:
+            row["source_type"] = "primary"
+        elif source == "Local corpus":
+            row["source_type"] = "local"
+        elif source == "system":
+            row["source_type"] = "system"
+        else:
+            row["source_type"] = "fallback"
         enriched.append(row)
     return enriched
+
+
+def _is_valid_citation(citation: str) -> bool:
+    c = citation.strip()
+    if not c or len(c) > 255:
+        return False
+    return bool(_CITATION_YEAR_RE.search(c))
+
+
+def _apply_result_guardrails(results: list[dict]) -> list[dict]:
+    guarded: list[dict] = []
+    for item in results:
+        row = dict(item)
+        flags: list[str] = []
+        confidence = float(row.get("confidence", 0.4))
+        source_url = (row.get("source_url") or row.get("url") or "").strip()
+
+        citation = row.get("citation")
+        if citation:
+            is_valid = _is_valid_citation(str(citation))
+            row["citation_valid"] = is_valid
+            if not is_valid:
+                confidence = min(confidence, 0.65)
+                flags.append("citation_format_invalid")
+
+        # Guardrail: high-confidence legal result must have a source URL.
+        if confidence >= 0.85 and not source_url:
+            confidence = 0.79
+            flags.append("high_confidence_without_source_url")
+
+        # Guardrail: block uncited system assertions from being treated as legal output.
+        if row.get("source") == "system" and not source_url:
+            confidence = min(confidence, 0.3)
+            flags.append("uncited_assertion_blocked")
+
+        row["confidence"] = round(confidence, 2)
+        if flags:
+            row["guardrail_flags"] = flags
+        guarded.append(row)
+    return guarded
 
 
 async def _search_laws_africa(query: str, region: str) -> tuple[list[dict], list[str]]:
@@ -291,6 +343,7 @@ async def scrape_web_search_region(query: str, region: str, max_results: int = 1
 class SearchRequest(BaseModel):
     query: str
     region: str = "KE"
+    mode: str = "live"  # live | fast
 
 
 class CorpusIngestItem(BaseModel):
@@ -318,43 +371,74 @@ async def search_judiciary(
     user: User = Depends(get_current_user),
 ) -> dict:
     """Search judiciary/case databases. Caches results."""
+    mode = (data.mode or "live").strip().lower()
+    if mode not in {"live", "fast"}:
+        mode = "live"
     query_hash = hashlib.sha256(f"{data.query}:{data.region}".encode()).hexdigest()
 
-    # Check cache (may have multiple entries for same query - use most recent)
-    result = await db.execute(
-        select(JudiciarySearchCache)
-        .where(
-            JudiciarySearchCache.query_hash == query_hash,
-            JudiciarySearchCache.region == data.region,
+    # Fast mode: cache/local-first behavior.
+    if mode == "fast":
+        result = await db.execute(
+            select(JudiciarySearchCache)
+            .where(
+                JudiciarySearchCache.query_hash == query_hash,
+                JudiciarySearchCache.region == data.region,
+            )
+            .order_by(JudiciarySearchCache.created_at.desc())
+            .limit(1)
         )
-        .order_by(JudiciarySearchCache.created_at.desc())
-        .limit(1)
-    )
-    cached = result.scalar_one_or_none()
-    # Don't use cache for placeholder results - run fresh search (including web search fallback)
-    if cached:
-        cached_results = cached.results_json or []
-        is_placeholder = (
-            not cached_results
-            or (len(cached_results) == 1 and cached_results[0].get("source") == "system")
-            or (len(cached_results) == 1 and ("Search on " in cached_results[0].get("title", "") or "No results" in cached_results[0].get("title", "")))
-        )
-        if not is_placeholder:
-            return {"results": cached_results, "sources": ["cache"], "query": data.query, "cached": True}
+        cached = result.scalar_one_or_none()
+        if cached:
+            cached_results = _apply_result_guardrails(cached.results_json or [])
+            is_placeholder = (
+                not cached_results
+                or (len(cached_results) == 1 and cached_results[0].get("source") == "system")
+                or (
+                    len(cached_results) == 1
+                    and ("Search on " in cached_results[0].get("title", "") or "No results" in cached_results[0].get("title", ""))
+                )
+            )
+            if not is_placeholder:
+                used_sources = {r.get("source") for r in cached_results if r.get("source")}
+                degraded_mode = bool(used_sources) and used_sources.isdisjoint(PRIMARY_SOURCES)
+                return {
+                    "results": cached_results,
+                    "sources": ["cache"],
+                    "query": data.query,
+                    "cached": True,
+                    "mode": mode,
+                    "degraded_mode": degraded_mode,
+                    "degraded_reason": "Using cached/fallback/local results while live primary sources are unavailable." if degraded_mode else None,
+                }
 
     results: list[dict] = []
     sources: list[str] = []
 
-    # Sprint 1 provider routing order: primary providers -> local corpus -> fallback providers
-    provider_plan = [
-        ("laws_africa", _search_laws_africa),
-        ("tausi", _search_tausi),
-        ("local_corpus", _search_local_corpus),
-    ]
-    if data.region.upper() == "KE":
-        provider_plan.append(("kenya_law_scrape", lambda q, r: scrape_kenya_law(q)))
+    # Sprint 3 routing:
+    # - live mode: primary first
+    # - fast mode: cache/local/fallback first
+    if mode == "fast":
+        provider_plan = [("local_corpus", _search_local_corpus)]
+        if data.region.upper() == "KE":
+            provider_plan.append(("kenya_law_scrape", lambda q, r: scrape_kenya_law(q)))
+        else:
+            provider_plan.append(("web_fallback", scrape_web_search_region))
+        provider_plan.extend(
+            [
+                ("laws_africa", _search_laws_africa),
+                ("tausi", _search_tausi),
+            ]
+        )
     else:
-        provider_plan.append(("web_fallback", scrape_web_search_region))
+        provider_plan = [
+            ("laws_africa", _search_laws_africa),
+            ("tausi", _search_tausi),
+            ("local_corpus", _search_local_corpus),
+        ]
+        if data.region.upper() == "KE":
+            provider_plan.append(("kenya_law_scrape", lambda q, r: scrape_kenya_law(q)))
+        else:
+            provider_plan.append(("web_fallback", scrape_web_search_region))
 
     for provider_name, provider_fn in provider_plan:
         if not _provider_enabled(provider_name):
@@ -418,6 +502,8 @@ async def search_judiciary(
             sources = ["system"]
         results = _with_result_metadata(results, default_confidence=0.4)
 
+    results = _apply_result_guardrails(results)
+
     # Cache results (skip caching placeholders so next search tries scrape again)
     is_placeholder = (
         len(results) == 1
@@ -436,7 +522,17 @@ async def search_judiciary(
         db.add(cache_entry)
         await db.flush()
 
-    return {"results": results, "sources": sources, "query": data.query, "cached": False}
+    used_sources = {r.get("source") for r in results if r.get("source")}
+    degraded_mode = bool(used_sources) and used_sources.isdisjoint(PRIMARY_SOURCES)
+    return {
+        "results": results,
+        "sources": sources,
+        "query": data.query,
+        "cached": False,
+        "mode": mode,
+        "degraded_mode": degraded_mode,
+        "degraded_reason": "Live primary sources unavailable. Showing fallback/local corpus results." if degraded_mode else None,
+    }
 
 
 @router.post("/local-corpus/ingest")

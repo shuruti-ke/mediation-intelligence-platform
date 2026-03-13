@@ -127,7 +127,7 @@ export const knowledge = {
 };
 
 export const judiciary = {
-  search: (query, region) => api.post('/judiciary/search', { query, region }),
+  search: (query, region, mode = 'live') => api.post('/judiciary/search', { query, region, mode }),
   sources: () => api.get('/judiciary/sources'),
   health: () => api.get('/judiciary/health'),
   ingestLocalCorpus: (entries, overwriteExisting = true) =>

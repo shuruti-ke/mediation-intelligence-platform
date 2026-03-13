@@ -6,10 +6,13 @@ import { judiciary } from '../api/client';
 export default function JudiciaryPage() {
   const [query, setQuery] = useState('');
   const [region, setRegion] = useState('KE');
+  const [mode, setMode] = useState('live');
   const [results, setResults] = useState([]);
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(false);
   const [availableSources, setAvailableSources] = useState([]);
+  const [degradedMode, setDegradedMode] = useState(false);
+  const [degradedReason, setDegradedReason] = useState('');
 
   useEffect(() => {
     judiciary.sources().then(({ data }) => setAvailableSources(data.sources || [])).catch(() => setAvailableSources([]));
@@ -20,10 +23,14 @@ export default function JudiciaryPage() {
     if (!query.trim()) return;
     setLoading(true);
     setResults([]);
+    setDegradedMode(false);
+    setDegradedReason('');
     try {
-      const { data } = await judiciary.search(query, region);
+      const { data } = await judiciary.search(query, region, mode);
       setResults(data.results || []);
       setSources(data.sources || []);
+      setDegradedMode(Boolean(data.degraded_mode));
+      setDegradedReason(data.degraded_reason || '');
     } catch (err) {
       setResults([{ title: 'Error', snippet: err.response?.data?.detail || 'Search failed', source: 'error' }]);
     } finally {
@@ -59,12 +66,22 @@ export default function JudiciaryPage() {
                 <option value="ZA">South Africa</option>
                 <option value="NG">Nigeria</option>
               </select>
+              <select value={mode} onChange={(e) => setMode(e.target.value)} className="judiciary-region-select">
+                <option value="live">Live mode</option>
+                <option value="fast">Fast mode</option>
+              </select>
               <button type="submit" disabled={loading} className="judiciary-search-btn">
                 <Search size={16} /> {loading ? 'Searching...' : 'Search'}
               </button>
             </div>
           </form>
         </div>
+
+        {degradedMode && (
+          <p className="judiciary-config-note">
+            Degraded mode: {degradedReason || 'Live primary legal sources are unavailable, showing fallback/local results.'}
+          </p>
+        )}
 
         {sources.length > 0 && (
           <p className="judiciary-sources-note">Sources: {sources.join(', ')}</p>
@@ -80,8 +97,11 @@ export default function JudiciaryPage() {
               <li key={i}>
                 <strong>{r.title}</strong>
                 {r.source && <span className="source-badge">{r.source}</span>}
+                {r.source_type && <span>Type: {r.source_type}</span>}
                 {r.court && <span>Court: {r.court}</span>}
                 {r.date && <span>{r.date}</span>}
+                {typeof r.confidence === 'number' && <span>Confidence: {Math.round(r.confidence * 100)}%</span>}
+                {r.fetched_at && <span>Updated: {new Date(r.fetched_at).toLocaleString()}</span>}
                 <p>{r.snippet}</p>
                 {r.url && (
                   <a href={r.url} target="_blank" rel="noreferrer">View</a>
