@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { CreditCard, Smartphone, Plus, ArrowLeft } from 'lucide-react';
+import { CreditCard, Smartphone, Plus, ArrowLeft, Printer } from 'lucide-react';
 import { paymentsApi } from '../api/client';
+import { PrintInvoice } from '../components/PrintView';
 
 export default function MediatorBillingPage() {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [payModal, setPayModal] = useState(null);
   const [payPhone, setPayPhone] = useState('');
+  const [detailInv, setDetailInv] = useState(null);
+  const [detailPayments, setDetailPayments] = useState([]);
+  const [printView, setPrintView] = useState(null);
 
   const load = () => {
     setLoading(true);
@@ -18,6 +22,21 @@ export default function MediatorBillingPage() {
   };
 
   useEffect(load, []);
+
+  const openDetail = (inv) => {
+    setDetailInv(inv);
+    paymentsApi.listInvoicePayments(inv.id)
+      .then((r) => r.data || [])
+      .then((d) => setDetailPayments(Array.isArray(d) ? d : []))
+      .catch(() => setDetailPayments([]));
+  };
+
+  const handlePrintInvoice = (inv) => {
+    paymentsApi.listInvoicePayments(inv.id)
+      .then((r) => r.data || [])
+      .then((payments) => setPrintView({ type: 'invoice', invoice: inv, payments }))
+      .catch(() => setPrintView({ type: 'invoice', invoice: inv, payments: [] }));
+  };
 
   const handlePay = async (e) => {
     e.preventDefault();
@@ -80,6 +99,8 @@ export default function MediatorBillingPage() {
                     <td><span className={`badge ${inv.status === 'PAID' ? 'badge-active' : 'badge-pending'}`}>{inv.status}</span></td>
                     <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : '—'}</td>
                     <td>
+                      <button className="btn-sm" onClick={() => openDetail(inv)}>View</button>
+                      <button className="btn-sm" onClick={() => handlePrintInvoice(inv)} title="Print invoice"><Printer size={14} /> Print</button>
                       {inv.status !== 'PAID' && (
                         <button className="btn-sm btn-mpesa" onClick={() => { setPayModal(inv); setPayPhone(''); }} title="Pay with M-Pesa"><Smartphone size={14} /> M-Pesa</button>
                       )}
@@ -91,6 +112,52 @@ export default function MediatorBillingPage() {
           </div>
         )}
       </section>
+
+      {detailInv && (
+        <div className="modal-overlay" onClick={() => setDetailInv(null)}>
+          <div className="modal-card modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3>Invoice {detailInv.invoice_number}</h3>
+              <div className="modal-header-actions">
+                <button type="button" className="btn-ghost" onClick={() => handlePrintInvoice(detailInv)}><Printer size={16} /> Print</button>
+                <button type="button" className="btn-ghost" onClick={() => setDetailInv(null)}>× Close</button>
+              </div>
+            </div>
+            <div className="modal-detail-body">
+              <p><strong>Bill to:</strong> {detailInv.user_name || detailInv.user_email || '—'}</p>
+              <p><strong>Amount:</strong> {detailInv.currency} {(detailInv.amount ?? 0).toFixed(2)}</p>
+              <p><strong>Status:</strong> {detailInv.status}</p>
+              {detailInv.total_paid != null && Number(detailInv.total_paid) > 0 && (
+                <p><strong>Paid:</strong> {detailInv.currency} {Number(detailInv.total_paid).toFixed(2)}</p>
+              )}
+            </div>
+            {detailPayments.length > 0 && (
+              <div className="modal-payments-section">
+                <h4>Payments Received</h4>
+                <table className="accounts-payments-table">
+                  <thead>
+                    <tr><th>Date</th><th>Method</th><th>Amount</th><th>Reference</th></tr>
+                  </thead>
+                  <tbody>
+                    {detailPayments.map((p) => (
+                      <tr key={p.id}>
+                        <td>{p.received_at ? new Date(p.received_at).toLocaleString() : '—'}</td>
+                        <td>{p.method}</td>
+                        <td>{p.currency} {(p.amount ?? p.amount_minor_units / 100).toFixed(2)}</td>
+                        <td>{p.reference || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {printView?.type === 'invoice' && (
+        <PrintInvoice invoice={printView.invoice} payments={printView.payments} onDone={() => setPrintView(null)} />
+      )}
 
       {payModal && (
         <div className="modal-overlay" onClick={() => setPayModal(null)}>

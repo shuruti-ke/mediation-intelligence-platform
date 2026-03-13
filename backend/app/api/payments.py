@@ -524,6 +524,42 @@ async def mpesa_webhook() -> dict:
     return {"status": "ok"}
 
 
+class InvoiceUpdate(BaseModel):
+    invoice_type: str | None = None  # platform | client
+    mediator_id: uuid.UUID | None = None  # For client invoices
+
+
+@router.patch("/invoices/{invoice_id}")
+async def update_invoice(
+    invoice_id: uuid.UUID,
+    data: InvoiceUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Update invoice type and mediator_id after creation. Super-admin only."""
+    if not user.tenant_id:
+        raise HTTPException(status_code=400, detail="Tenant required")
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id, Invoice.tenant_id == user.tenant_id))
+    inv = result.scalar_one_or_none()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    if data.invoice_type is not None:
+        it = data.invoice_type.lower()
+        if it not in ("platform", "client"):
+            raise HTTPException(status_code=400, detail="invoice_type must be platform or client")
+        inv.invoice_type = it
+    if data.mediator_id is not None:
+        inv.mediator_id = data.mediator_id
+    await db.flush()
+    await db.refresh(inv)
+    return {
+        "id": str(inv.id),
+        "invoice_number": inv.invoice_number,
+        "invoice_type": getattr(inv, "invoice_type", None) or "client",
+        "mediator_id": str(inv.mediator_id) if inv.mediator_id else None,
+    }
+
+
 @router.get("/invoices/{invoice_id}/payments")
 async def list_invoice_payments(
     invoice_id: uuid.UUID,
@@ -765,6 +801,7 @@ async def get_reconciliation(
             "funds_from_mediator": 0,
             "platform_commission_pct": 0,
             "platform_commission_amount": 0,
+            "unpaid_platform_invoices": 0,
             "mediator_payout_owed": 0,
             "currency": "KES",
             "by_mediator": [],
@@ -803,7 +840,36 @@ async def get_reconciliation(
     funds_from_mediator_minor = int(float(_fm or 0))
 
     commission_minor = int(funds_from_clients_minor * commission_pct / 100)
-    mediator_payout_minor = funds_from_clients_minor - commission_minor
+    gross_payout_minor = funds_from_clients_minor - commission_minor
+
+    # Unpaid platform invoices (mediators owe platform) - offset from payout
+    platform_unpaid_q = (
+        select(Invoice.id, Invoice.user_id, Invoice.amount_minor_units)
+        .where(
+            Invoice.tenant_id == user.tenant_id,
+            Invoice.invoice_type == "platform",
+            Invoice.status == "PENDING",
+        )
+    )
+    if mediator_id:
+        platform_unpaid_q = platform_unpaid_q.where(Invoice.user_id == mediator_id)
+    platform_invoices = (await db.execute(platform_unpaid_q)).all()
+    platform_inv_ids = [r.id for r in platform_invoices]
+    unpaid_platform_minor = 0
+    paid_platform_map = {}
+    if platform_inv_ids:
+        paid_platform_q = (
+            select(PaymentReceipt.invoice_id, func.sum(PaymentReceipt.amount_minor_units).label("total"))
+            .where(PaymentReceipt.invoice_id.in_(platform_inv_ids))
+            .group_by(PaymentReceipt.invoice_id)
+        )
+        paid_platform_map = {r.invoice_id: int(float(r.total or 0)) for r in (await db.execute(paid_platform_q)).all()}
+    for r in platform_invoices:
+        amt = int(float(r.amount_minor_units))
+        paid = paid_platform_map.get(r.id, 0)
+        unpaid_platform_minor += max(0, amt - paid)
+
+    mediator_payout_minor = max(0, gross_payout_minor - unpaid_platform_minor)
 
     # Per-mediator breakdown (only when not filtering)
     by_mediator = []
@@ -822,16 +888,28 @@ async def get_reconciliation(
             u_res = await db.execute(select(User).where(User.id.in_(mediator_ids)))
             for u in u_res.scalars().all():
                 users_map[u.id] = u
+        # Unpaid platform invoices per mediator
+        mediator_unpaid = {}
+        for r in platform_invoices:
+            mid = r.user_id
+            if mid:
+                amt = int(float(r.amount_minor_units))
+                paid = paid_platform_map.get(r.id, 0)
+                mediator_unpaid[mid] = mediator_unpaid.get(mid, 0) + max(0, amt - paid)
+
         for r in mediator_rows:
             u = users_map.get(r.mediator_id)
             tot = int(float(r.total or 0))
             comm = int(tot * commission_pct / 100)
-            payout = tot - comm
+            gross = tot - comm
+            unpaid = mediator_unpaid.get(r.mediator_id, 0)
+            payout = max(0, gross - unpaid)
             by_mediator.append({
                 "mediator_id": str(r.mediator_id),
                 "mediator_name": (u.display_name or u.email) if u else "Unknown",
                 "funds_from_clients": tot / 100,
                 "platform_commission": comm / 100,
+                "unpaid_platform_invoices": unpaid / 100,
                 "payout_owed": payout / 100,
             })
 
@@ -840,6 +918,7 @@ async def get_reconciliation(
         "funds_from_mediator": funds_from_mediator_minor / 100,
         "platform_commission_pct": commission_pct,
         "platform_commission_amount": commission_minor / 100,
+        "unpaid_platform_invoices": unpaid_platform_minor / 100,
         "mediator_payout_owed": mediator_payout_minor / 100,
         "currency": "KES",
         "by_mediator": by_mediator,

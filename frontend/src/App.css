@@ -2532,6 +2532,47 @@ body.lite-mode { --transition-fast: 0s; --transition-normal: 0s; }
   color: var(--text-gray-900);
 }
 
+.modal-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.modal-header-row h3 { margin: 0; }
+
+.modal-header-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+.modal-detail-body p { margin: 0.5rem 0; }
+
+.modal-payments-section { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; }
+
+.modal-payments-section h4 { margin: 0 0 0.5rem 0; font-size: 0.95rem; }
+
+.accounts-payments-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+
+.accounts-payments-table th, .accounts-payments-table td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #e2e8f0; }
+
+.accounts-payments-table th { background: #f8fafc; font-weight: 600; }
+
+/* Print styles - global for PrintView */
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area { position: absolute; left: 0; top: 0; width: 100%; background: white; }
+}
+
+.print-view { padding: 2rem; font-family: system-ui, sans-serif; font-size: 12pt; }
+.print-view .print-header { border-bottom: 2px solid #333; margin-bottom: 1.5rem; padding-bottom: 0.5rem; }
+.print-view .print-header h1 { margin: 0 0 0.25rem 0; font-size: 1.5rem; }
+.print-view .print-body p { margin: 0.5rem 0; }
+.print-view .print-payments { margin-top: 1.5rem; }
+.print-view .print-payments h3 { margin: 0 0 0.75rem 0; font-size: 1rem; }
+.print-view table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.print-view table th, .print-view table td { padding: 0.5rem; border: 1px solid #e2e8f0; text-align: left; }
+.print-view table th { background: #f1f5f9; }
+.print-view .print-footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; font-size: 0.85rem; color: #64748b; }
+
 .modal-card input,
 .modal-card select {
   display: block;

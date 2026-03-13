@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CreditCard, DollarSign, Package, Plus, ArrowLeft, Smartphone, RefreshCw, Receipt, FileText, Scale } from 'lucide-react';
+import { CreditCard, DollarSign, Package, Plus, ArrowLeft, Smartphone, RefreshCw, Receipt, FileText, Scale, Printer, Edit2 } from 'lucide-react';
 import GlobalSearch from '../components/GlobalSearch';
 import LanguageSelector from '../components/LanguageSelector';
 import { paymentsApi } from '../api/client';
+import { PrintInvoice, PrintReceipt, PrintReconciliation } from '../components/PrintView';
 import './AdminAccountsPage.css';
 
 const PAYMENT_METHODS = [
@@ -30,6 +31,10 @@ export default function AdminAccountsPage() {
   const [reconLoading, setReconLoading] = useState(false);
   const [commissionEdit, setCommissionEdit] = useState(false);
   const [commissionValue, setCommissionValue] = useState('');
+  const [printView, setPrintView] = useState(null);
+  const [editInvType, setEditInvType] = useState(false);
+  const [invTypeForm, setInvTypeForm] = useState({ invoice_type: 'client', mediator_id: '' });
+  const [mediators, setMediators] = useState([]);
 
   const load = () => {
     setLoading(true);
@@ -74,6 +79,9 @@ export default function AdminAccountsPage() {
   };
 
   useEffect(load, []);
+  useEffect(() => {
+    paymentsApi.searchBillableUsers({ role: 'mediator', limit: 100 }).then((r) => setMediators(r.data || [])).catch(() => []);
+  }, []);
 
   const statusBadge = (s) => {
     const c = { PENDING: 'pending', PAID: 'paid', CANCELLED: 'cancelled', DRAFT: 'draft' }[s] || 'pending';
@@ -82,10 +90,38 @@ export default function AdminAccountsPage() {
 
   const openDetail = (inv) => {
     setDetailInv(inv);
+    setEditInvType(false);
+    setInvTypeForm({ invoice_type: inv.invoice_type || 'client', mediator_id: '' });
     paymentsApi.listInvoicePayments(inv.id)
       .then((r) => r.data || [])
       .then((d) => setDetailPayments(Array.isArray(d) ? d : []))
       .catch(() => setDetailPayments([]));
+  };
+
+  const handleUpdateInvoiceType = async () => {
+    if (!detailInv) return;
+    const payload = { invoice_type: invTypeForm.invoice_type };
+    payload.mediator_id = invTypeForm.invoice_type === 'client' && invTypeForm.mediator_id ? invTypeForm.mediator_id : null;
+    try {
+      await paymentsApi.updateInvoice(detailInv.id, payload);
+      setDetailInv((prev) => ({ ...prev, invoice_type: invTypeForm.invoice_type }));
+      setEditInvType(false);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to update invoice');
+    }
+  };
+
+  const handlePrintInvoice = () => {
+    setPrintView({ type: 'invoice', invoice: detailInv, payments: detailPayments });
+  };
+
+  const handlePrintReceipt = (receipt) => {
+    setPrintView({ type: 'receipt', invoice: detailInv, receipt });
+  };
+
+  const handlePrintReconciliation = () => {
+    setPrintView({ type: 'reconciliation', data: reconciliation });
   };
 
   const openRecordPayment = (inv) => {
@@ -252,9 +288,14 @@ export default function AdminAccountsPage() {
         <section className="admin-accounts-section">
           <div className="section-toolbar">
             <h2>Two-Tier Reconciliation</h2>
-            <button className="btn-ghost" onClick={loadReconciliation} disabled={reconLoading}>
-              <RefreshCw size={16} /> {reconLoading ? 'Loading…' : 'Refresh'}
-            </button>
+            <div className="toolbar-actions">
+              <button className="btn-ghost" onClick={handlePrintReconciliation} disabled={!reconciliation} title="Print reconciliation">
+                <Printer size={16} /> Print
+              </button>
+              <button className="btn-ghost" onClick={loadReconciliation} disabled={reconLoading}>
+                <RefreshCw size={16} /> {reconLoading ? 'Loading…' : 'Refresh'}
+              </button>
+            </div>
           </div>
           {reconLoading && !reconciliation ? (
             <p className="accounts-loading">Loading reconciliation…</p>
@@ -297,10 +338,15 @@ export default function AdminAccountsPage() {
                   <span className="recon-value">{reconciliation.currency} {(reconciliation.platform_commission_amount ?? 0).toFixed(2)}</span>
                   <span className="recon-desc">Retained from client payments</span>
                 </div>
+                <div className="recon-card recon-card-unpaid">
+                  <span className="recon-label">Unpaid platform invoices</span>
+                  <span className="recon-value">{reconciliation.currency} {(reconciliation.unpaid_platform_invoices ?? 0).toFixed(2)}</span>
+                  <span className="recon-desc">Mediators owe platform (offset from payout)</span>
+                </div>
                 <div className="recon-card recon-card-payout">
                   <span className="recon-label">Mediator payout owed</span>
                   <span className="recon-value">{reconciliation.currency} {(reconciliation.mediator_payout_owed ?? 0).toFixed(2)}</span>
-                  <span className="recon-desc">Client payments minus commission</span>
+                  <span className="recon-desc">Client payments minus commission minus unpaid platform invoices</span>
                 </div>
               </div>
               {reconciliation.by_mediator && reconciliation.by_mediator.length > 0 && (
@@ -312,6 +358,7 @@ export default function AdminAccountsPage() {
                         <th>Mediator</th>
                         <th>Funds from clients</th>
                         <th>Platform commission</th>
+                        <th>Unpaid platform invoices</th>
                         <th>Payout owed</th>
                       </tr>
                     </thead>
@@ -321,6 +368,7 @@ export default function AdminAccountsPage() {
                           <td>{m.mediator_name}</td>
                           <td>{reconciliation.currency} {(m.funds_from_clients ?? 0).toFixed(2)}</td>
                           <td>{reconciliation.currency} {(m.platform_commission ?? 0).toFixed(2)}</td>
+                          <td>{reconciliation.currency} {(m.unpaid_platform_invoices ?? 0).toFixed(2)}</td>
                           <td><strong>{reconciliation.currency} {(m.payout_owed ?? 0).toFixed(2)}</strong></td>
                         </tr>
                       ))}
@@ -367,14 +415,43 @@ export default function AdminAccountsPage() {
         </div>
       )}
 
+<｜tool▁sep｜>path
+c:\Users\shuru\Documents\AIProjects\Mediation Platform\frontend\src\pages\AdminAccountsPage.jsx
       {detailInv && (
         <div className="modal-overlay" onClick={() => setDetailInv(null)}>
           <div className="modal-card modal-wide" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-row">
               <h3>Invoice {detailInv.invoice_number}</h3>
-              <button type="button" className="btn-ghost" onClick={() => setDetailInv(null)}>× Close</button>
+              <div className="modal-header-actions">
+                <button type="button" className="btn-ghost" onClick={handlePrintInvoice} title="Print invoice"><Printer size={16} /> Print</button>
+                <button type="button" className="btn-ghost" onClick={() => setDetailInv(null)}>× Close</button>
+              </div>
             </div>
             <div className="modal-detail-body">
+              {editInvType ? (
+                <div className="edit-invoice-type">
+                  <label>Invoice type</label>
+                  <select value={invTypeForm.invoice_type} onChange={(e) => setInvTypeForm((f) => ({ ...f, invoice_type: e.target.value }))}>
+                    <option value="client">Client</option>
+                    <option value="platform">Platform</option>
+                  </select>
+                  {invTypeForm.invoice_type === 'client' && (
+                    <>
+                      <label>Earning mediator</label>
+                      <select value={invTypeForm.mediator_id} onChange={(e) => setInvTypeForm((f) => ({ ...f, mediator_id: e.target.value }))}>
+                        <option value="">— None —</option>
+                        {mediators.map((m) => <option key={m.id} value={m.id}>{m.display_name || m.email}</option>)}
+                      </select>
+                    </>
+                  )}
+                  <div className="edit-type-actions">
+                    <button type="button" className="btn-ghost" onClick={() => setEditInvType(false)}>Cancel</button>
+                    <button type="button" className="btn-primary" onClick={handleUpdateInvoiceType}>Save</button>
+                  </div>
+                </div>
+              ) : (
+                <p><strong>Type:</strong> {detailInv.invoice_type === 'platform' ? 'Platform' : 'Client'} <button type="button" className="btn-ghost btn-inline" onClick={() => { setEditInvType(true); setInvTypeForm({ invoice_type: detailInv.invoice_type || 'client', mediator_id: '' }); }} title="Edit type"><Edit2 size={12} /></button></p>
+              )}
               <p><strong>Bill to:</strong> {detailInv.user_name || detailInv.user_email || '—'}</p>
               <p><strong>Amount:</strong> {detailInv.currency} {(detailInv.amount ?? 0).toFixed(2)}</p>
               <p><strong>Status:</strong> {statusBadge(detailInv.status)}</p>
@@ -397,7 +474,7 @@ export default function AdminAccountsPage() {
                       <th>Method</th>
                       <th>Amount</th>
                       <th>Reference</th>
-                      <th></th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -408,6 +485,7 @@ export default function AdminAccountsPage() {
                         <td>{p.currency} {(p.amount ?? p.amount_minor_units / 100).toFixed(2)}</td>
                         <td>{p.reference || '—'}</td>
                         <td>
+                          <button type="button" className="btn-sm" onClick={() => handlePrintReceipt(p)} title="Print receipt"><Printer size={12} /> Print</button>
                           {p.has_attachment && (
                             <button type="button" className="btn-sm" onClick={() => downloadAttachment(p.id)}><FileText size={12} /> View</button>
                           )}
@@ -420,6 +498,16 @@ export default function AdminAccountsPage() {
             )}
           </div>
         </div>
+      )}
+
+      {printView?.type === 'invoice' && (
+        <PrintInvoice invoice={printView.invoice} payments={printView.payments} onDone={() => setPrintView(null)} />
+      )}
+      {printView?.type === 'receipt' && (
+        <PrintReceipt invoice={printView.invoice} receipt={printView.receipt} onDone={() => setPrintView(null)} />
+      )}
+      {printView?.type === 'reconciliation' && (
+        <PrintReconciliation data={printView.data} onDone={() => setPrintView(null)} />
       )}
 
       {recordPaymentInv && (
