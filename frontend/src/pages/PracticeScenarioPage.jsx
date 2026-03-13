@@ -1,17 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Theater, CheckCircle, BookOpen, Lightbulb } from 'lucide-react';
-import { getScenarioById, getCompletedIds } from '../data/practiceScenarios';
+import { getScenarioById } from '../data/practiceScenarios';
 import { trainingApi } from '../api/client';
-
-const COMPLETION_KEY = 'practiceScenarioCompleted';
-
-function markCompletedLocal(id) {
-  const ids = getCompletedIds();
-  if (!ids.includes(id)) {
-    localStorage.setItem(COMPLETION_KEY, JSON.stringify([...ids, id]));
-  }
-}
 
 export default function PracticeScenarioPage() {
   const { scenarioId } = useParams();
@@ -22,17 +13,12 @@ export default function PracticeScenarioPage() {
 
   useEffect(() => {
     const checkCompleted = async () => {
-      const localDone = getCompletedIds().includes(scenarioId);
-      if (localDone) {
-        setCompleted(true);
-        return;
-      }
       try {
         const { data } = await trainingApi.getPracticeCompletions(scenarioId);
         const serverDone = (data || []).some((c) => c.scenario_id === scenarioId);
         setCompleted(serverDone);
       } catch {
-        setCompleted(localDone);
+        setCompleted(false);
       }
     };
     checkCompleted();
@@ -55,12 +41,12 @@ export default function PracticeScenarioPage() {
   };
 
   const handleMarkComplete = async () => {
-    markCompletedLocal(scenarioId);
-    setCompleted(true);
     try {
       await trainingApi.completePracticeScenario(scenarioId, { completed_at: new Date().toISOString() });
+      setCompleted(true);
     } catch {
-      // Local state already updated; backend sync is best-effort
+      setCompleted(false);
+      alert('Could not save completion. Please try again.');
     }
   };
 

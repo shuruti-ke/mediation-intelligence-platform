@@ -90,13 +90,3 @@ export const PRACTICE_SCENARIOS = [
 ];
 
 export const getScenarioById = (id) => PRACTICE_SCENARIOS.find((s) => s.id === id);
-
-const COMPLETION_KEY = "practiceScenarioCompleted";
-export function getCompletedIds() {
-  try {
-    const raw = localStorage.getItem(COMPLETION_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}

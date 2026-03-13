@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, GraduationCap, BarChart3, Theater, BookOpen, Sparkles, CheckCircle } from 'lucide-react';
 import { trainingApi } from '../api/client';
-import { PRACTICE_SCENARIOS, getCompletedIds } from '../data/practiceScenarios';
+import { PRACTICE_SCENARIOS } from '../data/practiceScenarios';
 
 export default function TrainingPage() {
   const [modules, setModules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reflection, setReflection] = useState(null);
   const [cpd, setCpd] = useState(null);
+  const [completedScenarioIds, setCompletedScenarioIds] = useState(new Set());
 
   useEffect(() => {
     trainingApi.listModules()
@@ -24,6 +25,15 @@ export default function TrainingPage() {
     trainingApi.getCpd()
       .then(({ data }) => setCpd(data))
       .catch(() => setCpd(null));
+  }, []);
+
+  useEffect(() => {
+    trainingApi.getPracticeCompletions()
+      .then(({ data }) => {
+        const ids = new Set((data || []).map((c) => c.scenario_id).filter(Boolean));
+        setCompletedScenarioIds(ids);
+      })
+      .catch(() => setCompletedScenarioIds(new Set()));
   }, []);
 
   const completedCount = modules.filter((m) => m.completed).length;
@@ -130,7 +140,7 @@ export default function TrainingPage() {
         <p className="section-subtitle">Challenge yourself with real-world dilemmas. Click any scenario for rich content and interactive practice.</p>
         <div className="scenario-grid-modern">
           {PRACTICE_SCENARIOS.map((s) => {
-            const completed = getCompletedIds().includes(s.id);
+            const completed = completedScenarioIds.has(s.id);
             return (
               <Link key={s.id} to={`/training/scenarios/${s.id}`} className="scenario-card-modern scenario-card-clickable">
                 <div className="scenario-card-inner">

@@ -758,7 +758,24 @@ async def complete_practice_scenario(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    """Record completion of a practice scenario (e.g. power-imbalance). Syncs with frontend localStorage."""
+    """Record completion of a practice scenario (idempotent per user/scenario)."""
+    existing_q = await db.execute(
+        select(PracticeScenarioCompletion)
+        .where(
+            PracticeScenarioCompletion.user_id == user.id,
+            PracticeScenarioCompletion.scenario_id == scenario_id,
+        )
+        .order_by(PracticeScenarioCompletion.completed_at.desc())
+        .limit(1)
+    )
+    existing = existing_q.scalar_one_or_none()
+    if existing:
+        return {
+            "id": str(existing.id),
+            "scenario_id": existing.scenario_id,
+            "completed_at": existing.completed_at.isoformat(),
+        }
+
     completion = PracticeScenarioCompletion(
         user_id=user.id,
         scenario_id=scenario_id,

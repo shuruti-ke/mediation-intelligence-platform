@@ -11,6 +11,8 @@ class Settings(BaseSettings):
 
     # Database (Render/Neon give postgresql://; we need postgresql+asyncpg for async)
     database_url: str = "postgresql+asyncpg://mediation:mediation_secret@localhost:5432/mediation_platform"
+    # Schema management: "runtime" uses startup schema sync helpers; "alembic" disables runtime sync.
+    schema_management_mode: str = "runtime"
 
     @field_validator("database_url", mode="after")
     @classmethod

@@ -1,1 +1,5 @@
 Generic single-database configuration.
+
+Project note:
+- Runtime schema sync can be toggled via `SCHEMA_MANAGEMENT_MODE`.
+- Set `SCHEMA_MANAGEMENT_MODE=alembic` to disable startup schema alters and rely on Alembic revisions.

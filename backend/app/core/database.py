@@ -255,7 +255,16 @@ async def migrate_settlement_agreements(conn):
 
 
 async def init_db():
-    """Create all tables and run migrations."""
+    """Initialize schema based on configured management mode."""
+    mode = (settings.schema_management_mode or "runtime").strip().lower()
+    if mode not in {"runtime", "alembic"}:
+        logger.warning("Unknown schema_management_mode=%s. Falling back to runtime.", mode)
+        mode = "runtime"
+
+    if mode == "alembic":
+        logger.info("Schema management mode is 'alembic': skipping runtime create_all/ALTER migrations.")
+        return
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await migrate_user_id_columns(conn)
