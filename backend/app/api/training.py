@@ -12,6 +12,7 @@ from app.api.deps import get_current_user, require_role
 from app.core.database import get_db
 from app.models.tenant import User
 from app.models.training import TrainingModule, TrainingProgress, CPDProgress, Quiz, QuizAttempt, RolePlayScenario, RolePlaySession, TraineeAcademyProgress, TrainingModuleConfig, UserModuleResponse
+from app.models.academy import AcademyModule, AcademyLesson, AcademyQuiz
 
 router = APIRouter(prefix="/training", tags=["training"])
 
@@ -869,24 +870,127 @@ def _get_full_article(lesson_id: str) -> dict | None:
     return {"lesson_id": lesson_id, "title": "", "module_id": "", "module_title": "", "content": content}
 
 
+def _extract_youtube_id(url: str | None) -> str | None:
+    """Extract YouTube video ID from URL."""
+    if not url:
+        return None
+    try:
+        if "youtu.be/" in url:
+            return url.split("youtu.be/")[-1].split("?")[0]
+        if "youtube.com" in url and "v=" in url:
+            return url.split("v=")[-1].split("&")[0]
+    except Exception:
+        pass
+    return None
+
+
+async def _get_published_academy_modules(db: AsyncSession) -> list:
+    """Fetch published Academy (admin-created AI) modules and convert to trainee format."""
+    result = await db.execute(
+        select(AcademyModule)
+        .where(AcademyModule.is_published == True)
+        .where(AcademyModule.archived_at.is_(None))
+        .order_by(AcademyModule.order_index, AcademyModule.title)
+    )
+    modules = result.scalars().all()
+    out = []
+    for mod in modules:
+        lessons_result = await db.execute(
+            select(AcademyLesson).where(AcademyLesson.module_id == mod.id).order_by(AcademyLesson.order_index)
+        )
+        lessons = lessons_result.scalars().all()
+        quizzes_result = await db.execute(
+            select(AcademyQuiz).where(AcademyQuiz.module_id == mod.id)
+        )
+        quizzes = quizzes_result.scalars().all()
+        lessons_data = []
+        for i, l in enumerate(lessons):
+            vid = _extract_youtube_id(l.video_url) if l.video_url else None
+            lesson_type = "video" if vid else ("article" if l.content_html else "summary")
+            content = (l.content_html or "").replace("<p>", "\n").replace("</p>", "\n").replace("<br>", "\n").strip() if l.content_html else ""
+            lessons_data.append({
+                "id": str(l.id),
+                "title": l.title,
+                "type": lesson_type,
+                "duration": f"{l.duration_minutes or 10} min",
+                "content": content,
+                "video_id": vid,
+            })
+        module_exam = None
+        if quizzes:
+            q = quizzes[0]
+            qj = q.questions_json or {}
+            raw_qs = qj.get("questions", [])
+            if raw_qs:
+                questions = []
+                for i, rq in enumerate(raw_qs):
+                    opts = rq.get("options", []) or []
+                    options = []
+                    for j, o in enumerate(opts):
+                        oid = f"o{j}"
+                        otext = o.get("text", str(o)) if isinstance(o, dict) else str(o)
+                        options.append({"id": oid, "text": otext})
+                    correct_idx = rq.get("correct_idx", 0)
+                    correct_id = options[correct_idx]["id"] if correct_idx < len(options) else options[0]["id"]
+                    questions.append({
+                        "id": f"q{i}",
+                        "question": rq.get("question", ""),
+                        "options": options,
+                        "correct": correct_id,
+                    })
+                module_exam = {"questions": questions}
+        out.append({
+            "id": str(mod.id),
+            "title": mod.title,
+            "description": mod.description or "",
+            "duration": "2 weeks",
+            "icon": "🤖",
+            "is_ai_module": True,
+            "lessons_data": lessons_data,
+            "module_exam": module_exam,
+        })
+    return out
+
+
 @router.get("/trainee-academy/modules")
 async def get_trainee_modules(
+    db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("mediator", "trainee", "super_admin")),
 ) -> list:
-    """Get Trainee Academy module config with real video IDs."""
-    return TRAINEE_MODULES
+    """Get Trainee Academy modules: curated + admin-created AI modules."""
+    ai_modules = await _get_published_academy_modules(db)
+    curated = [{**m, "is_ai_module": False} for m in TRAINEE_MODULES]
+    return curated + ai_modules
 
 
 @router.get("/trainee-academy/article/{lesson_id}")
 async def get_trainee_article(
     lesson_id: str,
+    db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("mediator", "trainee", "super_admin")),
 ) -> dict:
-    """Get full article content (5000+ words) for a lesson. Opens in new page."""
+    """Get full article content for a lesson. Supports curated + academy (AI) lessons."""
     article = _get_full_article(lesson_id)
-    if not article:
+    if article:
+        return article
+    try:
+        lid = uuid.UUID(lesson_id)
+    except ValueError:
         raise HTTPException(status_code=404, detail="Article not found")
-    return article
+    result = await db.execute(select(AcademyLesson).where(AcademyLesson.id == lid))
+    lesson = result.scalar_one_or_none()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Article not found")
+    mod_result = await db.execute(select(AcademyModule).where(AcademyModule.id == lesson.module_id))
+    mod = mod_result.scalar_one_or_none()
+    content = (lesson.content_html or "").replace("<p>", "\n").replace("</p>", "\n").replace("<br>", "\n").replace("<br/>", "\n").strip()
+    return {
+        "lesson_id": lesson_id,
+        "title": lesson.title,
+        "module_id": str(lesson.module_id),
+        "module_title": mod.title if mod else "",
+        "content": content,
+    }
 
 
 @router.get("/trainee-academy/progress")

@@ -148,6 +148,9 @@ export default function AdminTrainingAcademyPage() {
           passing_score_pct: 70,
         });
       }
+      if (modId) {
+        await trainingAcademyApi.updateModule(modId, { is_published: true });
+      }
       setWizardOpen(false);
       setWizardStep(1);
       setAiResult(null);

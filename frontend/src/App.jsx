@@ -28,6 +28,7 @@ import './App.css';
 function getRedirectForRole(role) {
   if (role === 'super_admin') return '/admin';
   if (role === 'client_corporate' || role === 'client_individual') return '/client';
+  if (role === 'trainee') return '/training/trainee-academy';
   return '/dashboard';
 }
 

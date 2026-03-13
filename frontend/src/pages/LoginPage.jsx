@@ -13,7 +13,8 @@ export default function LoginPage() {
   const getRedirectForRole = (role) => {
     if (role === 'super_admin') return '/admin';
     if (role === 'client_corporate' || role === 'client_individual') return '/client';
-    return '/dashboard'; // mediator, trainee
+    if (role === 'trainee') return '/training/trainee-academy';
+    return '/dashboard'; // mediator
   };
 
   const handleSubmit = async (e) => {
