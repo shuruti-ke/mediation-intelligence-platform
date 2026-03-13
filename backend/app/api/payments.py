@@ -89,9 +89,9 @@ class ServiceUpdate(BaseModel):
 @router.get("/services")
 async def list_services(
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_role("super_admin")),
+    user: User = Depends(require_role("super_admin", "mediator")),
 ) -> list:
-    """List all services for the tenant."""
+    """List all services for the tenant. Mediators need this for Create Invoice."""
     if not user.tenant_id:
         return []
     result = await db.execute(
