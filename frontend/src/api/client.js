@@ -130,6 +130,9 @@ export const judiciary = {
   search: (query, region) => api.post('/judiciary/search', { query, region }),
   sources: () => api.get('/judiciary/sources'),
   health: () => api.get('/judiciary/health'),
+  ingestLocalCorpus: (entries, overwriteExisting = true) =>
+    api.post('/judiciary/local-corpus/ingest', { entries, overwrite_existing: overwriteExisting }),
+  listLocalCorpus: (params) => api.get('/judiciary/local-corpus/documents', { params }),
 };
 
 // Public API (no auth required)

@@ -1,7 +1,7 @@
 """Document and knowledge base models."""
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, ForeignKey, Integer, LargeBinary
+from sqlalchemy import String, Text, DateTime, ForeignKey, Integer, LargeBinary, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -90,3 +90,33 @@ class KnowledgeBaseFeedback(Base):
     answer_relevance: Mapped[int | None] = mapped_column(Integer, nullable=True)
     rating: Mapped[int] = mapped_column(Integer, nullable=False)  # 1 = thumbs up, -1 = thumbs down
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class JudiciaryCorpusEntry(Base):
+    """Normalized judiciary document for local corpus fallback."""
+
+    __tablename__ = "judiciary_corpus_entries"
+    __table_args__ = (
+        Index("idx_judiciary_corpus_region_created", "region", "created_at"),
+        Index("idx_judiciary_corpus_dedupe", "dedupe_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True)
+    region: Mapped[str] = mapped_column(String(10), nullable=False, default="KE")
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    citation: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    court: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_text: Mapped[str] = mapped_column(Text, nullable=False)
+    tags_json: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    dedupe_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )

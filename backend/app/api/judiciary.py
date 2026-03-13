@@ -8,17 +8,17 @@ from urllib.parse import quote_plus, unquote, parse_qs, urlparse
 import httpx
 from bs4 import BeautifulSoup
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.tenant import User
-from app.models.document import JudiciarySearchCache
+from app.models.document import JudiciaryCorpusEntry, JudiciarySearchCache
 
 router = APIRouter(prefix="/judiciary", tags=["judiciary"])
 settings = get_settings()
@@ -116,11 +116,91 @@ async def _search_tausi(query: str, region: str) -> tuple[list[dict], list[str]]
         return [], []
 
 
-async def _search_local_corpus(query: str, region: str) -> tuple[list[dict], list[str]]:
-    # Sprint 1 adapter placeholder: implement backed local corpus retrieval in Sprint 2.
+def _to_dedupe_key(
+    title: str,
+    region: str,
+    citation: str | None = None,
+    year: int | None = None,
+    court: str | None = None,
+) -> str:
+    raw = f"{(citation or '').strip().lower()}|{title.strip().lower()}|{(court or '').strip().lower()}|{year or ''}|{region.upper()}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+async def _search_local_corpus(
+    db: AsyncSession,
+    query: str,
+    region: str,
+    limit: int = 10,
+) -> tuple[list[dict], list[str]]:
     if not _provider_enabled("local_corpus"):
         return [], []
-    return [], []
+
+    query_tokens = [t.strip() for t in query.split() if t.strip()]
+    if not query_tokens:
+        return [], []
+
+    filters = []
+    for token in query_tokens:
+        like = f"%{token}%"
+        filters.append(
+            or_(
+                JudiciaryCorpusEntry.title.ilike(like),
+                JudiciaryCorpusEntry.summary.ilike(like),
+                JudiciaryCorpusEntry.content_text.ilike(like),
+                JudiciaryCorpusEntry.citation.ilike(like),
+                JudiciaryCorpusEntry.court.ilike(like),
+            )
+        )
+
+    region_u = region.upper()
+    result = await db.execute(
+        select(JudiciaryCorpusEntry)
+        .where(
+            JudiciaryCorpusEntry.region.in_([region_u, "AF"]),
+            *filters,
+        )
+        .order_by(JudiciaryCorpusEntry.updated_at.desc())
+        .limit(limit * 3)
+    )
+    rows = result.scalars().all()
+    if not rows:
+        return [], []
+
+    scored_rows: list[tuple[int, JudiciaryCorpusEntry]] = []
+    for row in rows:
+        haystack = " ".join(
+            [
+                row.title or "",
+                row.summary or "",
+                row.content_text or "",
+                row.citation or "",
+                row.court or "",
+            ]
+        ).lower()
+        score = sum(haystack.count(token.lower()) for token in query_tokens)
+        scored_rows.append((score, row))
+
+    scored_rows.sort(key=lambda item: item[0], reverse=True)
+    top_rows = [row for score, row in scored_rows if score > 0][:limit]
+    if not top_rows:
+        top_rows = [row for _, row in scored_rows][:limit]
+
+    output = []
+    for row in top_rows:
+        output.append(
+            {
+                "title": row.title,
+                "url": row.source_url or "",
+                "snippet": row.summary or (row.content_text[:280] + ("..." if len(row.content_text) > 280 else "")),
+                "source": "Local corpus",
+                "court": row.court,
+                "date": str(row.year) if row.year else None,
+                "citation": row.citation,
+            }
+        )
+
+    return _with_result_metadata(output, default_confidence=0.8), ["Local corpus"]
 
 
 def _extract_ddg_url(href: str) -> str:
@@ -213,6 +293,24 @@ class SearchRequest(BaseModel):
     region: str = "KE"
 
 
+class CorpusIngestItem(BaseModel):
+    title: str
+    region: str = "KE"
+    citation: str | None = None
+    court: str | None = None
+    year: int | None = None
+    source_url: str | None = None
+    summary: str | None = None
+    content_text: str = Field(min_length=20)
+    tags: list[str] = Field(default_factory=list)
+    metadata_json: dict[str, Any] = Field(default_factory=dict)
+
+
+class CorpusIngestRequest(BaseModel):
+    entries: list[CorpusIngestItem]
+    overwrite_existing: bool = True
+
+
 @router.post("/search")
 async def search_judiciary(
     data: SearchRequest,
@@ -262,7 +360,14 @@ async def search_judiciary(
         if not _provider_enabled(provider_name):
             continue
         try:
-            provider_results, provider_sources = await provider_fn(data.query, data.region)
+            if provider_name == "local_corpus":
+                provider_results, provider_sources = await _search_local_corpus(
+                    db=db,
+                    query=data.query,
+                    region=data.region,
+                )
+            else:
+                provider_results, provider_sources = await provider_fn(data.query, data.region)
             if provider_results:
                 results = provider_results
                 sources = provider_sources
@@ -334,6 +439,119 @@ async def search_judiciary(
     return {"results": results, "sources": sources, "query": data.query, "cached": False}
 
 
+@router.post("/local-corpus/ingest")
+async def ingest_local_corpus(
+    payload: CorpusIngestRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Ingest or upsert judiciary documents into local corpus fallback."""
+    if not _provider_enabled("local_corpus"):
+        return {"inserted": 0, "updated": 0, "skipped": len(payload.entries), "message": "local corpus provider disabled"}
+
+    inserted = 0
+    updated = 0
+    skipped = 0
+
+    for entry in payload.entries:
+        region = entry.region.upper()
+        dedupe_key = _to_dedupe_key(
+            title=entry.title,
+            region=region,
+            citation=entry.citation,
+            year=entry.year,
+            court=entry.court,
+        )
+        result = await db.execute(
+            select(JudiciaryCorpusEntry).where(JudiciaryCorpusEntry.dedupe_key == dedupe_key).limit(1)
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            if not payload.overwrite_existing:
+                skipped += 1
+                continue
+            existing.region = region
+            existing.title = entry.title
+            existing.citation = entry.citation
+            existing.court = entry.court
+            existing.year = entry.year
+            existing.source_url = entry.source_url
+            existing.summary = entry.summary
+            existing.content_text = entry.content_text
+            existing.tags_json = entry.tags
+            existing.metadata_json = entry.metadata_json
+            updated += 1
+            continue
+
+        db.add(
+            JudiciaryCorpusEntry(
+                tenant_id=user.tenant_id,
+                region=region,
+                title=entry.title,
+                citation=entry.citation,
+                court=entry.court,
+                year=entry.year,
+                source_url=entry.source_url,
+                summary=entry.summary,
+                content_text=entry.content_text,
+                tags_json=entry.tags,
+                metadata_json=entry.metadata_json,
+                dedupe_key=dedupe_key,
+            )
+        )
+        inserted += 1
+
+    await db.flush()
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "skipped": skipped,
+        "total_processed": len(payload.entries),
+    }
+
+
+@router.get("/local-corpus/documents")
+async def list_local_corpus_documents(
+    region: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """List local corpus documents for inspection."""
+    stmt = select(JudiciaryCorpusEntry).order_by(JudiciaryCorpusEntry.updated_at.desc())
+    count_stmt = select(func.count(JudiciaryCorpusEntry.id))
+
+    if region:
+        region_u = region.upper()
+        stmt = stmt.where(JudiciaryCorpusEntry.region == region_u)
+        count_stmt = count_stmt.where(JudiciaryCorpusEntry.region == region_u)
+
+    stmt = stmt.offset(offset).limit(min(max(limit, 1), 200))
+
+    rows_result = await db.execute(stmt)
+    rows = rows_result.scalars().all()
+    total_result = await db.execute(count_stmt)
+    total = total_result.scalar_one() or 0
+
+    return {
+        "total": total,
+        "items": [
+            {
+                "id": str(row.id),
+                "region": row.region,
+                "title": row.title,
+                "citation": row.citation,
+                "court": row.court,
+                "year": row.year,
+                "source_url": row.source_url,
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+            }
+            for row in rows
+        ],
+    }
+
+
 @router.get("/sources")
 async def list_sources(
     user: User = Depends(get_current_user),
@@ -368,6 +586,7 @@ async def list_sources(
 
 @router.get("/health")
 async def health_sources(
+    db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
     """Provider health and configuration status for judiciary adapters."""
@@ -399,8 +618,8 @@ async def health_sources(
         "local_corpus": {
             "enabled": settings.judiciary_enable_local_corpus,
             "configured": True,
-            "healthy": True,
-            "message": "adapter ready",
+            "healthy": False,
+            "message": "disabled",
         },
     }
 
@@ -443,6 +662,15 @@ async def health_sources(
             providers["web_fallback"]["message"] = f"http_{r.status_code}"
         except Exception as e:
             providers["web_fallback"]["message"] = str(e) or type(e).__name__
+
+    if providers["local_corpus"]["enabled"]:
+        try:
+            count_result = await db.execute(select(func.count(JudiciaryCorpusEntry.id)))
+            count = int(count_result.scalar_one() or 0)
+            providers["local_corpus"]["healthy"] = True
+            providers["local_corpus"]["message"] = f"entries_{count}"
+        except Exception as e:
+            providers["local_corpus"]["message"] = str(e) or type(e).__name__
 
     overall_ok = any(
         provider["healthy"] and provider["enabled"]
