@@ -786,7 +786,8 @@ async def get_reconciliation(
         .join(Invoice, Invoice.id == PaymentReceipt.invoice_id)
         .where(base_inv)
     )
-    funds_from_clients_minor = (await db.execute(client_paid_q)).scalar() or 0
+    _fc = (await db.execute(client_paid_q)).scalar()
+    funds_from_clients_minor = int(float(_fc or 0))
 
     # Funds from mediator: total paid on platform invoices (platform access fees)
     platform_base = and_(Invoice.tenant_id == user.tenant_id, Invoice.invoice_type == "platform")
@@ -798,7 +799,8 @@ async def get_reconciliation(
         .join(Invoice, Invoice.id == PaymentReceipt.invoice_id)
         .where(platform_base)
     )
-    funds_from_mediator_minor = (await db.execute(platform_paid_q)).scalar() or 0
+    _fm = (await db.execute(platform_paid_q)).scalar()
+    funds_from_mediator_minor = int(float(_fm or 0))
 
     commission_minor = int(funds_from_clients_minor * commission_pct / 100)
     mediator_payout_minor = funds_from_clients_minor - commission_minor
@@ -822,7 +824,7 @@ async def get_reconciliation(
                 users_map[u.id] = u
         for r in mediator_rows:
             u = users_map.get(r.mediator_id)
-            tot = r.total or 0
+            tot = int(float(r.total or 0))
             comm = int(tot * commission_pct / 100)
             payout = tot - comm
             by_mediator.append({
