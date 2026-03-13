@@ -150,28 +150,43 @@ See `DEPLOYMENT.md` for full setup.
 
 ---
 
-## 8. Known Gaps / Future Work
+## 8. Training Academy (Recent)
+
+- **Manual Upload:** Dynamic lesson editor – Text, Video (YouTube), Document (upload/URL), Embed (URL or iframe)
+- **Trainee view:** Renders video, file (authenticated download), article, summary, embed
+- **Paths:** `AdminTrainingAcademyPage.jsx`, `TraineeTrainingPage.jsx`, `backend/app/api/training.py`, `academy_admin.py`
+- **Documents:** `POST /documents/upload`; `file_url` = `${API_BASE}/documents/${id}/download`
+
+---
+
+## 9. Known Gaps / Future Work
 
 - No Alembic migrations; schema changes via `init_db()` or manual scripts
 - Case parties: linking party to user (user_id) when creating case is manual
 - Approval workflow for onboarded clients
 - Searchable internal reference across users/cases
 - PDF export for analytics (CSV only)
+- Module edit UI (archive only); Quiz builder UI not built
 
 ---
 
-## 9. Do Not Confuse With
+## 10. Do Not Confuse With
 
 - **rafiki-local** = HR platform at `C:\Users\shuru\Documents\AIProjects\rafiki-local` (different repo, rafikihr.com)
 - **Mediation Platform** = This project
 
 ---
 
-## 10. Files to Read First
+## 11. Files to Read First
 
 1. `DEPLOYMENT.md` — deployment setup
-2. `backend/app/api/cases.py` — case CRUD, documents
-3. `backend/app/api/users.py` — clients, cases, profile
-4. `frontend/src/pages/DashboardPage.jsx` — mediator dashboard
-5. `frontend/src/pages/ClientProfilePage.jsx` — client edit
-6. `docs/CURRENT STATE & PROBLEMS.md` — implementation gaps
+2. `docs/HANDOVER-NOTES.md` — agent handover (training academy, paths, next steps)
+3. `backend/app/api/cases.py` — case CRUD, documents
+4. `backend/app/api/users.py` — clients, cases, profile
+5. `backend/app/api/training.py` — trainee modules, lesson conversion
+6. `backend/app/api/academy_admin.py` — academy CRUD, AI, manual upload
+7. `frontend/src/pages/DashboardPage.jsx` — mediator dashboard
+8. `frontend/src/pages/ClientProfilePage.jsx` — client edit
+9. `frontend/src/pages/AdminTrainingAcademyPage.jsx` — training academy admin
+10. `frontend/src/pages/TraineeTrainingPage.jsx` — trainee academy
+11. `docs/CURRENT STATE & PROBLEMS.md` — implementation gaps

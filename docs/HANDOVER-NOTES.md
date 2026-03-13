@@ -11,8 +11,8 @@
 ## Quick Start for New Agent
 
 1. **Read this file first** – then the "Files to Read First" section.
-2. **Run locally:** `cd frontend && npm install && npm run dev` (frontend only). Backend needs PostgreSQL + env vars.
-3. **Deploy:** Push to `main` → Vercel auto-deploys from GitHub (if connected).
+2. **Run locally:** `cd frontend && npm install && npm run dev` (frontend). Backend: `cd backend && uvicorn app.main:app --reload --port 8000` (needs PostgreSQL + env vars).
+3. **Deploy:** Push to `main` → Vercel (frontend) and Render (backend) auto-deploy from GitHub if connected.
 4. **Do NOT confuse with rafiki-local** – that is a separate HR platform at `C:\Users\shuru\Documents\AIProjects\rafiki-local` (rafikihr.com). This is the Mediation Platform.
 
 ---
@@ -52,6 +52,8 @@ A mediation platform with AI features, Jitsi video, knowledge base, judiciary se
 | Client profile/edit | `frontend/src/pages/ClientProfilePage.jsx` |
 | Admin dashboard | `frontend/src/pages/AdminDashboardPage.jsx` |
 | Training Academy admin | `frontend/src/pages/AdminTrainingAcademyPage.jsx` |
+| Trainee Academy | `frontend/src/pages/TraineeTrainingPage.jsx` |
+| Mediator Training | `frontend/src/pages/TrainingPage.jsx` |
 | API client | `frontend/src/api/client.js` |
 | App routes | `frontend/src/App.jsx` |
 
@@ -90,15 +92,31 @@ A mediation platform with AI features, Jitsi video, knowledge base, judiciary se
 
 ---
 
-## Recently Implemented (March 2025)
+## Recently Implemented (March 2026)
 
-### 1. Training Academy Admin Dashboard ✅
+### 1. Dynamic Manual Upload (Training Academy) ✅
+- **Manual Upload** wizard now supports multiple content types per lesson:
+  - **Text** – content textarea (HTML or plain text)
+  - **Video** – YouTube URL (stored as `video_url`; trainee view extracts `video_id` for embed)
+  - **Document** – file upload via `POST /documents/upload` or document URL; stored as `file_url`
+  - **Embed** – embed URL or full iframe HTML; stored in `content_html`
+- **Per-lesson fields:** title, content_type, YouTube URL, document URL/file upload, content, duration (min)
+- **Backend:** `AcademyLesson` model has `content_type`, `video_url`, `file_url`, `content_html`, `duration_minutes`
+- **Trainee view:** File lessons show "Download Document" (authenticated via `api.get('/documents/{id}/download', { responseType: 'blob' })`); Embed lessons render `content_html` (plain URLs wrapped in iframe)
+- **CSS:** `wizard-lessons-section`, `wizard-lesson-card`, `wizard-lessons-header`, `academy-btn-sm`, `uploading-text` in `AdminTrainingAcademyPage.css`
+
+### 2. Training Academy Admin Dashboard ✅
 - **Route:** `/admin/training-academy` (linked from Admin nav)
-- **Features:** AI module creator wizard, manual upload, module cards grid, analytics (KPIs, module popularity, completion funnel, risk alert), student drill-down modal
+- **Features:** AI module creator wizard, dynamic manual upload (see above), module cards grid, analytics (KPIs, module popularity, completion funnel, risk alert), student drill-down modal
 - **Backend:** `academy_admin.py` – CRUD modules/lessons/quizzes, AI generation, analytics, student detail
 - **Models:** `academy.py` – AcademyModule, AcademyLesson, AcademyMaterial, AcademyModuleProgress, AcademyQuiz, AcademyQuizAttempt
 
-### 2. Interactive Admin Analytics Dashboard ✅
+### 3. Trainee Academy Access & Redirects ✅
+- **Trainees** redirect to `/training/trainee-academy` (not mediator dashboard)
+- **Access control:** Trainee Academy = trainees only; Training & Induction = mediators + super_admin only
+- **Admin-created modules** merged with trainee modules via `training.py` (`get_trainee_academy_modules`)
+
+### 4. Interactive Admin Analytics Dashboard ✅
 - **Time range:** 7d, 30d, 90d, This Year
 - **Refresh:** Manual + auto-refresh (5 min)
 - **Export:** CSV download
@@ -113,16 +131,18 @@ A mediation platform with AI features, Jitsi video, knowledge base, judiciary se
 
 ### Backend Models
 - **training.py:** TrainingModule, TrainingProgress, CPDProgress, Quiz, QuizAttempt, RolePlayScenario, RolePlaySession, TraineeAcademyProgress, TrainingModuleConfig
-- **academy.py:** AcademyModule, AcademyLesson, AcademyMaterial, AcademyModuleProgress, AcademyQuiz, AcademyQuizAttempt
+- **academy.py:** AcademyModule, AcademyLesson (content_type: text|video|file|embed, video_url, file_url, content_html), AcademyMaterial, AcademyModuleProgress, AcademyQuiz, AcademyQuizAttempt
 
-### Trainee Academy (Static)
-- **TRAINEE_MODULES** in `backend/app/api/training.py`
-- **API:** `GET /training/trainee-academy/modules`, `GET/POST /training/trainee-academy/progress`
-- **Frontend:** `TraineeTrainingPage.jsx`, `TraineeArticlePage.jsx`
+### Trainee Academy (Merged: Admin + Static)
+- **API:** `GET /training/trainee-academy/modules` returns published Academy modules (from admin) merged with any static modules
+- **Lesson types:** `video` (YouTube), `file` (document download), `article` (content_html), `summary`, `embed` (iframe/URL)
+- **API:** `GET/POST /training/trainee-academy/progress`
+- **Frontend:** `TraineeTrainingPage.jsx`, `TraineeArticlePage.jsx` – renders video, file, article, summary, embed
+- **Document download:** Uses `api.get('/documents/{id}/download', { responseType: 'blob' })` for authenticated download; `file_url` format: `${VITE_API_URL}/documents/${id}/download`
 
-### Training Academy (Admin-Managed)
-- **API:** `trainingAcademyApi` in `frontend/src/api/client.js`
-- **Frontend:** `AdminTrainingAcademyPage.jsx` – purple-teal theme (matches rafikihr.com), dark mode
+### Training Academy (Admin)
+- **API:** `trainingAcademyApi` in `frontend/src/api/client.js`; `documents.upload()` for file uploads
+- **Frontend:** `AdminTrainingAcademyPage.jsx` – purple-teal theme, dark mode, dynamic lesson editor
 
 ---
 
@@ -154,6 +174,15 @@ A mediation platform with AI features, Jitsi video, knowledge base, judiciary se
   git add -A && git commit -m "..." && git push origin main
   ```
 - **Backend:** Not on Vercel; typically Render or similar. Check repo for backend deploy config.
+
+---
+
+## Technical Notes for New Agent
+
+- **Document upload (training):** `file_url` is built as `${API_BASE}/documents/${data.id}/download`; ensure `VITE_API_URL` is correct in production.
+- **Embed content:** Plain `http(s)` URLs are wrapped in iframe; full iframe HTML is rendered as-is. Admin trusts content.
+- **Academy module conversion:** `backend/app/api/training.py` → `get_trainee_academy_modules` converts AcademyLesson to trainee lesson format (video_id, file_url, content_html, type).
+- **Alembic:** Not used; schema changes via `init_db()` or manual scripts.
 
 ---
 
@@ -204,12 +233,15 @@ A mediation platform with AI features, Jitsi video, knowledge base, judiciary se
 - `backend/app/api/cases.py` – case CRUD, documents
 - `backend/app/api/users.py` – clients, cases, profile
 - `backend/app/api/academy_admin.py` – academy CRUD, AI, analytics
+- `backend/app/api/training.py` – trainee modules (merged admin + static), lesson conversion
 - `backend/app/api/analytics_dashboard.py` – dashboard + drill-down
 - `frontend/src/pages/DashboardPage.jsx` – mediator dashboard
 - `frontend/src/pages/ClientProfilePage.jsx` – client edit
 - `frontend/src/pages/AdminDashboardPage.jsx` – main admin + analytics
-- `frontend/src/pages/AdminTrainingAcademyPage.jsx` – training academy
-- `frontend/src/api/client.js` – API client (analyticsApi, trainingAcademyApi)
+- `frontend/src/pages/AdminTrainingAcademyPage.jsx` – training academy (manual upload, lesson editor)
+- `frontend/src/pages/TraineeTrainingPage.jsx` – trainee academy (video, file, embed, article)
+- `frontend/src/App.jsx` – routes, `getRedirectForRole` (trainee → trainee-academy)
+- `frontend/src/api/client.js` – API client (analyticsApi, trainingAcademyApi, documents)
 
 ---
 
@@ -230,6 +262,7 @@ A mediation platform with AI features, Jitsi video, knowledge base, judiciary se
 - Quiz builder UI not built (backend ready)
 - Export is CSV only (no PDF)
 - No threshold alerts or anomaly detection
+- ~~Manual upload static~~ – now dynamic (YouTube, documents, embed)
 
 **Core Platform (see `CURRENT STATE & PROBLEMS.md` for full spec):**
 - ~~Cases in mediation dashboard are static~~ — Case detail, documents, New Case, Edit Case implemented

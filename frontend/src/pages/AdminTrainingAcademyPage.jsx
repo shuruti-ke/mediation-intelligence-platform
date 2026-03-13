@@ -225,7 +225,7 @@ export default function AdminTrainingAcademyPage() {
                 difficulty: 'beginner',
                 tags: [],
                 visibility: 'public',
-                lessons: [],
+                lessons: [{ title: '', content_type: 'text', content_html: '', video_url: '', file_url: '', duration_minutes: '' }],
                 quiz_questions: [],
               });
             }}
