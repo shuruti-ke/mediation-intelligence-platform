@@ -149,8 +149,8 @@ class EndSessionBody(BaseModel):
 @router.post("/{session_id}/end")
 async def end_session(
     session_id: uuid.UUID,
-    body: EndSessionBody | None = Body(default=None),
     request: Request,
+    body: EndSessionBody | None = Body(default=None),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin", "mediator", "trainee")),
 ) -> SessionResponse:
