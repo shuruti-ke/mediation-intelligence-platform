@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import DashboardPage from './pages/DashboardPage';
+import MediatorBillingPage from './pages/MediatorBillingPage';
 import ClientProfilePage from './pages/ClientProfilePage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminTrainingAcademyPage from './pages/AdminTrainingAcademyPage';
@@ -149,6 +150,16 @@ export default function App() {
             <ProtectedRoute>
               <RoleBasedRoute allowedRoles={['mediator', 'super_admin']}>
                 <DashboardPage />
+              </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/billing"
+          element={
+            <ProtectedRoute>
+              <RoleBasedRoute allowedRoles={['mediator', 'super_admin']}>
+                <MediatorBillingPage />
               </RoleBasedRoute>
             </ProtectedRoute>
           }

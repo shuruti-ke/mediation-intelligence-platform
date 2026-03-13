@@ -138,7 +138,10 @@ export default function AdminDashboardPage() {
   const [invoices, setInvoices] = useState([]);
   const [billingCreateOpen, setBillingCreateOpen] = useState(false);
   const [billingPayOpen, setBillingPayOpen] = useState(null);
-  const [billingForm, setBillingForm] = useState({ amount: '', currency: 'KES', description: '', case_id: '', user_id: '' });
+  const [billingForm, setBillingForm] = useState({
+    amount: '', currency: 'KES', notes: '', purpose: 'mediation_session', due_date: '', case_id: '', user_id: '',
+    line_items: [{ description: '', quantity: 1, unit_price: '' }],
+  });
   const [billingClients, setBillingClients] = useState([]);
   const [payForm, setPayForm] = useState({ provider: 'mpesa', phone: '' });
   const navigate = useNavigate();
@@ -1545,7 +1548,7 @@ export default function AdminDashboardPage() {
         <section className="admin-dashboard-section billing-section">
           <div className="section-header">
             <h2 className="icon-text"><CreditCard size={22} /> Billing & Payments</h2>
-            <button className="primary" onClick={() => { setBillingCreateOpen(true); setBillingForm({ amount: '', currency: 'KES', description: '', case_id: '', user_id: '' }); }}>
+            <button className="primary" onClick={() => { setBillingCreateOpen(true); setBillingForm({ amount: '', currency: 'KES', notes: '', purpose: 'mediation_session', due_date: '', case_id: '', user_id: '', line_items: [{ description: '', quantity: 1, unit_price: '' }] }); }}>
               <Plus size={16} /> Create Invoice
             </button>
           </div>
@@ -1595,22 +1598,34 @@ export default function AdminDashboardPage() {
 
       {billingCreateOpen && (
         <div className="modal-overlay" onClick={() => setBillingCreateOpen(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
+          <div className="modal-card modal-invoice-create" onClick={e => e.stopPropagation()}>
             <h3>Create Invoice</h3>
             <form onSubmit={async (e) => {
               e.preventDefault();
-              const amount = parseFloat(billingForm.amount);
-              if (isNaN(amount) || amount <= 0 || !billingForm.description) {
-                alert('Enter valid amount and description');
+              const lineItems = billingForm.line_items.filter((li) => (li.description || '').trim() && (parseFloat(li.unit_price) || 0) > 0);
+              const total = lineItems.length > 0
+                ? lineItems.reduce((s, li) => s + (parseFloat(li.quantity) || 1) * (parseFloat(li.unit_price) || 0), 0)
+                : parseFloat(billingForm.amount) || 0;
+              if (total <= 0) {
+                alert('Add at least one line item with valid amount, or enter a total amount');
                 return;
               }
+              const line_items = lineItems.length > 0 ? lineItems.map((li) => ({
+                description: li.description.trim(),
+                quantity: parseFloat(li.quantity) || 1,
+                unit_price_minor: Math.round((parseFloat(li.unit_price) || 0) * 100),
+              })) : undefined;
+              const desc = billingForm.notes || (lineItems.length > 0 ? lineItems.map((li) => li.description).join('; ') : 'Invoice');
               try {
                 await paymentsApi.createInvoice({
-                  amount_minor_units: Math.round(amount * 100),
+                  amount_minor_units: Math.round(total * 100),
                   currency: billingForm.currency,
-                  description: billingForm.description,
+                  description: desc,
+                  purpose: billingForm.purpose || null,
+                  due_date: billingForm.due_date || null,
                   case_id: billingForm.case_id || null,
                   user_id: billingForm.user_id || null,
+                  line_items,
                 });
                 setBillingCreateOpen(false);
                 if (tab === 'billing') paymentsApi.listInvoices().then(({ data }) => setInvoices(data || []));
@@ -1618,18 +1633,61 @@ export default function AdminDashboardPage() {
                 alert(err.response?.data?.detail || 'Failed to create invoice');
               }
             }}>
-              <label>Amount <input type="number" step="0.01" min="0" placeholder="e.g. 5000" value={billingForm.amount} onChange={e => setBillingForm({ ...billingForm, amount: e.target.value })} required /></label>
-              <label>Currency <select value={billingForm.currency} onChange={e => setBillingForm({ ...billingForm, currency: e.target.value })}><option value="KES">KES</option><option value="USD">USD</option></select></label>
-              <label>Description <input type="text" placeholder="e.g. Mediation session fee" value={billingForm.description} onChange={e => setBillingForm({ ...billingForm, description: e.target.value })} required /></label>
-              <label>Bill to (client) <select value={billingForm.user_id} onChange={e => setBillingForm({ ...billingForm, user_id: e.target.value })}>
-                <option value="">— Select client —</option>
-                {billingClients.map((c) => (
-                  <option key={c.id} value={c.id}>{c.display_name || c.email} ({c.user_id || c.id})</option>
+              <label>Bill to (client) <span className="required">*</span>
+                <select value={billingForm.user_id} onChange={e => setBillingForm({ ...billingForm, user_id: e.target.value })} required>
+                  <option value="">— Select client —</option>
+                  {billingClients.map((c) => (
+                    <option key={c.id} value={c.id}>{c.display_name || c.email} ({c.user_id || c.id})</option>
+                  ))}
+                </select>
+              </label>
+              <label>Purpose
+                <select value={billingForm.purpose} onChange={e => setBillingForm({ ...billingForm, purpose: e.target.value })}>
+                  <option value="mediation_session">Mediation session fee</option>
+                  <option value="consultation">Consultation</option>
+                  <option value="retainer">Retainer</option>
+                  <option value="administrative">Administrative fee</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label>Case (optional)
+                <select value={billingForm.case_id} onChange={e => setBillingForm({ ...billingForm, case_id: e.target.value })}>
+                  <option value="">— None —</option>
+                  {caseList.map((c) => (
+                    <option key={c.id} value={c.id}>{c.case_number} – {c.title || c.case_type || '—'}</option>
+                  ))}
+                </select>
+              </label>
+              <label>Due date (optional)
+                <input type="date" value={billingForm.due_date} onChange={e => setBillingForm({ ...billingForm, due_date: e.target.value })} />
+              </label>
+              <label>Currency
+                <select value={billingForm.currency} onChange={e => setBillingForm({ ...billingForm, currency: e.target.value })}>
+                  <option value="KES">KES</option>
+                  <option value="USD">USD</option>
+                </select>
+              </label>
+              <div className="invoice-line-items">
+                <h4>Line items</h4>
+                {billingForm.line_items.map((li, i) => (
+                  <div key={i} className="line-item-row">
+                    <input type="text" placeholder="Description" value={li.description} onChange={e => setBillingForm({ ...billingForm, line_items: billingForm.line_items.map((x, j) => j === i ? { ...x, description: e.target.value } : x) })} />
+                    <input type="number" step="0.01" min="0" placeholder="Qty" value={li.quantity} onChange={e => setBillingForm({ ...billingForm, line_items: billingForm.line_items.map((x, j) => j === i ? { ...x, quantity: e.target.value } : x) })} style={{ width: '70px' }} />
+                    <input type="number" step="0.01" min="0" placeholder="Unit price" value={li.unit_price} onChange={e => setBillingForm({ ...billingForm, line_items: billingForm.line_items.map((x, j) => j === i ? { ...x, unit_price: e.target.value } : x) })} />
+                    <button type="button" className="btn-sm" onClick={() => setBillingForm({ ...billingForm, line_items: billingForm.line_items.filter((_, j) => j !== i) })} disabled={billingForm.line_items.length <= 1}>×</button>
+                  </div>
                 ))}
-              </select></label>
+                <button type="button" className="btn-sm" onClick={() => setBillingForm({ ...billingForm, line_items: [...billingForm.line_items, { description: '', quantity: 1, unit_price: '' }] })}>+ Add line</button>
+              </div>
+              <div className="invoice-total">
+                Total: <strong>{billingForm.line_items.filter((li) => (li.description || '').trim() && (parseFloat(li.unit_price) || 0) > 0).reduce((s, li) => s + (parseFloat(li.quantity) || 1) * (parseFloat(li.unit_price) || 0), 0).toFixed(2)} {billingForm.currency}</strong>
+              </div>
+              <label>Notes / terms (optional)
+                <input type="text" placeholder="e.g. Payment due within 14 days" value={billingForm.notes} onChange={e => setBillingForm({ ...billingForm, notes: e.target.value })} />
+              </label>
               <div className="modal-actions">
                 <button type="button" onClick={() => setBillingCreateOpen(false)}>Cancel</button>
-                <button type="submit" className="primary">Create</button>
+                <button type="submit" className="primary">Create Invoice</button>
               </div>
             </form>
           </div>

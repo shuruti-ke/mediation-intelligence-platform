@@ -42,12 +42,21 @@ def generate_invoice_number(tenant_id: uuid.UUID) -> str:
     return f"INV-{year}-{uuid.uuid4().hex[:6].upper()}"
 
 
-class InvoiceCreate(BaseModel):
-    amount_minor_units: int  # cents or equivalent
-    currency: str = "KES"
+class LineItemCreate(BaseModel):
     description: str
+    quantity: float = 1.0
+    unit_price_minor: int  # per unit in minor units (cents)
+
+
+class InvoiceCreate(BaseModel):
+    amount_minor_units: int  # total in minor units (cents)
+    currency: str = "KES"
+    description: str  # summary/purpose
+    purpose: str | None = None  # e.g. mediation_session, consultation, retainer
+    due_date: str | None = None  # YYYY-MM-DD
     case_id: uuid.UUID | None = None
-    user_id: uuid.UUID | None = None  # Client to bill (for client-scoped invoices)
+    user_id: uuid.UUID | None = None  # Client to bill
+    line_items: list[LineItemCreate] | None = None  # itemized breakdown
 
 
 class PaymentInitRequest(BaseModel):
@@ -66,6 +75,24 @@ async def create_invoice(
     if not user.tenant_id:
         raise HTTPException(status_code=400, detail="Tenant required")
 
+    due_dt = None
+    if data.due_date:
+        try:
+            from datetime import datetime as dt
+            due_dt = dt.strptime(data.due_date, "%Y-%m-%d")
+        except ValueError:
+            pass
+    line_items_data = []
+    if data.line_items:
+        for li in data.line_items:
+            line_items_data.append({
+                "description": li.description,
+                "quantity": li.quantity,
+                "unit_price_minor": li.unit_price_minor,
+                "amount_minor": int(li.quantity * li.unit_price_minor),
+            })
+    else:
+        line_items_data = [{"description": data.description, "quantity": 1, "unit_price_minor": data.amount_minor_units, "amount_minor": data.amount_minor_units}]
     invoice = Invoice(
         tenant_id=user.tenant_id,
         user_id=data.user_id,
@@ -74,7 +101,12 @@ async def create_invoice(
         amount_minor_units=data.amount_minor_units,
         currency_code=data.currency,
         status="PENDING",
-        description_json={"line_items": [{"description": data.description}]},
+        due_date=due_dt,
+        description_json={
+            "purpose": data.purpose or "mediation_services",
+            "summary": data.description,
+            "line_items": line_items_data,
+        },
     )
     db.add(invoice)
     await db.flush()

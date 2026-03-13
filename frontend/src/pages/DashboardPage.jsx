@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, BookOpen, Scale, GraduationCap, Calendar, FolderOpen, LogOut, UserPlus, Search, Users, RefreshCw, Bell } from 'lucide-react';
+import { Plus, BookOpen, Scale, GraduationCap, Calendar, FolderOpen, LogOut, UserPlus, Search, Users, RefreshCw, Bell, CreditCard } from 'lucide-react';
 import GlobalSearch from '../components/GlobalSearch';
 import { cases, usersApi, notificationsApi } from '../api/client';
 
@@ -105,6 +105,7 @@ export default function DashboardPage() {
               <RefreshCw size={14} /> Submissions ({submittedClients.length})
             </button>
           )}
+          <Link to="/dashboard/billing"><CreditCard size={16} /> Billing</Link>
           <Link to="/library"><BookOpen size={16} /> Library</Link>
           <Link to="/judiciary"><Scale size={16} /> Judiciary</Link>
           <Link to="/training"><GraduationCap size={16} /> Training</Link>
