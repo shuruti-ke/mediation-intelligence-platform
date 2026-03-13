@@ -43,6 +43,18 @@ async def get_db():
             await session.close()
 
 
+async def migrate_training_module_archived(conn):
+    """Add archived_at to training_modules if missing."""
+    try:
+        await conn.execute(text(
+            "ALTER TABLE training_modules ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ"
+        ))
+        logger.info("Migration: ensured column training_modules.archived_at")
+    except Exception as e:
+        if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+            logger.warning("Migration training_modules.archived_at: %s", e)
+
+
 async def migrate_academy_target_audience(conn):
     """Add target_audience to academy_modules if missing."""
     try:
@@ -93,5 +105,6 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await migrate_user_id_columns(conn)
+        await migrate_training_module_archived(conn)
         await migrate_academy_target_audience(conn)
         await migrate_kb_fts_index(conn)

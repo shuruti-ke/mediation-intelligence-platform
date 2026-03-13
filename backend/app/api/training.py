@@ -128,7 +128,10 @@ async def list_modules(
     user: User = Depends(get_current_user),
 ) -> list:
     """Induction modules: Orientation, Ethics, Online Mediation Intro."""
-    q = select(TrainingModule).where(TrainingModule.is_published == True)
+    q = select(TrainingModule).where(
+        TrainingModule.is_published == True,
+        TrainingModule.archived_at.is_(None),
+    )
     if user.tenant_id:
         q = q.where(
             (TrainingModule.tenant_id == user.tenant_id) | (TrainingModule.tenant_id.is_(None))
@@ -885,11 +888,15 @@ def _extract_youtube_id(url: str | None) -> str | None:
 
 
 async def _get_published_academy_modules(db: AsyncSession) -> list:
-    """Fetch published Academy (admin-created AI) modules and convert to trainee format."""
+    """Fetch published Academy modules (trainee target) and convert to trainee format."""
     result = await db.execute(
         select(AcademyModule)
         .where(AcademyModule.is_published == True)
         .where(AcademyModule.archived_at.is_(None))
+        .where(
+            (AcademyModule.target_audience == "trainee")
+            | (AcademyModule.target_audience.is_(None))
+        )
         .order_by(AcademyModule.order_index, AcademyModule.title)
     )
     modules = result.scalars().all()
@@ -973,10 +980,8 @@ async def get_trainee_modules(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("mediator", "trainee", "super_admin")),
 ) -> list:
-    """Get Trainee Academy modules: curated + admin-created AI modules."""
-    ai_modules = await _get_published_academy_modules(db)
-    curated = [{**m, "is_ai_module": False} for m in TRAINEE_MODULES]
-    return curated + ai_modules
+    """Get Trainee Academy modules from DB (seeded + admin-created). All editable via admin."""
+    return await _get_published_academy_modules(db)
 
 
 @router.get("/trainee-academy/article/{lesson_id}")

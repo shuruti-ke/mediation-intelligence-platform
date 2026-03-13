@@ -20,10 +20,7 @@ from app.models.academy import (
     AcademyQuiz,
     AcademyQuizAttempt,
 )
-from app.models.training import TraineeAcademyProgress
-
-# Import curated modules for admin view (read-only, trainees see these)
-from app.api.training import TRAINEE_MODULES
+from app.models.training import TraineeAcademyProgress, TrainingModule, TrainingModuleConfig
 
 router = APIRouter(prefix="/training/academy-admin", tags=["academy-admin"])
 
@@ -170,34 +167,131 @@ async def ai_generate_module(
     return result
 
 
-# --- Curated modules (read-only, shown to admin so they see what trainees see) ---
-@router.get("/curated-modules")
-async def list_curated_modules(
+# --- Mediator induction modules (TrainingModule - editable, archivable) ---
+@router.get("/mediator-modules")
+async def list_mediator_modules(
+    include_archived: bool = False,
+    db: AsyncSession = Depends(get_db),
     user: User = Depends(require_role("super_admin")),
 ) -> list:
-    """List curated trainee modules (read-only). Admin sees these alongside academy modules."""
+    """List mediator induction modules (Orientation, Ethics, Online Mediation Intro). Editable and archivable."""
+    q = select(TrainingModule).order_by(TrainingModule.order_index, TrainingModule.title)
+    if not include_archived:
+        q = q.where(TrainingModule.archived_at.is_(None))
+    result = await db.execute(q)
+    modules = result.scalars().all()
     out = []
-    for m in TRAINEE_MODULES:
-        lessons = m.get("lessons_data", [])
+    for m in modules:
         out.append({
-            "id": m.get("id", ""),
-            "slug": m.get("title", "").lower().replace(" ", "-")[:50],
-            "title": m.get("title", ""),
-            "description": m.get("description", ""),
+            "id": str(m.id),
+            "slug": m.slug,
+            "title": m.title,
+            "description": m.description,
             "thumbnail_url": None,
             "difficulty": "beginner",
             "tags": [],
             "visibility": "public",
-            "target_audience": "trainee",
-            "order_index": 0,
-            "is_published": True,
-            "archived_at": None,
-            "lesson_count": len(lessons),
-            "quiz_count": 1 if m.get("module_exam") else 0,
-            "created_at": None,
-            "is_curated": True,
+            "target_audience": "mediator",
+            "order_index": m.order_index,
+            "is_published": m.is_published,
+            "archived_at": m.archived_at.isoformat() if m.archived_at else None,
+            "lesson_count": 1,  # TrainingModule uses content_html, not lessons
+            "quiz_count": 0,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "is_curated": False,
+            "source": "mediator",
         })
     return out
+
+
+@router.get("/mediator-modules/{module_id}")
+async def get_mediator_module(
+    module_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Get mediator module for editing."""
+    result = await db.execute(select(TrainingModule).where(TrainingModule.id == module_id))
+    mod = result.scalar_one_or_none()
+    if not mod:
+        raise HTTPException(status_code=404, detail="Module not found")
+    cfg_result = await db.execute(
+        select(TrainingModuleConfig).where(TrainingModuleConfig.module_id == module_id)
+    )
+    cfg = cfg_result.scalar_one_or_none()
+    return {
+        "id": str(mod.id),
+        "slug": mod.slug,
+        "title": mod.title,
+        "description": mod.description,
+        "content_html": mod.content_html,
+        "order_index": mod.order_index,
+        "is_published": mod.is_published,
+        "archived_at": mod.archived_at.isoformat() if mod.archived_at else None,
+        "interactive_config": cfg.config_json if cfg else None,
+    }
+
+
+class MediatorModuleUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    content_html: str | None = None
+    order_index: int | None = None
+    is_published: bool | None = None
+
+
+@router.patch("/mediator-modules/{module_id}")
+async def update_mediator_module(
+    module_id: uuid.UUID,
+    data: MediatorModuleUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Update mediator induction module."""
+    result = await db.execute(select(TrainingModule).where(TrainingModule.id == module_id))
+    mod = result.scalar_one_or_none()
+    if not mod:
+        raise HTTPException(status_code=404, detail="Module not found")
+    if mod.archived_at:
+        raise HTTPException(status_code=400, detail="Cannot update archived module")
+    for k, v in data.model_dump(exclude_unset=True).items():
+        setattr(mod, k, v)
+    await db.flush()
+    return {"id": str(mod.id)}
+
+
+@router.delete("/mediator-modules/{module_id}")
+async def archive_mediator_module(
+    module_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Archive mediator module (soft delete)."""
+    result = await db.execute(select(TrainingModule).where(TrainingModule.id == module_id))
+    mod = result.scalar_one_or_none()
+    if not mod:
+        raise HTTPException(status_code=404, detail="Module not found")
+    mod.archived_at = datetime.utcnow()
+    mod.is_published = False
+    await db.flush()
+    return {"id": str(mod.id), "archived": True}
+
+
+@router.patch("/mediator-modules/{module_id}/unarchive")
+async def unarchive_mediator_module(
+    module_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin")),
+) -> dict:
+    """Restore archived mediator module."""
+    result = await db.execute(select(TrainingModule).where(TrainingModule.id == module_id))
+    mod = result.scalar_one_or_none()
+    if not mod:
+        raise HTTPException(status_code=404, detail="Module not found")
+    mod.archived_at = None
+    mod.is_published = True
+    await db.flush()
+    return {"id": str(mod.id), "archived": False}
 
 
 # --- Module CRUD ---

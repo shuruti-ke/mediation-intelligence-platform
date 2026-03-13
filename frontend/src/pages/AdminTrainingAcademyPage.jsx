@@ -70,6 +70,9 @@ export default function AdminTrainingAcademyPage() {
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [includeArchived, setIncludeArchived] = useState(false);
   const [audienceFilter, setAudienceFilter] = useState('all'); // all, mediator, trainee
+  const [mediatorEditModalOpen, setMediatorEditModalOpen] = useState(false);
+  const [mediatorEditId, setMediatorEditId] = useState(null);
+  const [mediatorEditForm, setMediatorEditForm] = useState(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle('academy-dark', darkMode);
@@ -79,16 +82,16 @@ export default function AdminTrainingAcademyPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [modRes, curatedRes, anaRes, riskRes, studRes] = await Promise.allSettled([
+      const [modRes, mediatorRes, anaRes, riskRes, studRes] = await Promise.allSettled([
         trainingAcademyApi.listModules(includeArchived),
-        trainingAcademyApi.listCuratedModules(),
+        trainingAcademyApi.listMediatorModules(includeArchived),
         trainingAcademyApi.getAnalytics(),
         trainingAcademyApi.getRiskAlert(),
         trainingAcademyApi.listStudents(),
       ]);
       const academyMods = modRes.status === 'fulfilled' ? modRes.value.data : [];
-      const curatedMods = curatedRes.status === 'fulfilled' ? curatedRes.value.data : [];
-      setModules([...curatedMods, ...academyMods]);
+      const mediatorMods = mediatorRes.status === 'fulfilled' ? mediatorRes.value.data : [];
+      setModules([...mediatorMods, ...academyMods]);
       setAnalytics(anaRes.status === 'fulfilled' ? anaRes.value.data : null);
       setRiskAlert(riskRes.status === 'fulfilled' ? riskRes.value.data : []);
       setStudents(studRes.status === 'fulfilled' ? studRes.value.data : []);
@@ -202,6 +205,65 @@ export default function AdminTrainingAcademyPage() {
       loadData();
     } catch (e) {
       alert(e.response?.data?.detail || 'Unarchive failed');
+    }
+  };
+
+  const handleArchiveMediatorModule = async (id) => {
+    if (!confirm('Archive this mediator module?')) return;
+    try {
+      await trainingAcademyApi.archiveMediatorModule(id);
+      loadData();
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Archive failed');
+    }
+  };
+
+  const handleUnarchiveMediatorModule = async (id) => {
+    try {
+      await trainingAcademyApi.unarchiveMediatorModule(id);
+      loadData();
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Unarchive failed');
+    }
+  };
+
+  const openEditMediatorModule = async (m) => {
+    setMediatorEditId(m.id);
+    setMediatorEditModalOpen(true);
+    try {
+      const { data } = await trainingAcademyApi.getMediatorModule(m.id);
+      setMediatorEditForm({
+        title: data.title,
+        description: data.description || '',
+        content_html: data.content_html || '',
+        order_index: data.order_index ?? 0,
+        is_published: data.is_published ?? true,
+      });
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Failed to load module');
+      setMediatorEditModalOpen(false);
+    }
+  };
+
+  const handleSaveMediatorModule = async () => {
+    if (!mediatorEditId || !mediatorEditForm) return;
+    setSaving(true);
+    try {
+      await trainingAcademyApi.updateMediatorModule(mediatorEditId, {
+        title: mediatorEditForm.title,
+        description: mediatorEditForm.description || undefined,
+        content_html: mediatorEditForm.content_html || undefined,
+        order_index: mediatorEditForm.order_index,
+        is_published: mediatorEditForm.is_published,
+      });
+      setMediatorEditModalOpen(false);
+      setMediatorEditId(null);
+      setMediatorEditForm(null);
+      loadData();
+    } catch (e) {
+      alert(e.response?.data?.detail || 'Failed to save');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -595,7 +657,6 @@ export default function AdminTrainingAcademyPage() {
                       <span className={`module-badge difficulty-${m.difficulty}`}>
                         {DIFFICULTY_LABELS[m.difficulty] || m.difficulty}
                       </span>
-                      {m.is_curated && <span className="module-badge curated-badge">Curated</span>}
                       {m.archived_at && <span className="module-badge archived-badge">Archived</span>}
                     </div>
                     <div className="module-card-body">
@@ -609,7 +670,27 @@ export default function AdminTrainingAcademyPage() {
                       </div>
                     </div>
                     <div className="module-card-actions">
-                      {!m.is_curated && (
+                      {m.source === 'mediator' && (
+                        <>
+                          <button className="btn-icon" title="Edit" onClick={() => openEditMediatorModule(m)}>
+                            <Pencil size={16} />
+                          </button>
+                          {m.archived_at ? (
+                            <button className="btn-icon" title="Unarchive" onClick={() => handleUnarchiveMediatorModule(m.id)}>
+                              <RotateCcw size={16} />
+                            </button>
+                          ) : (
+                            <button
+                              className="btn-icon btn-danger"
+                              title="Archive"
+                              onClick={() => handleArchiveMediatorModule(m.id)}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {!m.source && (
                         <>
                           <button className="btn-icon" title="Edit" onClick={() => openEditModule(m)}>
                             <Pencil size={16} />
@@ -631,9 +712,6 @@ export default function AdminTrainingAcademyPage() {
                             </button>
                           )}
                         </>
-                      )}
-                      {m.is_curated && (
-                        <span className="curated-hint" title="Curated modules are read-only">Read-only</span>
                       )}
                     </div>
                   </div>
@@ -1023,6 +1101,29 @@ export default function AdminTrainingAcademyPage() {
               <div className="modal-actions">
                 <button className="academy-btn academy-btn-ghost" onClick={() => setEditModalOpen(false)}>Cancel</button>
                 <button className="academy-btn academy-btn-primary" onClick={handleSaveEditModule} disabled={saving}>{saving ? <Loader2 size={18} className="spin" /> : null} Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Mediator Module Modal */}
+      {mediatorEditModalOpen && mediatorEditForm && (
+        <div className="academy-modal-overlay" onClick={() => !saving && setMediatorEditModalOpen(false)}>
+          <div className="academy-modal academy-edit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3><Briefcase size={20} /> Edit Mediator Module</h3>
+              <button className="btn-close" onClick={() => !saving && setMediatorEditModalOpen(false)}><X size={20} /></button>
+            </div>
+            <div className="modal-body">
+              <label>Title<input value={mediatorEditForm.title} onChange={(e) => setMediatorEditForm({ ...mediatorEditForm, title: e.target.value })} /></label>
+              <label>Description<textarea value={mediatorEditForm.description} onChange={(e) => setMediatorEditForm({ ...mediatorEditForm, description: e.target.value })} rows={3} /></label>
+              <label>Content (HTML)<textarea value={mediatorEditForm.content_html} onChange={(e) => setMediatorEditForm({ ...mediatorEditForm, content_html: e.target.value })} rows={8} placeholder="HTML content for the module" /></label>
+              <label>Order index<input type="number" value={mediatorEditForm.order_index} onChange={(e) => setMediatorEditForm({ ...mediatorEditForm, order_index: parseInt(e.target.value, 10) || 0 })} /></label>
+              <label className="checkbox-label"><input type="checkbox" checked={mediatorEditForm.is_published} onChange={(e) => setMediatorEditForm({ ...mediatorEditForm, is_published: e.target.checked })} /> Published</label>
+              <div className="modal-actions">
+                <button className="academy-btn academy-btn-ghost" onClick={() => setMediatorEditModalOpen(false)}>Cancel</button>
+                <button className="academy-btn academy-btn-primary" onClick={handleSaveMediatorModule} disabled={saving}>{saving ? <Loader2 size={18} className="spin" /> : null} Save</button>
               </div>
             </div>
           </div>

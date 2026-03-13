@@ -20,4 +20,5 @@ CMD python scripts/migrate_user_intake.py && \
     python scripts/migrate_kb_file_content.py && \
     python scripts/migrate_role_play_sessions.py && \
     python scripts/migrate_trainee_academy.py && \
+    python scripts/migrate_trainee_to_academy.py && \
     uvicorn app.main:app --host 0.0.0.0 --port 8000
