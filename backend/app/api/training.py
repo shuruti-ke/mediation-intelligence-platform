@@ -62,6 +62,10 @@ class ModuleRespondBody(BaseModel):
     text: str | None = None
 
 
+class PracticeScenarioCompleteBody(BaseModel):
+    metadata: dict | None = None
+
+
 # Curated thought-provoking reflection prompts for mediators (no AI required)
 REFLECTION_PROMPTS = [
     "When a party says 'I just want what's fair'—what underlying interests might they be protecting?",
@@ -892,10 +896,6 @@ class TraineeProgressUpdate(BaseModel):
     exam_passed: bool | None = None
     exam_score: int | None = None
     final_passed: bool | None = None
-
-
-class PracticeScenarioCompleteBody(BaseModel):
-    metadata: dict | None = None
 
 
 def _get_full_article(lesson_id: str) -> dict | None:
