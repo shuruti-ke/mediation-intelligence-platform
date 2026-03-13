@@ -138,7 +138,8 @@ export default function AdminDashboardPage() {
   const [invoices, setInvoices] = useState([]);
   const [billingCreateOpen, setBillingCreateOpen] = useState(false);
   const [billingPayOpen, setBillingPayOpen] = useState(null);
-  const [billingForm, setBillingForm] = useState({ amount: '', currency: 'KES', description: '', case_id: '' });
+  const [billingForm, setBillingForm] = useState({ amount: '', currency: 'KES', description: '', case_id: '', user_id: '' });
+  const [billingClients, setBillingClients] = useState([]);
   const [payForm, setPayForm] = useState({ provider: 'mpesa', phone: '' });
   const navigate = useNavigate();
 
@@ -247,8 +248,16 @@ export default function AdminDashboardPage() {
         .finally(() => setLoading(false));
     } else if (tab === 'billing') {
       setLoading(true);
-      paymentsApi.listInvoices()
-        .then(({ data }) => setInvoices(data || []))
+      Promise.all([
+        paymentsApi.listInvoices(),
+        usersApi.list({ role: 'client_individual', limit: 100 }).catch(() => ({ data: [] })),
+        usersApi.list({ role: 'client_corporate', limit: 100 }).catch(() => ({ data: [] })),
+      ])
+        .then(([invRes, indRes, corpRes]) => {
+          setInvoices(invRes.data || []);
+          const clients = [...(indRes.data || []), ...(corpRes.data || [])];
+          setBillingClients(clients);
+        })
         .catch(() => setInvoices([]))
         .finally(() => setLoading(false));
     } else {
@@ -1536,7 +1545,7 @@ export default function AdminDashboardPage() {
         <section className="admin-dashboard-section billing-section">
           <div className="section-header">
             <h2 className="icon-text"><CreditCard size={22} /> Billing & Payments</h2>
-            <button className="primary" onClick={() => { setBillingCreateOpen(true); setBillingForm({ amount: '', currency: 'KES', description: '', case_id: '' }); }}>
+            <button className="primary" onClick={() => { setBillingCreateOpen(true); setBillingForm({ amount: '', currency: 'KES', description: '', case_id: '', user_id: '' }); }}>
               <Plus size={16} /> Create Invoice
             </button>
           </div>
@@ -1601,6 +1610,7 @@ export default function AdminDashboardPage() {
                   currency: billingForm.currency,
                   description: billingForm.description,
                   case_id: billingForm.case_id || null,
+                  user_id: billingForm.user_id || null,
                 });
                 setBillingCreateOpen(false);
                 if (tab === 'billing') paymentsApi.listInvoices().then(({ data }) => setInvoices(data || []));
@@ -1611,6 +1621,12 @@ export default function AdminDashboardPage() {
               <label>Amount <input type="number" step="0.01" min="0" placeholder="e.g. 5000" value={billingForm.amount} onChange={e => setBillingForm({ ...billingForm, amount: e.target.value })} required /></label>
               <label>Currency <select value={billingForm.currency} onChange={e => setBillingForm({ ...billingForm, currency: e.target.value })}><option value="KES">KES</option><option value="USD">USD</option></select></label>
               <label>Description <input type="text" placeholder="e.g. Mediation session fee" value={billingForm.description} onChange={e => setBillingForm({ ...billingForm, description: e.target.value })} required /></label>
+              <label>Bill to (client) <select value={billingForm.user_id} onChange={e => setBillingForm({ ...billingForm, user_id: e.target.value })}>
+                <option value="">— Select client —</option>
+                {billingClients.map((c) => (
+                  <option key={c.id} value={c.id}>{c.display_name || c.email} ({c.user_id || c.id})</option>
+                ))}
+              </select></label>
               <div className="modal-actions">
                 <button type="button" onClick={() => setBillingCreateOpen(false)}>Cancel</button>
                 <button type="submit" className="primary">Create</button>

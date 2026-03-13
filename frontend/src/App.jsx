@@ -7,6 +7,7 @@ import ClientProfilePage from './pages/ClientProfilePage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminTrainingAcademyPage from './pages/AdminTrainingAcademyPage';
 import ClientDashboardPage from './pages/ClientDashboardPage';
+import ClientAccountPage from './pages/ClientAccountPage';
 import CaseDetailPage from './pages/CaseDetailPage';
 import NewCasePage from './pages/NewCasePage';
 import LibraryPage from './pages/LibraryPage';
@@ -128,6 +129,16 @@ export default function App() {
             <ProtectedRoute>
               <RoleBasedRoute allowedRoles={['client_corporate', 'client_individual']}>
                 <ClientDashboardPage />
+              </RoleBasedRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/client/account"
+          element={
+            <ProtectedRoute>
+              <RoleBasedRoute allowedRoles={['client_corporate', 'client_individual']}>
+                <ClientAccountPage />
               </RoleBasedRoute>
             </ProtectedRoute>
           }

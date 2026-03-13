@@ -9,13 +9,14 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_, and_
 
 from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.tenant import User
 from app.models.payment import Invoice, PaymentTransaction
+from app.models.case import Case, CaseParty
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -46,6 +47,7 @@ class InvoiceCreate(BaseModel):
     currency: str = "KES"
     description: str
     case_id: uuid.UUID | None = None
+    user_id: uuid.UUID | None = None  # Client to bill (for client-scoped invoices)
 
 
 class PaymentInitRequest(BaseModel):
@@ -66,6 +68,7 @@ async def create_invoice(
 
     invoice = Invoice(
         tenant_id=user.tenant_id,
+        user_id=data.user_id,
         case_id=data.case_id,
         invoice_number=generate_invoice_number(user.tenant_id),
         amount_minor_units=data.amount_minor_units,
@@ -98,6 +101,12 @@ async def init_payment(
         raise HTTPException(status_code=404, detail="Invoice not found")
     if invoice.tenant_id != user.tenant_id:
         raise HTTPException(status_code=403, detail="Access denied")
+    is_client = user.role in ("client_individual", "client_corporate")
+    if is_client:
+        if invoice.user_id != user.id:
+            cp = await db.execute(select(CaseParty).where(CaseParty.case_id == invoice.case_id, CaseParty.user_id == user.id))
+            if not invoice.case_id or not cp.scalar_one_or_none():
+                raise HTTPException(status_code=403, detail="Access denied")
     if invoice.status == "PAID":
         raise HTTPException(status_code=400, detail="Invoice already paid")
 
@@ -281,9 +290,19 @@ async def list_invoices(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
     status: str | None = None,
+    user_id: uuid.UUID | None = None,  # Admin/mediator: filter by client
 ) -> list:
-    """List invoices for tenant."""
+    """List invoices. Clients see only their own; admins/mediators see tenant invoices."""
+    is_client = user.role in ("client_individual", "client_corporate")
     q = select(Invoice).where(Invoice.tenant_id == user.tenant_id)
+    if is_client:
+        client_cases = select(CaseParty.case_id).where(CaseParty.user_id == user.id)
+        q = q.where(or_(
+            Invoice.user_id == user.id,
+            and_(Invoice.case_id.isnot(None), Invoice.case_id.in_(client_cases)),
+        ))
+    elif user_id:
+        q = q.where(Invoice.user_id == user_id)
     if status:
         q = q.where(Invoice.status == status)
     q = q.order_by(Invoice.created_at.desc()).limit(50)
@@ -300,3 +319,64 @@ async def list_invoices(
         }
         for i in invoices
     ]
+
+
+@router.get("/account-summary")
+async def get_account_summary(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Balance due, total paid, invoice counts. For clients and admins."""
+    from sqlalchemy import func
+    is_client = user.role in ("client_individual", "client_corporate")
+    base = select(Invoice).where(Invoice.tenant_id == user.tenant_id)
+    if is_client:
+        client_cases = select(CaseParty.case_id).where(CaseParty.user_id == user.id)
+        base = base.where(or_(
+            Invoice.user_id == user.id,
+            and_(Invoice.case_id.isnot(None), Invoice.case_id.in_(client_cases)),
+        ))
+    pending_q = select(func.coalesce(func.sum(Invoice.amount_minor_units), 0)).select_from(Invoice).where(
+        Invoice.tenant_id == user.tenant_id, Invoice.status == "PENDING"
+    )
+    if is_client:
+        client_cases = select(CaseParty.case_id).where(CaseParty.user_id == user.id)
+        pending_q = pending_q.where(or_(
+            Invoice.user_id == user.id,
+            and_(Invoice.case_id.isnot(None), Invoice.case_id.in_(client_cases)),
+        ))
+    pending_minor = (await db.execute(pending_q)).scalar() or 0
+    paid_q = select(func.coalesce(func.sum(Invoice.amount_minor_units), 0)).select_from(Invoice).where(
+        Invoice.tenant_id == user.tenant_id, Invoice.status == "PAID"
+    )
+    if is_client:
+        client_cases = select(CaseParty.case_id).where(CaseParty.user_id == user.id)
+        paid_q = paid_q.where(or_(
+            Invoice.user_id == user.id,
+            and_(Invoice.case_id.isnot(None), Invoice.case_id.in_(client_cases)),
+        ))
+    paid_minor = (await db.execute(paid_q)).scalar() or 0
+    count_q = select(func.count(Invoice.id)).select_from(Invoice).where(Invoice.tenant_id == user.tenant_id)
+    if is_client:
+        client_cases = select(CaseParty.case_id).where(CaseParty.user_id == user.id)
+        count_q = count_q.where(or_(
+            Invoice.user_id == user.id,
+            and_(Invoice.case_id.isnot(None), Invoice.case_id.in_(client_cases)),
+        ))
+    total_count = (await db.execute(count_q)).scalar() or 0
+    pending_count_q = select(func.count(Invoice.id)).select_from(Invoice).where(
+        Invoice.tenant_id == user.tenant_id, Invoice.status == "PENDING"
+    )
+    if is_client:
+        client_cases = select(CaseParty.case_id).where(CaseParty.user_id == user.id)
+        pending_count_q = pending_count_q.where(or_(
+            Invoice.user_id == user.id,
+            and_(Invoice.case_id.isnot(None), Invoice.case_id.in_(client_cases)),
+        ))
+    pending_count = (await db.execute(pending_count_q)).scalar() or 0
+    return {
+        "balance_due": pending_minor / 100,
+        "total_paid": paid_minor / 100,
+        "invoices_total": total_count,
+        "invoices_pending": pending_count,
+    }

@@ -1991,6 +1991,68 @@ body.lite-mode { --transition-fast: 0s; --transition-normal: 0s; }
 .modal-mpesa .mpesa-desc { margin-bottom: 0.75rem; color: var(--text-slate-600); }
 .modal-mpesa .mpesa-amount { margin-bottom: 1rem; }
 
+.client-account-page .client-account-section { max-width: 800px; }
+.account-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+.account-card {
+  padding: 1.25rem;
+  background: white;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  border-left: 4px solid var(--primary-purple);
+}
+.account-card.balance-due { border-left-color: var(--color-warning); }
+.account-card.total-paid { border-left-color: var(--color-success); }
+.account-value { display: block; font-size: 1.5rem; font-weight: 700; color: var(--text-gray-900); }
+.account-label { font-size: 0.85rem; color: var(--text-slate-600); }
+.client-invoices-section, .client-notifications-section { margin-top: 2rem; }
+.client-invoice-list, .client-notif-list { list-style: none; padding: 0; margin: 0; }
+.client-invoice-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  background: white;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+}
+.client-invoice-item .invoice-info { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.client-invoice-item .invoice-num { font-weight: 600; width: 100px; }
+.client-invoice-item .invoice-amount { font-weight: 500; }
+.client-invoice-item .invoice-date { font-size: 0.85rem; color: var(--text-slate-600); }
+.client-notif-list li {
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  background: white;
+  border-radius: var(--radius);
+  border-left: 4px solid var(--primary-purple);
+}
+.client-notif-list li.unread { border-left-color: var(--primary-teal); }
+.client-notif-list .notif-date { font-size: 0.8rem; color: var(--text-slate-600); }
+
+.client-account-alert {
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(31, 191, 184, 0.1) 100%);
+  border-radius: var(--radius);
+  border-left: 4px solid var(--primary-purple);
+}
+.client-account-alert .account-alert-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-gray-900);
+  text-decoration: none;
+}
+.client-account-alert .account-alert-link:hover { color: var(--primary-purple); }
+
 .user-table-wrapper {
   overflow-x: auto;
   background: white;

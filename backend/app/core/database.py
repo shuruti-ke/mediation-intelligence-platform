@@ -134,6 +134,18 @@ async def migrate_user_id_columns(conn):
                 logger.warning("Migration users.%s: %s", col, e)
 
 
+async def migrate_invoice_user_id(conn):
+    """Add user_id to invoices for client-scoped billing."""
+    try:
+        await conn.execute(text(
+            "ALTER TABLE invoices ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id)"
+        ))
+        logger.info("Migration: ensured column invoices.user_id")
+    except Exception as e:
+        if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+            logger.warning("Migration invoices.user_id: %s", e)
+
+
 async def migrate_settlement_agreements(conn):
     """Create settlement_agreements table for Phase 6a."""
     try:
@@ -167,6 +179,7 @@ async def init_db():
         await migrate_training_module_archived(conn)
         await migrate_academy_target_audience(conn)
         await migrate_kb_fts_index(conn)
+        await migrate_invoice_user_id(conn)
         await migrate_settlement_agreements(conn)
         await migrate_kb_chunk_embedding(conn)
         await migrate_session_transcripts(conn)

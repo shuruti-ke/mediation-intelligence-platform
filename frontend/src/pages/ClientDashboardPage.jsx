@@ -1,18 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { HelpCircle, Calendar, LogOut, FileText, User, Mail } from 'lucide-react';
-import { usersApi } from '../api/client';
+import { HelpCircle, Calendar, LogOut, FileText, User, Mail, CreditCard } from 'lucide-react';
+import { usersApi, paymentsApi } from '../api/client';
 import GlobalSearch from '../components/GlobalSearch';
 
 export default function ClientDashboardPage() {
   const [dashboard, setDashboard] = useState(null);
+  const [accountSummary, setAccountSummary] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    usersApi.getMyDashboard()
-      .then(({ data }) => setDashboard(data))
-      .catch(() => setDashboard(null))
-      .finally(() => setLoading(false));
+    setLoading(true);
+    Promise.allSettled([
+      usersApi.getMyDashboard().then(({ data }) => data).catch(() => null),
+      paymentsApi.getAccountSummary().then(({ data }) => data).catch(() => null),
+    ]).then(([d, a]) => {
+      setDashboard(d.status === 'fulfilled' ? d.value : null);
+      setAccountSummary(a.status === 'fulfilled' ? a.value : null);
+    }).finally(() => setLoading(false));
   }, []);
 
   return (
@@ -25,6 +30,7 @@ export default function ClientDashboardPage() {
         <GlobalSearch className="client-header-search" />
         <nav>
           <Link to="/client">My Dashboard</Link>
+          <Link to="/client/account"><CreditCard size={16} /> Account & Billing</Link>
           <Link to="/should-i-mediate">Should I Mediate?</Link>
           <Link to="/calendar"><Calendar size={16} /> Calendar</Link>
           <Link to="/free-tier">Book a Session</Link>
@@ -45,6 +51,15 @@ export default function ClientDashboardPage() {
                 <h3><User size={18} /> Your Mediator</h3>
                 <p className="mediator-name">{dashboard.mediator.display_name}</p>
                 <a href={`mailto:${dashboard.mediator.email}`} className="mediator-email"><Mail size={14} /> {dashboard.mediator.email}</a>
+              </div>
+            )}
+
+            {accountSummary && (accountSummary.balance_due > 0 || accountSummary.invoices_pending > 0) && (
+              <div className="client-account-alert">
+                <Link to="/client/account" className="account-alert-link">
+                  <CreditCard size={18} />
+                  <span>You have {accountSummary.invoices_pending} pending invoice(s) – {accountSummary.balance_due} KES due. <strong>View & pay</strong></span>
+                </Link>
               </div>
             )}
 

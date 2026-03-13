@@ -158,6 +158,7 @@ export const paymentsApi = {
   createInvoice: (data) => api.post('/payments/invoices', data),
   initPayment: (data) => api.post('/payments/init', data),
   listInvoices: (params) => api.get('/payments/invoices', { params }),
+  getAccountSummary: () => api.get('/payments/account-summary'),
 };
 
 export const settlementsApi = {
