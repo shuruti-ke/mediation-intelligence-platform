@@ -309,3 +309,76 @@
   margin-bottom: 1rem;
   font-size: 1rem;
 }
+
+.accounts-row-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-receipt {
+  background: #6366f1 !important;
+  color: white !important;
+  border-color: #6366f1 !important;
+}
+
+.modal-wide {
+  max-width: 560px;
+}
+
+.modal-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.modal-header-row h3 {
+  margin: 0;
+}
+
+.modal-detail-body p {
+  margin: 0.5rem 0;
+}
+
+.modal-payments-section {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.modal-payments-section h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1rem;
+}
+
+.accounts-payments-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.accounts-payments-table th,
+.accounts-payments-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.accounts-payments-table th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.receipt-hint {
+  color: #64748b;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.file-name {
+  display: block;
+  font-size: 0.85rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+}

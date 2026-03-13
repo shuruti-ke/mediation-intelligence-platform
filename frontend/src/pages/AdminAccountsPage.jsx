@@ -1,10 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CreditCard, DollarSign, Package, Plus, ArrowLeft, Smartphone, RefreshCw } from 'lucide-react';
+import { CreditCard, DollarSign, Package, Plus, ArrowLeft, Smartphone, RefreshCw, Receipt, FileText } from 'lucide-react';
 import GlobalSearch from '../components/GlobalSearch';
 import LanguageSelector from '../components/LanguageSelector';
 import { paymentsApi } from '../api/client';
 import './AdminAccountsPage.css';
+
+const PAYMENT_METHODS = [
+  { value: 'MPESA', label: 'M-Pesa (Paybill)', refPlaceholder: 'Transaction code (e.g. ABC123XY)' },
+  { value: 'CASH', label: 'Cash', refPlaceholder: 'Optional reference' },
+  { value: 'CHEQUE', label: 'Bankers Cheque', refPlaceholder: 'Cheque number' },
+  { value: 'EFT_RTGS', label: 'EFT / RTGS Bank Transfer', refPlaceholder: 'Bank reference' },
+];
 
 export default function AdminAccountsPage() {
   const navigate = useNavigate();
@@ -14,6 +21,11 @@ export default function AdminAccountsPage() {
   const [loading, setLoading] = useState(true);
   const [payModal, setPayModal] = useState(null);
   const [payForm, setPayForm] = useState({ provider: 'mpesa', phone: '' });
+  const [detailInv, setDetailInv] = useState(null);
+  const [detailPayments, setDetailPayments] = useState([]);
+  const [recordPaymentInv, setRecordPaymentInv] = useState(null);
+  const [paymentForm, setPaymentForm] = useState({ method: 'MPESA', amount: '', reference: '', attachment: null });
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -34,6 +46,67 @@ export default function AdminAccountsPage() {
   const statusBadge = (s) => {
     const c = { PENDING: 'pending', PAID: 'paid', CANCELLED: 'cancelled', DRAFT: 'draft' }[s] || 'pending';
     return <span className={`accounts-badge accounts-badge-${c}`}>{s}</span>;
+  };
+
+  const openDetail = (inv) => {
+    setDetailInv(inv);
+    paymentsApi.listInvoicePayments(inv.id)
+      .then((r) => r.data || [])
+      .then((d) => setDetailPayments(Array.isArray(d) ? d : []))
+      .catch(() => setDetailPayments([]));
+  };
+
+  const openRecordPayment = (inv) => {
+    setRecordPaymentInv(inv);
+    const balance = (inv.amount ?? 0) - (inv.total_paid ?? 0);
+    setPaymentForm({
+      method: 'MPESA',
+      amount: balance > 0 ? String(balance.toFixed(2)) : '',
+      reference: '',
+      attachment: null,
+    });
+  };
+
+  const handleRecordPayment = async (e) => {
+    e.preventDefault();
+    if (!recordPaymentInv) return;
+    const amt = parseFloat(paymentForm.amount);
+    if (!amt || amt <= 0) {
+      alert('Enter a valid amount');
+      return;
+    }
+    setPaymentSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append('method', paymentForm.method);
+      fd.append('amount_minor_units', Math.round(amt * 100));
+      fd.append('currency', recordPaymentInv.currency || 'KES');
+      if (paymentForm.reference?.trim()) fd.append('reference', paymentForm.reference.trim());
+      if (paymentForm.attachment) fd.append('attachment', paymentForm.attachment);
+
+      const { data } = await paymentsApi.recordPayment(recordPaymentInv.id, fd);
+      setRecordPaymentInv(null);
+      setPaymentForm({ method: 'MPESA', amount: '', reference: '', attachment: null });
+      load();
+      if (detailInv?.id === recordPaymentInv.id) {
+        setDetailInv((prev) => ({ ...prev, status: data.invoice_status, total_paid: (prev?.total_paid ?? 0) + amt }));
+        setDetailPayments((prev) => [{ ...data, amount: amt }, ...prev]);
+      }
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Failed to record payment');
+    } finally {
+      setPaymentSubmitting(false);
+    }
+  };
+
+  const downloadAttachment = async (receiptId) => {
+    try {
+      const { data } = await paymentsApi.getPaymentAttachment(receiptId);
+      const url = URL.createObjectURL(data);
+      window.open(url, '_blank');
+    } catch {
+      alert('Could not open attachment');
+    }
   };
 
   return (
@@ -101,15 +174,27 @@ export default function AdminAccountsPage() {
                       <td>{inv.due_date ? new Date(inv.due_date).toLocaleDateString() : '—'}</td>
                       <td>{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : '—'}</td>
                       <td>
-                        {inv.status === 'PENDING' && (
-                          <button
-                            className="btn-sm btn-mpesa"
-                            onClick={() => { setPayModal(inv); setPayForm({ provider: 'mpesa', phone: '' }); }}
-                            title="Pay with M-Pesa"
-                          >
-                            <Smartphone size={14} /> M-Pesa
-                          </button>
-                        )}
+                        <div className="accounts-row-actions">
+                          <button className="btn-sm" onClick={() => openDetail(inv)}>View</button>
+                          {inv.status === 'PENDING' && (
+                            <>
+                              <button
+                                className="btn-sm btn-mpesa"
+                                onClick={() => { setPayModal(inv); setPayForm({ provider: 'mpesa', phone: '' }); }}
+                                title="Pay with M-Pesa (STK Push)"
+                              >
+                                <Smartphone size={14} /> M-Pesa
+                              </button>
+                              <button
+                                className="btn-sm btn-receipt"
+                                onClick={() => openRecordPayment(inv)}
+                                title="Record payment received (paybill, cheque, cash, EFT)"
+                              >
+                                <Receipt size={14} /> Record Payment
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -152,6 +237,87 @@ export default function AdminAccountsPage() {
               <div className="modal-actions">
                 <button type="button" onClick={() => setPayModal(null)}>Cancel</button>
                 <button type="submit" className="primary">Send M-Pesa Prompt</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {detailInv && (
+        <div className="modal-overlay" onClick={() => setDetailInv(null)}>
+          <div className="modal-card modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3>Invoice {detailInv.invoice_number}</h3>
+              <button type="button" className="btn-ghost" onClick={() => setDetailInv(null)}>× Close</button>
+            </div>
+            <div className="modal-detail-body">
+              <p><strong>Bill to:</strong> {detailInv.user_name || detailInv.user_email || '—'}</p>
+              <p><strong>Amount:</strong> {detailInv.currency} {(detailInv.amount ?? 0).toFixed(2)}</p>
+              <p><strong>Status:</strong> {statusBadge(detailInv.status)}</p>
+              {detailInv.total_paid != null && detailInv.total_paid > 0 && (
+                <p><strong>Paid:</strong> {detailInv.currency} {detailInv.total_paid.toFixed(2)}</p>
+              )}
+              {detailInv.status === 'PENDING' && (
+                <button type="button" className="btn-primary" style={{ marginTop: '0.5rem' }} onClick={() => { setDetailInv(null); openRecordPayment(detailInv); }}>
+                  <Receipt size={16} /> Record Payment
+                </button>
+              )}
+            </div>
+            {detailPayments.length > 0 && (
+              <div className="modal-payments-section">
+                <h4>Payments Received</h4>
+                <table className="accounts-payments-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Method</th>
+                      <th>Amount</th>
+                      <th>Reference</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detailPayments.map((p) => (
+                      <tr key={p.id}>
+                        <td>{p.received_at ? new Date(p.received_at).toLocaleString() : '—'}</td>
+                        <td>{p.method}</td>
+                        <td>{p.currency} {(p.amount ?? p.amount_minor_units / 100).toFixed(2)}</td>
+                        <td>{p.reference || '—'}</td>
+                        <td>
+                          {p.has_attachment && (
+                            <button type="button" className="btn-sm" onClick={() => downloadAttachment(p.id)}><FileText size={12} /> View</button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {recordPaymentInv && (
+        <div className="modal-overlay" onClick={() => setRecordPaymentInv(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3><Receipt size={20} /> Record Payment — {recordPaymentInv.invoice_number}</h3>
+            <p className="receipt-hint">Customer pays via paybill (provide M-Pesa code), cheque, cash, or bank transfer. Enter amount and reference. Optionally attach proof (cheque image or transaction screenshot).</p>
+            <form onSubmit={handleRecordPayment}>
+              <label>Payment method *</label>
+              <select value={paymentForm.method} onChange={(e) => setPaymentForm((f) => ({ ...f, method: e.target.value }))}>
+                {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+              </select>
+              <label>Amount received ({recordPaymentInv.currency}) *</label>
+              <input type="number" step="0.01" min="0" placeholder="0.00" value={paymentForm.amount} onChange={(e) => setPaymentForm((f) => ({ ...f, amount: e.target.value }))} />
+              <label>{paymentForm.method === 'MPESA' ? 'M-Pesa transaction code' : paymentForm.method === 'CHEQUE' ? 'Cheque number' : 'Reference'}</label>
+              <input type="text" placeholder={PAYMENT_METHODS.find((m) => m.value === paymentForm.method)?.refPlaceholder} value={paymentForm.reference} onChange={(e) => setPaymentForm((f) => ({ ...f, reference: e.target.value }))} />
+              <label>Proof (optional) — cheque image or transaction screenshot</label>
+              <input type="file" accept="image/*,.pdf" onChange={(e) => setPaymentForm((f) => ({ ...f, attachment: e.target.files?.[0] || null }))} />
+              {paymentForm.attachment && <span className="file-name">{paymentForm.attachment.name}</span>}
+              <div className="modal-actions">
+                <button type="button" onClick={() => setRecordPaymentInv(null)}>Cancel</button>
+                <button type="submit" className="primary" disabled={paymentSubmitting}>{paymentSubmitting ? 'Recording…' : 'Record Payment'}</button>
               </div>
             </form>
           </div>

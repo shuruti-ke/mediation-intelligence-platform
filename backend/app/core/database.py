@@ -172,6 +172,36 @@ async def migrate_billing_services(conn):
             logger.warning("Migration billing_services: %s", e)
 
 
+async def migrate_payment_receipts(conn):
+    """Create payment_receipts table for manual receipting (M-Pesa code, cheque, cash, EFT)."""
+    try:
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS payment_receipts (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+                tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+                method VARCHAR(20) NOT NULL,
+                amount_minor_units BIGINT NOT NULL,
+                currency_code VARCHAR(3) NOT NULL DEFAULT 'KES',
+                reference VARCHAR(100),
+                attachment_path VARCHAR(500),
+                attachment_original_name VARCHAR(255),
+                received_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                received_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_payment_receipts_invoice_id ON payment_receipts (invoice_id)"
+        ))
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_payment_receipts_tenant_id ON payment_receipts (tenant_id)"
+        ))
+        logger.info("Migration: ensured payment_receipts table")
+    except Exception as e:
+        if "already exists" not in str(e).lower() and "duplicate" not in str(e).lower():
+            logger.warning("Migration payment_receipts: %s", e)
+
+
 async def migrate_settlement_agreements(conn):
     """Create settlement_agreements table for Phase 6a."""
     try:
@@ -207,6 +237,7 @@ async def init_db():
         await migrate_kb_fts_index(conn)
         await migrate_invoice_user_id(conn)
         await migrate_billing_services(conn)
+        await migrate_payment_receipts(conn)
         await migrate_settlement_agreements(conn)
         await migrate_kb_chunk_embedding(conn)
         await migrate_session_transcripts(conn)

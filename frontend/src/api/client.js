@@ -164,6 +164,9 @@ export const paymentsApi = {
   updateService: (id, data) => api.put(`/payments/services/${id}`, data),
   deleteService: (id) => api.delete(`/payments/services/${id}`),
   searchBillableUsers: (params) => api.get('/payments/billable-users', { params }),
+  listInvoicePayments: (invoiceId) => api.get(`/payments/invoices/${invoiceId}/payments`),
+  recordPayment: (invoiceId, formData) => api.post(`/payments/invoices/${invoiceId}/payments`, formData),
+  getPaymentAttachment: (receiptId) => api.get(`/payments/receipts/${receiptId}/attachment`, { responseType: 'blob' }),
 };
 
 export const settlementsApi = {

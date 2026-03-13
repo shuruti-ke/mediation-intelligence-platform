@@ -44,7 +44,7 @@ class Invoice(Base):
 
 
 class PaymentTransaction(Base):
-    """Payment transaction - actual movement of money."""
+    """Payment transaction - actual movement of money (API-initiated: M-Pesa STK, Stripe)."""
 
     __tablename__ = "payment_transactions"
 
@@ -59,3 +59,24 @@ class PaymentTransaction(Base):
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     initiated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PaymentReceipt(Base):
+    """Manual payment receipt - customer pays via paybill/cheque/cash/EFT and provides reference."""
+
+    __tablename__ = "payment_receipts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("invoices.id"), nullable=False)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+
+    method: Mapped[str] = mapped_column(String(20), nullable=False)  # MPESA, CASH, CHEQUE, EFT_RTGS
+    amount_minor_units: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    currency_code: Mapped[str] = mapped_column(String(3), nullable=False, default="KES")
+
+    reference: Mapped[str | None] = mapped_column(String(100), nullable=True)  # M-Pesa code, cheque number, bank ref
+    attachment_path: Mapped[str | None] = mapped_column(String(500), nullable=True)  # cheque image or transaction proof
+    attachment_original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    received_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)

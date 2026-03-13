@@ -1,26 +1,28 @@
-"""Payment orchestrator - Phase 4. Stripe, M-Pesa Daraja."""
+"""Payment orchestrator - Phase 4. Stripe, M-Pesa Daraja, manual receipting."""
 import asyncio
 import base64
 import re
 import uuid
+from pathlib import Path
 from datetime import datetime
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, and_
-
-from fastapi import Query
+from sqlalchemy import select, or_, and_, func
 
 from app.api.deps import get_current_user, require_role
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.tenant import User
-from app.models.payment import Service, Invoice, PaymentTransaction
+from app.models.payment import Service, Invoice, PaymentTransaction, PaymentReceipt
 from app.models.case import Case, CaseParty
 
 router = APIRouter(prefix="/payments", tags=["payments"])
+
+PAYMENT_METHODS = ("MPESA", "CASH", "CHEQUE", "EFT_RTGS")
 
 MPESA_SANDBOX_AUTH = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
 MPESA_SANDBOX_STK = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
@@ -494,6 +496,149 @@ async def mpesa_webhook() -> dict:
     return {"status": "ok"}
 
 
+@router.get("/invoices/{invoice_id}/payments")
+async def list_invoice_payments(
+    invoice_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin", "mediator")),
+) -> list:
+    """List payment receipts for an invoice."""
+    if not user.tenant_id:
+        return []
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id, Invoice.tenant_id == user.tenant_id))
+    inv = result.scalar_one_or_none()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    result = await db.execute(
+        select(PaymentReceipt).where(PaymentReceipt.invoice_id == invoice_id).order_by(PaymentReceipt.received_at.desc())
+    )
+    receipts = result.scalars().all()
+    return [
+        {
+            "id": str(r.id),
+            "method": r.method,
+            "amount_minor_units": r.amount_minor_units,
+            "amount": r.amount_minor_units / 100,
+            "currency": r.currency_code,
+            "reference": r.reference,
+            "has_attachment": bool(r.attachment_path),
+            "received_at": r.received_at.isoformat() if r.received_at else None,
+        }
+        for r in receipts
+    ]
+
+
+@router.post("/invoices/{invoice_id}/payments")
+async def record_payment(
+    invoice_id: uuid.UUID,
+    method: str = Form(..., description="MPESA, CASH, CHEQUE, or EFT_RTGS"),
+    amount_minor_units: int = Form(..., description="Amount in minor units (cents)"),
+    currency: str = Form("KES"),
+    reference: str | None = Form(None, description="M-Pesa code, cheque number, or bank reference"),
+    attachment: UploadFile | None = File(None),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin", "mediator")),
+) -> dict:
+    """Record a payment received against an invoice. Updates invoice status to PAID when fully paid."""
+    method_upper = (method or "").strip().upper()
+    if method_upper not in PAYMENT_METHODS:
+        raise HTTPException(status_code=400, detail=f"method must be one of: {', '.join(PAYMENT_METHODS)}")
+
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id, Invoice.tenant_id == user.tenant_id))
+    inv = result.scalar_one_or_none()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    if inv.status == "CANCELLED":
+        raise HTTPException(status_code=400, detail="Cannot record payment for cancelled invoice")
+    if amount_minor_units <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be positive")
+
+    attachment_path = None
+    attachment_name = None
+    settings = get_settings()
+    upload_dir = Path(settings.storage_path) / "payment_receipts"
+    if attachment and attachment.filename:
+        ext = Path(attachment.filename).suffix.lower()
+        if ext not in {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+            raise HTTPException(status_code=400, detail="Attachment must be PDF or image")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        file_id = uuid.uuid4().hex
+        storage_path = str(upload_dir / f"{file_id}{ext}")
+        content = await attachment.read()
+        if len(content) > 10 * 1024 * 1024:  # 10MB
+            raise HTTPException(status_code=413, detail="File too large (max 10MB)")
+        with open(storage_path, "wb") as f:
+            f.write(content)
+        attachment_path = storage_path
+        attachment_name = Path(attachment.filename).name
+
+    receipt = PaymentReceipt(
+        invoice_id=invoice_id,
+        tenant_id=user.tenant_id,
+        method=method_upper,
+        amount_minor_units=amount_minor_units,
+        currency_code=currency or "KES",
+        reference=(reference or "").strip() or None,
+        attachment_path=attachment_path,
+        attachment_original_name=attachment_name,
+        received_by_user_id=user.id,
+    )
+    db.add(receipt)
+    await db.flush()
+
+    total_paid = (
+        await db.execute(
+            select(func.coalesce(func.sum(PaymentReceipt.amount_minor_units), 0)).where(
+                PaymentReceipt.invoice_id == invoice_id
+            )
+        )
+    )
+    total_paid_val = total_paid.scalar() or 0
+    if total_paid_val >= inv.amount_minor_units:
+        inv.status = "PAID"
+    await db.flush()
+
+    return {
+        "id": str(receipt.id),
+        "method": receipt.method,
+        "amount_minor_units": receipt.amount_minor_units,
+        "amount": receipt.amount_minor_units / 100,
+        "currency": receipt.currency_code,
+        "reference": receipt.reference,
+        "has_attachment": bool(receipt.attachment_path),
+        "received_at": receipt.received_at.isoformat() if receipt.received_at else None,
+        "invoice_status": inv.status,
+    }
+
+
+@router.get("/receipts/{receipt_id}/attachment")
+async def get_payment_attachment(
+    receipt_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_role("super_admin", "mediator")),
+):
+    """Download payment attachment (cheque image or transaction proof)."""
+    if not user.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    result = await db.execute(
+        select(PaymentReceipt).where(PaymentReceipt.id == receipt_id, PaymentReceipt.tenant_id == user.tenant_id)
+    )
+    receipt = result.scalar_one_or_none()
+    if not receipt:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    if not receipt.attachment_path:
+        raise HTTPException(status_code=404, detail="No attachment for this payment")
+    path = Path(receipt.attachment_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Attachment file not found")
+    return FileResponse(
+        path,
+        filename=receipt.attachment_original_name or "attachment",
+        media_type="application/octet-stream",
+    )
+
+
 @router.get("/invoices")
 async def list_invoices(
     db: AsyncSession = Depends(get_db),
@@ -523,9 +668,20 @@ async def list_invoices(
         u_result = await db.execute(select(User).where(User.id.in_(user_ids)))
         for u in u_result.scalars().all():
             users_map[u.id] = u
+    # Sum payments per invoice
+    invoice_ids = [i.id for i in invoices]
+    paid_q = (
+        select(PaymentReceipt.invoice_id, func.sum(PaymentReceipt.amount_minor_units).label("total"))
+        .where(PaymentReceipt.invoice_id.in_(invoice_ids))
+        .group_by(PaymentReceipt.invoice_id)
+    )
+    paid_result = await db.execute(paid_q)
+    paid_map = {row.invoice_id: (row.total or 0) / 100 for row in paid_result.all()}
+
     out = []
     for i in invoices:
         u = users_map.get(i.user_id) if i.user_id else None
+        total_paid = paid_map.get(i.id, 0)
         out.append({
             "id": str(i.id),
             "invoice_number": i.invoice_number,
@@ -535,6 +691,7 @@ async def list_invoices(
             "amount": i.amount_minor_units / 100,
             "currency": i.currency_code,
             "status": i.status,
+            "total_paid": total_paid,
             "due_date": i.due_date.isoformat() if i.due_date else None,
             "created_at": i.created_at.isoformat(),
         })
